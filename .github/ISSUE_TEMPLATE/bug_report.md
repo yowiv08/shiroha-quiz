@@ -24,7 +24,8 @@ assignees: ""
 
 - 系统：
 - 浏览器 / Android 版本：
-- 项目版本：
+- 项目版本（当前最新 v0.2.0-alpha）：
+- 使用平台：Web / Android WebView 壳
 
 ## 补充信息
 
