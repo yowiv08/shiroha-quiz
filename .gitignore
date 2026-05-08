@@ -24,6 +24,9 @@ apps/android/build/
 _compare_original_zip/
 _head_app.js
 *_before_*.js
+.gradle-home/
+apps/web/app.js.bak_v23
+apps/web/shiroha_quiz_v23_data_tools_patch/
 
 # Local archives and release packages
 releases/

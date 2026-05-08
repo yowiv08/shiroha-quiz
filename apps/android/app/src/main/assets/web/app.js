@@ -5,7 +5,7 @@ const state=loadState();
 let importCache=[];let importWarnings=[];let importReport='';let importDiagnostics=null;let importPreviewFilter='priority';let importSelected=new Set();let practice={items:[],idx:0,answered:0,correct:0,wrong:0,start:0};let exam={items:[],answers:{},start:0,timer:null,deadline:0,submitted:false};
 const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s)];
 init();
-function init(){upgradeState();ensureDefaultBank();bindNav();bindEvents();renderBankSelect();renderAll();setupEnhancedDataToolsV23();}
+function init(){upgradeState();ensureDefaultBank();bindNav();bindEvents();renderBankSelect();renderAll();}
 function defaultBank(){const qb=window.questionBank||{meta:{title:'空题库'},questions:[]};return {id:'default-c1',name:qb.meta?.title||'默认题库',createdAt:now(),questions:(qb.questions||[]).map(normalizeQuestion)}}
 function ensureDefaultBank(){if(!state.banks.length) state.banks.push(defaultBank()); if(!state.activeBankId) state.activeBankId=state.banks[0]?.id;}
 function loadState(){try{return JSON.parse(localStorage.getItem(KEY))||{banks:[],activeBankId:'',wrongBook:{},records:[],settings:{}}}catch(e){return{banks:[],activeBankId:'',wrongBook:{},records:[],settings:{}}}}
@@ -57,7 +57,7 @@ function setImportBankNameFromFile(fileName){
 }
 
 function saveSilent(){localStorage.setItem(KEY,JSON.stringify(state))}
-function renderAll(){renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderRecords();renderBankInputs();if(typeof renderExportBankSelectorV23==='function')renderExportBankSelectorV23();}
+function renderAll(){renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderRecords();renderBankInputs();}
 function renderStats(){const b=activeBank();$('#stat-total').textContent=b.questions.length;$('#stat-wrong').textContent=(state.wrongBook[b.id]||[]).length;$('#stat-records').textContent=state.records.length;}
 function renderBankSelect(){const sel=$('#active-bank-select');const old=state.activeBankId;sel.innerHTML=state.banks.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}（${b.questions.length}题）</option>`).join('');sel.value=old||state.activeBankId;}
 function renderMergeSelect(){const sel=$('#merge-bank-select');if(!sel)return;const current=state.activeBankId;sel.innerHTML=state.banks.filter(b=>b.id!==current).map(b=>`<option value="${esc(b.id)}">${esc(b.name)}（${b.questions.length}题）</option>`).join('')||'<option value="">暂无可合并题库</option>'}
@@ -2552,179 +2552,5 @@ function fmt(s){return new Date(s).toLocaleString('zh-CN',{hour12:false})}
 function exportCurrentBank(){const text=JSON.stringify(activeBank(),null,2);$('#export-output').value=text;download(activeBank().name+'.json',text)}
 function exportAll(){const text=JSON.stringify(state,null,2);$('#export-output').value=text;download('shiroha_quiz_all_data.json',text)}
 function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-
-
-/* SHIROHA_V23_DATA_TOOLS_PATCH_START
-   v23: 批量选择导出题库 + 导入配置/备份 JSON
-*/
-let exportBankSelectedV23=new Set();
-function setupEnhancedDataToolsV23(){
-  if($('#data-tools-v23')){renderExportBankSelectorV23();return}
-  const out=$('#export-output');
-  const exportAllBtn=$('#export-all-btn');
-  const host=(out&&out.parentElement)||(exportAllBtn&&exportAllBtn.parentElement);
-  if(!host)return;
-  injectDataToolsStyleV23();
-  const panel=document.createElement('div');
-  panel.id='data-tools-v23';
-  panel.className='data-tools-v23';
-  panel.innerHTML=`
-    <h2>备份、恢复与批量导出</h2>
-    <p class="muted">这里用于导出 Shiroha Quiz 结构化数据。普通题库文本仍走“导入题库”；从本软件导出的 JSON 备份请走“导入配置/备份 JSON”。</p>
-    <div class="data-tools-grid-v23">
-      <section class="data-tool-card-v23">
-        <h3>批量选择导出题库</h3>
-        <div class="actions wrap-v23">
-          <label class="check-line-v23"><input type="checkbox" id="export-bank-all-v23"> 全选</label>
-          <button class="ghost" id="export-bank-invert-v23" type="button">反选</button>
-          <button class="ghost" id="export-bank-current-v23" type="button">仅选当前题库</button>
-        </div>
-        <div id="export-bank-list-v23" class="bank-check-list-v23"></div>
-        <div id="export-bank-summary-v23" class="notice warn">请选择需要导出的题库。</div>
-        <div class="actions wrap-v23">
-          <button class="primary" id="export-selected-banks-v23" type="button">导出选中题库</button>
-          <button class="ghost" id="copy-selected-banks-v23" type="button">复制选中题库备份文本</button>
-        </div>
-      </section>
-      <section class="data-tool-card-v23">
-        <h3>导入配置 / 备份 JSON</h3>
-        <p class="muted">用于恢复“导出全部数据 JSON”或“导出选中题库”生成的 JSON；不会走普通题库识别解析。</p>
-        <label>导入方式
-          <select id="backup-import-mode-v23">
-            <option value="merge">合并导入：保留当前数据，新增备份中的题库</option>
-            <option value="overwrite">覆盖恢复：清空当前数据并使用备份恢复</option>
-          </select>
-        </label>
-        <div class="actions wrap-v23">
-          <input type="file" id="backup-json-file-v23" accept=".json,application/json" hidden>
-          <button class="primary" id="import-backup-json-v23" type="button">导入配置/备份 JSON</button>
-          <button class="ghost" id="export-all-backup-v23" type="button">导出全部数据备份</button>
-        </div>
-        <p class="muted">提示：覆盖恢复会替换本机 localStorage 数据；合并导入遇到同名题库会自动追加“_导入”。</p>
-      </section>
-    </div>
-    <label class="backup-preview-label-v23">备份文本预览 / 手机端下载失败兜底
-      <textarea id="backup-json-preview-v23" rows="8" readonly placeholder="导出或复制时会在这里显示 JSON 备份文本。"></textarea>
-    </label>
-  `;
-  if(out)host.insertBefore(panel,out);else host.appendChild(panel);
-  $('#export-bank-all-v23').onchange=e=>{if(e.target.checked)exportBankSelectedV23=new Set(state.banks.map(b=>b.id));else exportBankSelectedV23.clear();renderExportBankSelectorV23()};
-  $('#export-bank-invert-v23').onclick=()=>{const next=new Set();state.banks.forEach(b=>{if(!exportBankSelectedV23.has(b.id))next.add(b.id)});exportBankSelectedV23=next;renderExportBankSelectorV23()};
-  $('#export-bank-current-v23').onclick=()=>{exportBankSelectedV23=new Set([activeBank().id]);renderExportBankSelectorV23()};
-  $('#export-selected-banks-v23').onclick=exportSelectedBanksV23;
-  $('#copy-selected-banks-v23').onclick=copySelectedBanksJsonV23;
-  $('#import-backup-json-v23').onclick=()=>$('#backup-json-file-v23').click();
-  $('#backup-json-file-v23').onchange=importBackupJsonFileV23;
-  $('#export-all-backup-v23').onclick=exportAllBackupV23;
-  const oldAll=$('#export-all-btn');if(oldAll)oldAll.onclick=exportAllBackupV23;
-  if(!exportBankSelectedV23.size)exportBankSelectedV23=new Set(state.banks.map(b=>b.id));
-  renderExportBankSelectorV23();
-}
-function injectDataToolsStyleV23(){
-  if($('#data-tools-style-v23'))return;
-  const style=document.createElement('style');
-  style.id='data-tools-style-v23';
-  style.textContent=`
-    .data-tools-v23{margin:16px 0;padding:16px;border:1px solid rgba(120,144,180,.28);border-radius:16px;background:rgba(248,251,255,.72)}
-    .data-tools-v23 h2{margin:0 0 8px}.data-tools-v23 h3{margin:0 0 10px}
-    .data-tools-grid-v23{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:12px}
-    .data-tool-card-v23{padding:14px;border:1px solid rgba(120,144,180,.22);border-radius:14px;background:rgba(255,255,255,.82)}
-    .wrap-v23{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.check-line-v23{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-    .bank-check-list-v23{display:grid;gap:8px;max-height:260px;overflow:auto;margin:10px 0;padding-right:4px}
-    .bank-check-item-v23{display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid rgba(120,144,180,.22);border-radius:12px;background:rgba(255,255,255,.88)}
-    .bank-check-item-v23 b{display:block}.bank-check-item-v23 small{display:block;opacity:.72;line-height:1.5}
-    .backup-preview-label-v23{display:block;margin-top:12px}.backup-preview-label-v23 textarea{width:100%;box-sizing:border-box;margin-top:6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
-  `;
-  document.head.appendChild(style);
-}
-function renderExportBankSelectorV23(){
-  const list=$('#export-bank-list-v23');if(!list)return;
-  const ids=new Set(state.banks.map(b=>b.id));exportBankSelectedV23=new Set([...exportBankSelectedV23].filter(id=>ids.has(id)));
-  list.innerHTML=state.banks.map(b=>{const stats=countTypes(b.questions||[]);return `<label class="bank-check-item-v23"><input type="checkbox" data-export-bank-v23="${esc(b.id)}" ${exportBankSelectedV23.has(b.id)?'checked':''}><span><b>${esc(b.name)}${b.id===state.activeBankId?'（当前）':''}</b><small>${(b.questions||[]).length} 题｜单选${stats.single||0}｜多选${(stats.multiple||0)+(stats.multi||0)}｜判断${stats.judge||0}｜填空${stats.blank||0}｜简答${stats.short||0}</small></span></label>`}).join('')||'<div class="empty">暂无题库可导出。</div>';
-  $$('[data-export-bank-v23]').forEach(cb=>cb.onchange=()=>{if(cb.checked)exportBankSelectedV23.add(cb.dataset.exportBankV23);else exportBankSelectedV23.delete(cb.dataset.exportBankV23);renderExportBankSummaryV23()});
-  renderExportBankSummaryV23();
-}
-function renderExportBankSummaryV23(){
-  const summary=$('#export-bank-summary-v23');if(!summary)return;
-  const selected=selectedBanksV23();const qCount=selected.reduce((n,b)=>n+(b.questions||[]).length,0);
-  const all=$('#export-bank-all-v23');if(all){all.checked=state.banks.length>0&&selected.length===state.banks.length;all.indeterminate=selected.length>0&&selected.length<state.banks.length}
-  summary.textContent=selected.length?`已选择 ${selected.length} 个题库，共 ${qCount} 道题。`:'请至少选择一个题库。';
-  summary.className='notice '+(selected.length?'ok':'warn');
-  const btn=$('#export-selected-banks-v23');if(btn)btn.disabled=!selected.length;
-  const copy=$('#copy-selected-banks-v23');if(copy)copy.disabled=!selected.length;
-}
-function selectedBanksV23(){return state.banks.filter(b=>exportBankSelectedV23.has(b.id))}
-function cleanFileNameV23(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,80)||'bank'}
-function todayV23(){return new Date().toISOString().slice(0,10)}
-function buildBackupPayloadV23(banks,exportType='selected_banks',includeAll=false){
-  const bankIds=new Set((banks||[]).map(b=>b.id));
-  const wrongBook={};Object.keys(state.wrongBook||{}).forEach(id=>{if(bankIds.has(id))wrongBook[id]=state.wrongBook[id]});
-  return {app:'Shiroha Quiz',schemaVersion:1,exportType,exportedAt:now(),banks:banks||[],wrongBook,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
-}
-function exportSelectedBanksV23(){
-  const banks=selectedBanksV23();if(!banks.length){toast('请至少选择一个题库。','warn');return}
-  const payload=buildBackupPayloadV23(banks,banks.length===1?'single_bank':'selected_banks',false);
-  const text=JSON.stringify(payload,null,2);setBackupPreviewV23(text);
-  const name=banks.length===1?`shiroha-quiz-bank-${cleanFileNameV23(banks[0].name)}-${todayV23()}.json`:`shiroha-quiz-selected-banks-${todayV23()}.json`;
-  download(name,text);toast(`已导出 ${banks.length} 个题库。手机端若未弹出下载，可复制下方备份文本。`,'ok');
-}
-function exportAllBackupV23(){
-  const payload=buildBackupPayloadV23(state.banks||[],'all_data',true);
-  const text=JSON.stringify(payload,null,2);setBackupPreviewV23(text);if($('#export-output'))$('#export-output').value=text;
-  download(`shiroha-quiz-all-data-${todayV23()}.json`,text);toast('已生成全部数据备份。手机端若未弹出下载，可复制下方备份文本。','ok');
-}
-async function copySelectedBanksJsonV23(){
-  const banks=selectedBanksV23();if(!banks.length){toast('请至少选择一个题库。','warn');return}
-  const text=JSON.stringify(buildBackupPayloadV23(banks,banks.length===1?'single_bank':'selected_banks',false),null,2);setBackupPreviewV23(text);
-  try{await navigator.clipboard.writeText(text);toast('已复制选中题库备份文本。','ok')}catch(e){toast('浏览器不允许自动复制，请手动复制下方文本。','warn')}
-}
-function setBackupPreviewV23(text){const p=$('#backup-json-preview-v23');if(p)p.value=text;if($('#export-output'))$('#export-output').value=text}
-async function importBackupJsonFileV23(e){
-  const file=e.target.files&&e.target.files[0];if(!file)return;
-  try{
-    const text=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('文件读取失败'));r.readAsText(file,'UTF-8')});
-    setBackupPreviewV23(text);
-    const data=JSON.parse(text);const normalized=normalizeBackupPayloadV23(data,file.name);
-    if(!normalized.banks.length){toast('没有在 JSON 中找到可导入的题库。','warn');return}
-    const mode=$('#backup-import-mode-v23')?.value||'merge';
-    if(mode==='overwrite'){
-      if(!confirm(`覆盖恢复会清空当前本地数据，并导入 ${normalized.banks.length} 个题库。确定继续？`))return;
-      state.banks=normalized.banks;state.activeBankId=normalized.activeBankId||state.banks[0]?.id||'';state.wrongBook=normalized.wrongBook||{};state.records=Array.isArray(normalized.records)?normalized.records:[];state.settings=normalized.settings&&typeof normalized.settings==='object'?normalized.settings:{};
-    }else{
-      mergeBackupBanksV23(normalized);
-    }
-    upgradeState();ensureDefaultBank();saveSilent();renderAll();setupEnhancedDataToolsV23();
-    const total=normalized.banks.reduce((n,b)=>n+(b.questions||[]).length,0);
-    toast(`导入完成：${normalized.banks.length} 个题库，${total} 道题。`,'ok');
-  }catch(err){toast('导入备份 JSON 失败：'+err.message,'danger')}
-  finally{e.target.value=''}
-}
-function normalizeBackupPayloadV23(data,fileName){
-  if(!data||typeof data!=='object')throw new Error('JSON 根节点不是对象');
-  let banks=[];let wrongBook={};let records=[];let settings={};let activeBankId='';
-  if(Array.isArray(data.banks)){banks=data.banks;wrongBook=data.wrongBook||{};records=Array.isArray(data.records)?data.records:[];settings=data.settings||{};activeBankId=data.activeBankId||''}
-  else if(Array.isArray(data.questions)){banks=[{id:data.id||('bank_'+Date.now()),name:data.name||cleanFileNameV23(fileName).replace(/\.json$/i,'')||'导入题库',createdAt:data.createdAt||now(),updatedAt:now(),questions:data.questions}]}
-  else if(Array.isArray(data)){banks=[{id:'bank_'+Date.now(),name:cleanFileNameV23(fileName).replace(/\.json$/i,'')||'导入题库',createdAt:now(),updatedAt:now(),questions:data}]}
-  else throw new Error('不是 Shiroha Quiz 备份，也不是单题库 JSON');
-  banks=banks.map((b,i)=>({id:String(b.id||('bank_import_'+Date.now()+'_'+i)),name:String(b.name||b.title||('导入题库_'+(i+1))),createdAt:b.createdAt||now(),updatedAt:now(),questions:(b.questions||[]).map((q,j)=>normalizeQuestion(q,j)).filter(q=>q.question)})).filter(b=>b.questions.length||b.name);
-  return {banks,wrongBook,records,settings,activeBankId};
-}
-function mergeBackupBanksV23(normalized){
-  const existingNames=new Set(state.banks.map(b=>b.name));
-  const existingIds=new Set(state.banks.map(b=>b.id));
-  normalized.banks.forEach((bank,idx)=>{
-    const oldId=bank.id;
-    let name=bank.name||('导入题库_'+(idx+1));
-    if(existingNames.has(name)){let n=1;const base=name+'_导入';while(existingNames.has(base+n))n++;name=base+n}
-    let id=bank.id;if(existingIds.has(id))id='bank_import_'+Date.now()+'_'+idx;
-    existingIds.add(id);existingNames.add(name);
-    const next={...bank,id,name,createdAt:bank.createdAt||now(),updatedAt:now(),questions:(bank.questions||[]).map((q,i)=>({...normalizeQuestion(q,i),id:q.id||('q_'+Date.now()+'_'+idx+'_'+i),number:q.number||i+1}))};
-    state.banks.push(next);
-    if(normalized.wrongBook&&normalized.wrongBook[oldId])state.wrongBook[id]=normalized.wrongBook[oldId];
-  });
-  state.activeBankId=state.banks[state.banks.length-normalized.banks.length]?.id||state.activeBankId;
-}
-/* SHIROHA_V23_DATA_TOOLS_PATCH_END */
-
 function resetData(){if(confirm('确定清除全部本地数据？默认题库也会重新初始化。')){localStorage.removeItem(KEY);location.reload()}}
 })();
