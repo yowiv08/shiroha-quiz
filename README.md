@@ -96,6 +96,26 @@ shiroha-quiz/
 └─ README.md
 ```
 
+## Web 端运行方式
+
+安装依赖：
+
+```bash
+pnpm install
+```
+
+启动开发环境：
+
+```bash
+pnpm dev
+```
+
+如果只运行 Web 端：
+
+```bash
+pnpm --filter web dev
+```
+
 ## Web 端说明
 
 `apps/web` 当前是通用网页版参考实现，主要承担：
