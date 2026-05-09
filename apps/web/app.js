@@ -58,6 +58,15 @@ function upgradeState(){
 function saveState(){localStorage.setItem(KEY,serializeState());toast('已保存到浏览器本地。','ok')}
 function now(){return new Date().toISOString()}
 function activeBank(){return state.banks.find(b=>b.id===state.activeBankId)||state.banks[0]||{questions:[]}}
+function updateShellLayoutByView(viewId){
+  const current=viewId||document.querySelector('.view.active')?.id||'dashboard';
+  document.body.dataset.activeView=current;
+  const topbar=$('.topbar');
+  if(topbar){
+    const hideTopbar=['wrongbook','records','settings'].includes(current);
+    topbar.classList.toggle('is-hidden-by-view',hideTopbar);
+  }
+}
 function bindNav(){ $$('.nav').forEach(btn=>btn.onclick=()=>{
   const target=btn.dataset.view;
   const view=target&&$('#'+target);
@@ -65,6 +74,7 @@ function bindNav(){ $$('.nav').forEach(btn=>btn.onclick=()=>{
   $$('.nav').forEach(b=>b.classList.toggle('active',b===btn));
   $$('.view').forEach(v=>v.classList.toggle('active',v===view));
   const title=$('#page-title');if(title)title.textContent=btn.textContent;
+  updateShellLayoutByView(target);
 });}
 function bindEvents(){
 $('#active-bank-select').onchange=e=>{state.activeBankId=e.target.value;saveSilent();renderAll()};const importNameInput=$('#import-bank-name');if(importNameInput)importNameInput.addEventListener('input',()=>{importNameInput.dataset.autoName='0'});$('#save-all-btn').onclick=saveState;
@@ -2548,7 +2558,7 @@ function startPractice(){
 }
 function startWrongPractice(){
   $$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';
-  $('#practice-source').value='wrong';$('#practice-order').value='random';$('#practice-limit').value='100';startPractice();
+  $('#practice-source').value='wrong';$('#practice-order').value='random';$('#practice-limit').value='100';updateShellLayoutByView('practice');startPractice();
 }
 function enterPracticeFocus(){document.body.classList.add('practice-focus')}
 function exitPracticeFocus(){document.body.classList.remove('practice-focus')}
@@ -2808,7 +2818,7 @@ function mergeBackupBanksV23(normalized){
    v27: 收藏题与错题本补强
    v28: App WebView 导出兜底与移动端加固
 */
-function init(){upgradeState();ensureDefaultBank();bindNav();bindEvents();bindV25ToV28Events();ensureV25ToV28Panels();renderBankSelect();renderAll();setupEnhancedDataToolsV23();}
+function init(){upgradeState();ensureDefaultBank();bindNav();bindEvents();bindV25ToV28Events();ensureV25ToV28Panels();renderBankSelect();renderAll();setupEnhancedDataToolsV23();updateShellLayoutByView();}
 function defaultBank(){
   const qb=window.questionBank||{meta:{title:'内置题库（按需加载）'},questions:[]};
   const qs=Array.isArray(qb.questions)?qb.questions:[];
@@ -2961,7 +2971,7 @@ function ensureFavoritePanelV27(){
   list.insertAdjacentHTML('afterend',`<div id="favorite-panel-v27" class="favorite-panel-v27"><div class="section-head"><div><h3>收藏题复习</h3><p class="muted">收藏题独立保存，可在刷题练习来源中选择“仅收藏题”。</p></div><button id="practice-favorite-btn-v27" class="ghost" type="button">练习收藏题</button></div><div id="favorite-list-v27"></div></div>`);
   $('#practice-favorite-btn-v27').onclick=()=>{switchPracticeSourceV27('favorite')};
 }
-function switchPracticeSourceV27(source){$$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';$('#practice-source').value=source;$('#practice-order').value='random';$('#practice-limit').value='100';startPractice();}
+function switchPracticeSourceV27(source){$$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';$('#practice-source').value=source;$('#practice-order').value='random';$('#practice-limit').value='100';updateShellLayoutByView('practice');startPractice();}
 function renderFavoritePanelV27(){
   const box=$('#favorite-list-v27');if(!box)return;const ids=new Set(getFavoriteIdsV27());const map=new Map(activeBank().questions.map(q=>[q.id,q]));const rows=[...ids].map(id=>map.get(id)).filter(Boolean);
   box.innerHTML=rows.length?rows.map(q=>`<div class="favorite-item-v27"><div class="section-head"><div><b>${label(q.type)}｜${esc(short(q.question,80))}</b><p class="muted">答案：${esc((q.answer||[]).join(''))}${q.analysis?'｜解析：'+esc(short(q.analysis,80)):''}</p></div><button class="ghost mini-btn" data-unfav-v27="${esc(q.id)}">取消收藏</button></div></div>`).join(''):'<p class="muted">当前题库暂无收藏题。</p>';
