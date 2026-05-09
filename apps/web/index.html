@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shiroha Quiz - v23 数据导入导出优化版</title>
+  <title>Shiroha Quiz - v25.1 质量修复测试版</title>
   <link rel="icon" type="image/png" href="./app-icon.png" />
   <link rel="apple-touch-icon" href="./app-icon.png" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="preload" as="image" href="./media/home_welcome_avatar.png" />
+  <link rel="preload" as="image" href="./media/import_question_bank_folder.png" />
 </head>
 <body>
   <div class="app">
@@ -41,13 +43,12 @@
         <div class="hero-card">
           <div>
             <p class="kicker">当前版本</p>
-            <h2>v24：界面与交互优化版。</h2>
-            <p>本版优化数据导入导出闭环：题库管理页支持批量选择题库并导出合成 JSON；导入题库页新增配置/备份 JSON 导入入口；设置/导出页补充全部数据备份与恢复能力。</p>
+            <h2>v25.1：质量修复测试版。</h2>
+            <p>本版不新增业务功能，重点修复版本显示一致性、本地数据 schema 迁移、导入解析错误提示、大题库练习提示和样式文件可维护性。</p>
           </div>
           <div class="hero-stats hero-stats-app">
             <div class="hero-visual-card">
-              <img class="hero-mascot hero-mascot-main" src="./media/hero-board.png" alt="Shiroha Quiz mascot" />
-              <img class="hero-mascot hero-mascot-badge" src="./media/avatar-home.png" alt="" />
+              <img class="hero-mascot hero-mascot-main" src="./media/home_welcome_avatar.png" alt="Shiroha Quiz 首页欢迎素材" />
             </div>
             <div><b id="stat-total">0</b><span>当前题库题数</span></div>
             <div><b id="stat-wrong">0</b><span>错题数</span></div>
@@ -75,8 +76,7 @@
               </div>
             </div>
             <div class="import-stage-art">
-              <img class="import-art-main" src="./media/import-guide.png" alt="导入提示" />
-              <img class="import-art-float" src="./media/thinking-guide.png" alt="" />
+              <img class="import-art-main" src="./media/import_question_bank_folder.png" alt="导入题库提示" />
             </div>
           </div>
           <div class="form-grid">
@@ -92,59 +92,56 @@
           <div class="section-head"><div><p class="kicker">Dual File Import</p><h2>双文件导入：题目文件 + 答案文件</h2></div><button id="dual-load-sample-btn" class="ghost">填入双文件示例</button></div>
           <p class="muted">适用于“一个文件只写题目，另一个文件只写答案”的试卷/答案卷。题目文件支持 .docx / .txt / .json / 文字型 .pdf；答案文件支持 .docx / .txt / 文字型 .pdf。文字型 PDF 使用本地文本提取能力，不依赖 OCR。</p>
           <div class="form-grid">
-            <label>????<input id="dual-question-file" type="file" accept=".txt,.json,.csv,.docx,.doc,.pdf" /></label>
-            <label>????<input id="dual-answer-file" type="file" accept=".txt,.csv,.docx,.doc,.pdf" /></label>
-            <label>??????<select id="dual-match-mode"><option value="auto" selected>????</option><option value="group">????? + ??????</option><option value="number">???????</option><option value="number-strict">?????????</option><option value="order">?????</option></select></label>
+            <label>题目文件<input id="dual-question-file" type="file" accept=".txt,.json,.csv,.docx,.doc,.pdf" /></label>
+            <label>答案文件<input id="dual-answer-file" type="file" accept=".txt,.csv,.docx,.doc,.pdf" /></label>
+            <label>匹配方式<select id="dual-match-mode"><option value="auto" selected>自动匹配</option><option value="group">题型分组 + 顺序匹配</option><option value="number">按题号匹配</option><option value="number-strict">严格题号匹配</option><option value="order">按顺序匹配</option></select></label>
           </div>
           <div class="split-grid">
-            <label>????<textarea id="dual-question-text" placeholder="???????????????????????"></textarea></label>
-            <label>????<textarea id="dual-answer-text" placeholder="??????????????????????????1. D&#10;2. ACD&#10;3. ?"></textarea></label>
+            <label>题目文本<textarea id="dual-question-text" placeholder="也可以直接粘贴题目文件内容。"></textarea></label>
+            <label>答案文本<textarea id="dual-answer-text" placeholder="也可以直接粘贴答案文件内容，例如：&#10;1. D&#10;2. ACD&#10;3. 正确"></textarea></label>
           </div>
-          <div class="actions"><button id="parse-dual-import-btn" class="primary">????????</button><button id="dual-confirm-import-btn" class="primary" disabled>????</button><button id="clear-dual-import-btn" class="ghost">???????</button></div>
+          <div class="actions"><button id="parse-dual-import-btn" class="primary">开始合并识别</button><button id="dual-confirm-import-btn" class="primary" disabled>确认导入</button><button id="clear-dual-import-btn" class="ghost">清空双文件</button></div>
         </div>
 
-        <details class="card import-help import-help-details"><summary>????????????</summary>
-          <h2>???????????</h2>
-          <p>?????? Word/TXT/PDF/JSON ???????? Excel?PDF ?????? PDF??????? PDF ???????????/??? PDF ??? OCR?PDF ??????????? libs ???? PDF.js???????? CDN PDF.js???????????????????????????A-D/A-G ??????????????????????????????????????????????????????????????????????</p>
+        <details class="card import-help import-help-details"><summary>查看导入格式说明</summary>
+          <h2>支持的题库格式</h2>
+          <p>支持 Word / TXT / PDF / JSON 等常见题库来源。普通文本题库会进入识别流程；从 Shiroha Quiz 导出的备份 JSON 请使用“导入配置 / 备份 JSON”入口，不要当作普通题库文本解析。</p>
           <div class="help-grid">
-            <div><b>????</b><code>?? [???] *
-A???(????)</code></div>
-            <div><b>?????</b><code>1. ??
-A. ??
-???D
-?????</code></div>
-            <div><b>?????</b><code>??? ?
-???
-???(????)</code></div>
-            <div><b>???</b><code>??
-????? / ? / ? / A</code></div>
-            <div><b>??????</b><code>1. AD
-??
-(a)?? (b)??</code></div>
-            <div><b>????</b><code>??
-o(2)????
-(3)???</code></div>
-            <div><b>???</b><code>?? [???]
-??????? || ????</code></div>
-            <div><b>???</b><code>?? [???]
-???????????
-????????/??</code></div>
-            <div><b>??? PDF</b><code>?? .pdf
-?? PDF.js ? CDN PDF.js ? ????
-??????????</code></div>
+            <div><b>单选题</b><code>1. 下列说法正确的是？
+A. 选项一
+B. 选项二
+答案：A</code></div>
+            <div><b>多选题</b><code>1. 以下哪些属于常见题型？
+A. 单选题
+B. 多选题
+C. 判断题
+答案：AB</code></div>
+            <div><b>判断题</b><code>1. Shiroha Quiz 支持导入题库。
+答案：正确</code></div>
+            <div><b>填空 / 简答</b><code>1. 请填写关键词：____。
+参考答案：题库导入</code></div>
+            <div><b>双文件导入</b><code>题目文件：只放题目和选项
+答案文件：1. A / 2. ACD / 3. 正确
+系统会按题号或顺序匹配</code></div>
+            <div><b>备份 JSON</b><code>由“导出全部数据”或“批量导出题库”生成
+请走“导入配置 / 备份 JSON”入口</code></div>
           </div>
         </details>
         <div class="card">
-          <div class="section-head"><div><h2>?????????</h2><p class="muted">???????????????????????????????????????????????????????????????????????????????</p></div><div class="row-actions"><label class="inline-filter">??<select id="import-preview-filter"><option value="priority">????</option><option value="problem">???</option><option value="normal">???</option><option value="all">??</option></select></label><button id="batch-delete-import-btn" class="ghost danger" disabled>????</button><button id="clear-import-selection-btn" class="ghost" disabled>????</button><button id="revalidate-import-btn" class="ghost">????</button></div></div>
-          <div id="import-summary" class="notice">?????</div>
+          <div class="section-head"><div><h2>识别结果预览</h2><p class="muted">识别后请先核对题型、答案和异常提示。无法确认的题目会标记为待确认，建议修正后再导入。</p></div><div class="row-actions"><label class="inline-filter">筛选<select id="import-preview-filter"><option value="priority">异常优先</option><option value="problem">仅异常</option><option value="normal">仅正常</option><option value="all">全部</option></select></label><button id="batch-delete-import-btn" class="ghost danger" disabled>删除选中</button><button id="clear-import-selection-btn" class="ghost" disabled>清空选择</button><button id="revalidate-import-btn" class="ghost">重新校验</button></div></div>
+          <div id="import-summary" class="notice">尚未识别到题目。</div>
           <div id="import-report-panel" class="report-panel hidden"></div>
-          <div class="table-wrap"><table id="import-preview"><thead><tr><th><input type="checkbox" id="import-select-all-visible" title="??????"></th><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="import-preview"><thead><tr><th><input type="checkbox" id="import-select-all-visible" title="选择当前显示"></th><th>序号</th><th>题型</th><th>题干</th><th>选项数</th><th>答案</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table></div>
         </div>
       </section>
 
       <section id="banks" class="view">
         <div class="card">
           <div class="section-head"><div><p class="kicker">Banks</p><h2>题库管理</h2></div><button id="dedupe-btn" class="ghost">当前题库去重</button></div>
+          <div class="page-art-strip bank-art-strip">
+            <div><b>题库列表与批量管理</b><span>没有题库时可先导入或新建空题库；已有题库可在这里整理、复制、合并和批量导出。</span></div>
+            <img src="./media/empty_state_no_question_bank.png" alt="空题库提示素材" />
+          </div>
           <div class="form-grid">
             <label>当前题库名称<input id="bank-rename-input" placeholder="输入新名称后点击重命名" /></label>
             <label>合并来源题库<select id="merge-bank-select"></select></label>
@@ -167,6 +164,10 @@ o(2)????
       <section id="practice" class="view">
         <div class="card">
           <div class="section-head"><div><p class="kicker">Practice</p><h2>刷题练习</h2></div><div class="pill" id="practice-progress">0 / 0</div></div>
+          <div class="page-art-strip practice-art-strip">
+            <div><b>选择题型和题量后开始练习</b><span>练习页保留一个学习状态素材，避免占用答题区域。</span></div>
+            <img src="./media/quiz_in_progress_study.png" alt="刷题学习素材" />
+          </div>
           <div class="form-grid">
             <label>题型<select id="practice-type"><option value="all">全部</option><option value="single">单选</option><option value="multiple">多选</option><option value="multi">多选兼容</option><option value="judge">判断</option><option value="blank">填空</option><option value="short">简答</option></select></label>
             <label>来源<select id="practice-source"><option value="all">全部题目</option><option value="wrong">仅错题本</option></select></label>
@@ -183,6 +184,10 @@ o(2)????
       <section id="exam" class="view">
         <div class="card" id="exam-setup">
           <div class="section-head"><div><p class="kicker">Exam</p><h2>考试模式</h2></div><div class="pill" id="exam-timer">未开始</div></div>
+          <div class="page-art-strip exam-art-strip">
+            <div><b>配置考试参数，再开始模拟</b><span>考试模式使用思考提示素材，保持页面轻量，不遮挡试卷区域。</span></div>
+            <img src="./media/thinking_state_question.png" alt="思考提示素材" />
+          </div>
           <div class="form-grid">
             <label>考试名称<input id="exam-name" value="模拟考试" /></label>
             <label>题量<input id="exam-count" type="number" value="50" min="1" /></label>
@@ -201,9 +206,9 @@ o(2)????
         <div class="card quiz-card" id="exam-card"><div class="empty">考试开始后会在这里显示整套试卷。</div></div>
       </section>
 
-      <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题本</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="form-grid"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label>快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
-      <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>刷题记录</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
-      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea></div></section>
+      <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题本</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="page-art-strip wrongbook-art-strip"><div><b>错题复习与掌握状态</b><span>错题本页面使用一个复习素材，帮助区分学习场景，不额外堆叠图片。</span></div><img src="./media/wrong_question_review_clipboard.png" alt="错题复习素材" /></div><div class="form-grid"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label>快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
+      <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>刷题记录</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>记录页使用休息状态素材，表示阶段性回顾和复盘。</span></div><img src="./media/rest_sleep_pillow.png" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
+      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免本地数据丢失</b><span>设置页使用等待/备份状态素材，保持单页视觉提示不拥挤。</span></div><img src="./media/loading_waiting_hourglass.png" alt="加载等待素材" /></div><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.png" alt="角色基准素材" /></details></div></section>
     </main>
   </div>
 
