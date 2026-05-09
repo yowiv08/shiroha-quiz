@@ -106,7 +106,7 @@
 
         <details class="card import-help import-help-details"><summary>查看导入格式说明</summary>
           <h2>支持的题库格式</h2>
-          <p>支持 Word / TXT / PDF / JSON 等常见题库来源。普通文本题库会进入识别流程；从 Shiroha Quiz 导出的备份 JSON 请使用“导入配置 / 备份 JSON”入口，不要当作普通题库文本解析。</p>
+          <p>支持 Word / TXT / PDF / JSON 等常见题库来源。普通文本题库会进入识别流程；从 Shiroha Quiz 导出的备份 JSON、批量题库 JSON 或配置文件，请到“设置/导出”页使用“导入配置 / 备份 JSON”，不要当作普通题库文本解析。</p>
           <div class="help-grid">
             <div><b>单选题</b><code>1. 下列说法正确的是？
 A. 选项一
@@ -125,7 +125,7 @@ C. 判断题
 答案文件：1. A / 2. ACD / 3. 正确
 系统会按题号或顺序匹配</code></div>
             <div><b>备份 JSON</b><code>由“导出全部数据”或“批量导出题库”生成
-请走“导入配置 / 备份 JSON”入口</code></div>
+请到“设置/导出”页导入</code></div>
           </div>
         </details>
         <div class="card">
@@ -138,7 +138,7 @@ C. 判断题
 
       <section id="banks" class="view">
         <div class="card">
-          <div class="section-head"><div><p class="kicker">Banks</p><h2>题库管理</h2></div><button id="dedupe-btn" class="ghost">当前题库去重</button></div>
+          <div class="section-head"><div><p class="kicker">Banks</p><h2>题库列表</h2></div><button id="dedupe-btn" class="ghost">当前题库去重</button></div>
           <div class="page-art-strip bank-art-strip">
             <div><b>题库列表与批量管理</b><span>没有题库时可先导入或新建空题库；已有题库可在这里整理、复制、合并和批量导出。</span></div>
             <img src="./media/empty_state_no_question_bank.png" alt="空题库提示素材" />
@@ -164,7 +164,7 @@ C. 判断题
 
       <section id="practice" class="view">
         <div class="card">
-          <div class="section-head"><div><p class="kicker">Practice</p><h2>刷题练习</h2></div><div class="pill" id="practice-progress">0 / 0</div></div>
+          <div class="section-head"><div><p class="kicker">Practice</p><h2>练习设置</h2></div><div class="pill" id="practice-progress">0 / 0</div></div>
           <div class="page-art-strip practice-art-strip">
             <div><b>选择题型和题量后开始练习</b><span>练习页保留一个学习状态素材，避免占用答题区域。</span></div>
             <img src="./media/quiz_in_progress_study.png" alt="刷题学习素材" />
@@ -184,7 +184,7 @@ C. 判断题
 
       <section id="exam" class="view">
         <div class="card" id="exam-setup">
-          <div class="section-head"><div><p class="kicker">Exam</p><h2>考试模式</h2></div><div class="pill" id="exam-timer">未开始</div></div>
+          <div class="section-head"><div><p class="kicker">Exam</p><h2>考试设置</h2></div><div class="pill" id="exam-timer">未开始</div></div>
           <div class="page-art-strip exam-art-strip">
             <div><b>配置考试参数，再开始模拟</b><span>考试模式使用思考提示素材，保持页面轻量，不遮挡试卷区域。</span></div>
             <img src="./media/thinking_state_question.png" alt="思考提示素材" />
@@ -207,8 +207,8 @@ C. 判断题
         <div class="card quiz-card" id="exam-card"><div class="empty">考试开始后会在这里显示整套试卷。</div></div>
       </section>
 
-      <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题本</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="page-art-strip wrongbook-art-strip"><div><b>错题复习与掌握状态</b><span>错题本页面使用一个复习素材，帮助区分学习场景，不额外堆叠图片。</span></div><img src="./media/wrong_question_review_clipboard.png" alt="错题复习素材" /></div><div class="form-grid"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label>快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
-      <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>刷题记录</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>记录页使用休息状态素材，表示阶段性回顾和复盘。</span></div><img src="./media/rest_sleep_pillow.png" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
+      <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题整理</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="page-art-strip wrongbook-art-strip"><div><b>错题复习与掌握状态</b><span>错题本页面使用一个复习素材，帮助区分学习场景，不额外堆叠图片。</span></div><img src="./media/wrong_question_review_clipboard.png" alt="错题复习素材" /></div><div class="form-grid"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label>快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
+      <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>记录筛选与导出</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>记录页使用休息状态素材，表示阶段性回顾和复盘。</span></div><img src="./media/rest_sleep_pillow.png" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
       <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免本地数据丢失</b><span>设置页使用等待/备份状态素材，保持单页视觉提示不拥挤。</span></div><img src="./media/loading_waiting_hourglass.png" alt="加载等待素材" /></div><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.png" alt="角色基准素材" /></details></div></section>
     </main>
   </div>

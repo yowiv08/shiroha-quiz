@@ -1,8 +1,9 @@
 (function(){
 const APP_VERSION='v28';
 const CURRENT_SCHEMA_VERSION=1;
-const KEY='shiroha_quiz_state';
-const LEGACY_KEYS=['uquiz_state_v8_c1'];
+const KEY='shiroha_quiz_state_v28_4_c1';
+const LEGACY_KEYS=[];
+const CLEAR_STORAGE_KEYS=['shiroha_quiz_state','uquiz_state_v8_c1'];
 const TYPE_LABEL={single:'单选题',multiple:'多选题',multi:'多选题',judge:'判断题',blank:'填空题',short:'简答题',short_answer:'简答题'};
 const state=loadState();
 let importCache=[];let importWarnings=[];let importReport='';let importDiagnostics=null;let importPreviewFilter='priority';let importSelected=new Set();let exportBankSelectedV23=new Set();let backupImportModeV23='merge';let practice={items:[],idx:0,answered:0,correct:0,wrong:0,start:0};let exam={items:[],answers:{},start:0,timer:null,deadline:0,submitted:false};
@@ -36,7 +37,7 @@ function migrateState(raw,sourceKey){
   return migrated;
 }
 function serializeState(){return JSON.stringify({...state,schemaVersion:CURRENT_SCHEMA_VERSION})}
-function clearStoredState(){[KEY,...LEGACY_KEYS].forEach(k=>localStorage.removeItem(k))}
+function clearStoredState(){[KEY,...LEGACY_KEYS,...CLEAR_STORAGE_KEYS].forEach(k=>localStorage.removeItem(k))}
 function upgradeState(){
   state.schemaVersion=CURRENT_SCHEMA_VERSION;
   state.banks=Array.isArray(state.banks)?state.banks:[];
@@ -2633,7 +2634,6 @@ function setupEnhancedDataToolsV23(){
   injectDataToolsStyleV23();
   ensureBackupFileInputV23();
   ensureBankManageExportPanelV23();
-  ensureImportBackupPanelV23();
   ensureSettingsBackupPanelV23();
   if(!exportBankSelectedV23.size)exportBankSelectedV23=new Set(state.banks.map(b=>b.id));
   renderExportBankSummaryV23();
@@ -2671,22 +2671,7 @@ function ensureBankManageExportPanelV23(){
   $('#copy-selected-banks-v23').onclick=copySelectedBanksJsonV23;
   renderBankToolbarV28();
 }
-function ensureImportBackupPanelV23(){
-  if($('#import-backup-panel-v23'))return;
-  const importSection=$('#import');if(!importSection)return;
-  const firstCard=importSection.querySelector('.card');if(!firstCard)return;
-  firstCard.insertAdjacentHTML('afterend',`<div id="import-backup-panel-v23" class="card data-tools-v23">
-    <div class="section-head"><div><p class="kicker">Backup Import</p><h2>导入配置 / 备份 JSON</h2></div></div>
-    <p class="muted">这里专门用于导入 Shiroha Quiz 导出的 JSON 文件，包括“导出全部数据 JSON”和“题库管理页导出选中题库”生成的合成 JSON。普通 TXT / Word / PDF 题库仍走上方“单文件智能导入”。</p>
-    <div class="form-grid">
-      <label>导入方式<select id="import-backup-mode-v23"><option value="merge" selected>合并导入：保留当前数据，新增 JSON 内题库</option><option value="overwrite">覆盖恢复：用 JSON 替换当前本地数据</option></select></label>
-      <label>说明<input disabled value="JSON 备份不会走普通题库识别解析" /></label>
-    </div>
-    <div class="actions"><button class="primary" id="import-backup-json-from-import-v23" type="button">导入配置/备份 JSON</button></div>
-    <p class="muted">如果导入的是“选中题库”合成 JSON，建议选择“合并导入”；如果导入的是“全部数据备份”，可按需要选择合并或覆盖。</p>
-  </div>`);
-  $('#import-backup-json-from-import-v23').onclick=()=>{backupImportModeV23=$('#import-backup-mode-v23')?.value||'merge';$('#backup-json-file-v23').click()};
-}
+function ensureImportBackupPanelV23(){/* v28.4.4: 导入配置 / 备份 JSON 入口已移动到设置/导出页，不再插入导入题库页。 */}
 function ensureSettingsBackupPanelV23(){
   if($('#settings-backup-panel-v23'))return;
   const settingsCard=$('#settings .card');if(!settingsCard)return;
@@ -2700,7 +2685,7 @@ function ensureSettingsBackupPanelV23(){
     <div class="actions wrap-v23">
       <button class="primary" id="settings-export-all-backup-v23" type="button">导出全部数据备份</button>
       <button class="ghost" id="settings-copy-all-backup-v23" type="button">复制全部数据备份文本</button>
-      <button class="ghost" id="settings-import-backup-v23" type="button">导入全部数据/备份 JSON</button>
+      <button class="ghost" id="settings-import-backup-v23" type="button">导入配置 / 备份 JSON</button>
     </div>
     <p class="muted">提示：覆盖恢复会替换本机数据；合并导入遇到同名题库会自动追加“_导入”。下方文本框会显示最近一次导出或导入的 JSON。</p>
   </div>`);
@@ -2744,7 +2729,7 @@ function exportSelectedBanksV23(){
   const payload=buildBackupPayloadV23(banks,banks.length===1?'single_bank':'selected_banks',false);
   const text=JSON.stringify(payload,null,2);setBackupPreviewV23(text);
   const name=banks.length===1?`shiroha-quiz-bank-${cleanFileNameV23(banks[0].name)}-${todayV23()}.json`:`shiroha-quiz-selected-banks-${todayV23()}.json`;
-  download(name,text);toast(`已导出 ${banks.length} 个题库。该 JSON 可在“导入题库”页的“导入配置/备份 JSON”中导入。`,'ok');
+  download(name,text);toast(`已导出 ${banks.length} 个题库。该 JSON 可在“设置/导出”页的“导入配置 / 备份 JSON”中导入。`,'ok');
 }
 function exportAllBackupV23(){
   const payload=buildBackupPayloadV23(state.banks||[],'all_data',true);
@@ -2871,12 +2856,23 @@ async function fetchJsonLocalV252(url){
 }
 async function loadBuiltInBankV252(){
   try{
-    const index=window.questionBankIndex||await fetchJsonLocalV252('data/banks-index.json');
-    const item=(index||[])[0];if(!item)throw new Error('未找到内置题库索引');
-    const data=await fetchJsonLocalV252(item.file||'data/c1-full.json');
+    let data=null;
+    let item=null;
+    try{
+      const index=window.questionBankIndex||await fetchJsonLocalV252('data/banks-index.json');
+      item=(index||[])[0];
+      if(item) data=await fetchJsonLocalV252(item.file||'data/c1-full.json');
+    }catch(fetchErr){
+      warnDev('按需读取内置题库 JSON 失败，转用 question-bank.js 内置兜底数据。',fetchErr);
+    }
+    if(!data && window.questionBank && Array.isArray(window.questionBank.questions)){
+      data=window.questionBank;
+      item=(window.questionBankIndex||[])[0]||{name:data.meta?.title||'C1 驾照科目一模拟练习题库'};
+    }
+    if(!data)throw new Error('未找到内置题库数据');
     const questions=(data.questions||[]).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
     if(!questions.length)throw new Error('内置题库为空');
-    const bank={id:'default-c1',name:data.meta?.title||item.name||'C1 驾照科目一模拟练习题库',createdAt:now(),updatedAt:now(),questions,builtInLazy:false};
+    const bank={id:'default-c1',name:data.meta?.title||item?.name||'C1 驾照科目一模拟练习题库',createdAt:now(),updatedAt:now(),questions,builtInLazy:false};
     const old=state.banks.findIndex(b=>b.id==='default-c1'||b.builtInLazy);
     if(old>=0)state.banks[old]=bank;else state.banks.push(bank);
     state.activeBankId=bank.id;saveSilent();renderAll();toast(`已加载内置题库：${bank.name}，共 ${bank.questions.length} 题。`,'ok');

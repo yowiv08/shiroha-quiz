@@ -2081,3 +2081,945 @@ input:focus,select:focus,textarea:focus{
   }
 }
 /* SHIROHA_V28_1_BANK_MOBILE_LAYOUT_END */
+
+
+/* SHIROHA_V28_2_ASSET_REFRESH_START
+   首页与分页素材替换：统一蓝白云母亚克力风格，减少素材数量并提升融合度。 */
+.hero-card,.import-stage-panel,.page-art-strip,.asset-reference-details{
+  position:relative;
+  border:1px solid rgba(59,130,246,.12)!important;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(147,197,253,.16), transparent 26%),
+    radial-gradient(circle at 12% 100%, rgba(191,219,254,.18), transparent 24%),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(246,250,255,.96))!important;
+  box-shadow:0 18px 42px rgba(37,99,235,.06), inset 0 1px 0 rgba(255,255,255,.88)!important;
+  backdrop-filter: blur(10px) saturate(1.04);
+  -webkit-backdrop-filter: blur(10px) saturate(1.04);
+}
+.hero-card::after,.import-stage-panel::after,.page-art-strip::after{
+  content:"";
+  position:absolute;
+  inset:auto -14% -32% auto;
+  width:46%;
+  aspect-ratio:1/1;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(191,219,254,.34), rgba(191,219,254,0) 70%);
+  pointer-events:none;
+}
+.hero-mascot-main,.import-art-main,.page-art-strip img,.asset-reference-details img{
+  -webkit-mask-image:none!important;
+  mask-image:none!important;
+  background:none!important;
+  border:none!important;
+  box-shadow:none!important;
+  opacity:.98!important;
+  filter: drop-shadow(0 18px 34px rgba(59,130,246,.14)) saturate(1.01) brightness(1.01)!important;
+}
+.hero-mascot-main{
+  width:min(24vw,260px);
+  max-width:260px;
+}
+.import-art-main{max-width:240px}
+.page-art-strip img{
+  object-fit:contain;
+  max-height:164px;
+}
+.settings-art-strip img,.records-art-strip img{max-height:154px}
+.wrongbook-art-strip img,.practice-art-strip img,.exam-art-strip img{max-height:168px}
+.asset-reference-details summary{color:#2f6fed}
+.asset-reference-details img{max-width:min(100%,460px)}
+@media(max-width:720px){
+  .hero-card,.import-stage-panel,.page-art-strip,.asset-reference-details{
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+  .hero-mascot-main{
+    width:min(50vw,220px);
+    max-width:220px;
+  }
+  .import-art-main,.page-art-strip img{
+    max-width:180px;
+    max-height:132px;
+  }
+}
+/* SHIROHA_V28_2_ASSET_REFRESH_END */
+
+
+/* SHIROHA_V28_3_VISUAL_POLISH_START
+   视觉目标：蓝白统一、云母亚克力质感、素材融入卡片；导入备份区域独立，不夹在普通题库导入流程中。 */
+:root{
+  --sq-blue:#2f6fed;
+  --sq-blue-2:#60a5fa;
+  --sq-blue-soft:#eaf3ff;
+  --sq-card-border:rgba(47,111,237,.13);
+  --sq-card-shadow:0 18px 45px rgba(37,99,235,.07);
+}
+.hero-card{
+  min-height:244px;
+  align-items:center;
+  background:
+    radial-gradient(circle at 74% 22%, rgba(147,197,253,.24), transparent 30%),
+    radial-gradient(circle at 16% 100%, rgba(219,234,254,.65), transparent 32%),
+    linear-gradient(135deg, rgba(255,255,255,.92), rgba(242,248,255,.96) 48%, rgba(232,243,255,.90))!important;
+  border:1px solid var(--sq-card-border)!important;
+  box-shadow:var(--sq-card-shadow), inset 0 1px 0 rgba(255,255,255,.88)!important;
+  overflow:hidden;
+}
+.hero-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.82), rgba(255,255,255,.34) 56%, rgba(255,255,255,.08)),
+    radial-gradient(circle at 92% 18%, rgba(255,255,255,.64), transparent 24%);
+  pointer-events:none;
+}
+.hero-card h1,
+.hero-card h2{
+  letter-spacing:-.02em;
+}
+.hero-card p{
+  color:#5c7190;
+}
+.hero-visual-card{
+  min-height:214px;
+}
+.hero-mascot-main{
+  right:18px!important;
+  bottom:-12px!important;
+  width:min(25vw,278px)!important;
+  max-width:278px!important;
+  opacity:.97!important;
+  transform:translateZ(0);
+}
+.hero-stats{
+  position:relative;
+  z-index:2;
+}
+.hero-stats div{
+  border:1px solid rgba(47,111,237,.12)!important;
+  background:rgba(255,255,255,.76)!important;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+.import-stage-panel{
+  min-height:188px;
+  border-radius:26px!important;
+}
+.import-art-main{
+  width:min(22vw,250px)!important;
+  max-width:250px!important;
+  justify-self:end;
+}
+.page-art-strip{
+  min-height:126px;
+  padding:18px 22px!important;
+  border-radius:24px!important;
+}
+.page-art-strip img{
+  width:auto!important;
+  max-width:230px!important;
+  max-height:172px!important;
+  object-fit:contain!important;
+  align-self:center;
+}
+.practice-art-strip img,
+.exam-art-strip img{
+  max-width:260px!important;
+  max-height:178px!important;
+}
+.wrongbook-art-strip img{
+  max-width:220px!important;
+  max-height:168px!important;
+}
+.records-art-strip img,
+.settings-art-strip img{
+  max-width:210px!important;
+  max-height:154px!important;
+}
+.bank-art-strip img{
+  max-width:210px!important;
+  max-height:156px!important;
+}
+.backup-restore-card-v283{
+  margin-top:18px;
+  border:1px solid rgba(47,111,237,.13)!important;
+  background:
+    radial-gradient(circle at 92% 16%, rgba(147,197,253,.18), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(244,249,255,.95))!important;
+  box-shadow:0 16px 36px rgba(37,99,235,.06), inset 0 1px 0 rgba(255,255,255,.86)!important;
+}
+.backup-restore-card-v283 .muted{
+  color:#60738f;
+  line-height:1.75;
+}
+.backup-import-grid-v283{
+  grid-template-columns:1fr 1fr;
+}
+.backup-import-grid-v283 label:has(textarea),
+.backup-import-grid-v283 label:nth-child(3){
+  grid-column:1 / -1;
+}
+.backup-import-grid-v283 textarea{
+  min-height:118px;
+  resize:vertical;
+}
+.import-layout-v283 .backup-restore-card-v283{
+  clear:both;
+}
+@media(max-width:900px){
+  .hero-card{
+    min-height:auto;
+  }
+  .hero-mascot-main{
+    width:min(34vw,230px)!important;
+    max-width:230px!important;
+    right:4px!important;
+  }
+  .page-art-strip img{
+    max-width:190px!important;
+    max-height:144px!important;
+  }
+}
+@media(max-width:720px){
+  .hero-card{
+    padding-bottom:18px!important;
+  }
+  .hero-mascot-main{
+    position:relative!important;
+    right:auto!important;
+    bottom:auto!important;
+    margin:8px auto -2px;
+    width:min(58vw,210px)!important;
+    max-width:210px!important;
+  }
+  .import-stage-panel{
+    grid-template-columns:1fr!important;
+  }
+  .import-art-main{
+    justify-self:center;
+    width:min(58vw,190px)!important;
+    max-width:190px!important;
+  }
+  .page-art-strip{
+    grid-template-columns:1fr auto!important;
+    gap:10px!important;
+    padding:15px 16px!important;
+  }
+  .page-art-strip img{
+    max-width:132px!important;
+    max-height:118px!important;
+  }
+  .backup-import-grid-v283{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:480px){
+  .page-art-strip{
+    grid-template-columns:1fr!important;
+  }
+  .page-art-strip img{
+    justify-self:center;
+    max-width:150px!important;
+    max-height:126px!important;
+  }
+}
+/* SHIROHA_V28_3_VISUAL_POLISH_END */
+
+
+/* SHIROHA_V28_3_1_IMPORT_BACKUP_POSITION_START
+   备份 JSON 导入保留在导入题库页底部，不再夹在普通题库导入、双文件导入和识别结果之间。 */
+.backup-restore-bottom-v2831{
+  margin-top:28px!important;
+  border-style:dashed!important;
+  background:
+    radial-gradient(circle at 94% 18%, rgba(147,197,253,.14), transparent 30%),
+    linear-gradient(135deg, rgba(248,251,255,.96), rgba(255,255,255,.98))!important;
+}
+.backup-restore-bottom-v2831::before{
+  content:"备份恢复";
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  margin-bottom:10px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:#eaf3ff;
+  color:#2f6fed;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.05em;
+}
+.import-layout-v283 .backup-restore-bottom-v2831{
+  clear:both;
+}
+@media(max-width:720px){
+  .backup-restore-bottom-v2831{
+    margin-top:22px!important;
+  }
+}
+/* SHIROHA_V28_3_1_IMPORT_BACKUP_POSITION_END */
+
+
+/* SHIROHA_V28_3_3_IMPORT_ART_BG_FIX_START
+   修复导入页素材右侧奇怪蓝色圆形背景，改为更干净的蓝白渐变，不干扰素材本身显示。 */
+.import-stage-panel{
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(248,251,255,.98) 62%, rgba(239,246,255,.94) 100%) !important;
+  overflow:hidden;
+}
+.import-stage-panel::before,
+.import-stage-panel::after{
+  content:none !important;
+  display:none !important;
+}
+.import-art-main{
+  position:relative;
+  z-index:2;
+  background:none !important;
+  filter: drop-shadow(0 16px 28px rgba(59,130,246,.10)) saturate(1.02) brightness(1.01) !important;
+}
+@media(max-width:720px){
+  .import-stage-panel{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(246,250,255,.98) 72%, rgba(239,246,255,.95) 100%) !important;
+  }
+}
+/* SHIROHA_V28_3_3_IMPORT_ART_BG_FIX_END */
+
+
+/* SHIROHA_V28_3_4_SAFE_PAGE_FIX_START
+   安全修复：不再改写 index.html 的 section 结构，避免页面路由全部落到导入页。
+   只通过样式修正导入页视觉和备份区域的呈现，不破坏页面切换。 */
+.view{display:none}
+.view.active{display:block}
+.import-stage-panel{
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(248,251,255,.98) 62%, rgba(239,246,255,.94) 100%) !important;
+  overflow:hidden;
+}
+.import-stage-panel::before,
+.import-stage-panel::after{
+  content:none !important;
+  display:none !important;
+}
+.import-art-main{
+  position:relative;
+  z-index:2;
+  background:none !important;
+  filter: drop-shadow(0 16px 28px rgba(59,130,246,.10)) saturate(1.02) brightness(1.01) !important;
+}
+/* 如果备份导入区域存在，降低它的视觉权重，避免看起来夹在主流程里。 */
+.backup-restore-card-v283,
+.backup-restore-bottom-v2831,
+[id*="backup"][class*="card"],
+.card:has(#backup-json-file),
+.card:has(#backup-json-text),
+.card:has(#import-backup-json-btn){
+  margin-top:24px !important;
+  border-style:dashed !important;
+  background:linear-gradient(135deg,rgba(248,251,255,.96),rgba(255,255,255,.98)) !important;
+}
+@media(max-width:720px){
+  .import-stage-panel{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(246,250,255,.98) 72%, rgba(239,246,255,.95) 100%) !important;
+  }
+}
+/* SHIROHA_V28_3_4_SAFE_PAGE_FIX_END */
+
+
+/* SHIROHA_V28_4_PRACTICE_ART_FIX_START
+   修复刷题练习页素材背后的奇怪蓝色圆形区域，并让素材更大、更靠中。 */
+.practice-art-strip{
+  grid-template-columns:minmax(0,1fr) minmax(220px,360px) !important;
+  align-items:center !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(248,251,255,.98) 58%, rgba(239,246,255,.95) 100%) !important;
+  overflow:hidden;
+}
+.practice-art-strip::before,
+.practice-art-strip::after{
+  content:none !important;
+  display:none !important;
+}
+.practice-art-strip img{
+  justify-self:center !important;
+  width:min(28vw,340px) !important;
+  max-width:340px !important;
+  max-height:230px !important;
+  margin-right:min(3vw,36px) !important;
+  background:none !important;
+  box-shadow:none !important;
+  filter:drop-shadow(0 16px 28px rgba(59,130,246,.12)) saturate(1.02) brightness(1.01) !important;
+}
+@media(max-width:900px){
+  .practice-art-strip{
+    grid-template-columns:1fr auto !important;
+  }
+  .practice-art-strip img{
+    width:min(36vw,250px) !important;
+    max-width:250px !important;
+    max-height:180px !important;
+    margin-right:0 !important;
+  }
+}
+@media(max-width:720px){
+  .practice-art-strip{
+    grid-template-columns:1fr !important;
+    text-align:left;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,251,255,.98) 70%, rgba(239,246,255,.95) 100%) !important;
+  }
+  .practice-art-strip img{
+    justify-self:center !important;
+    width:min(62vw,220px) !important;
+    max-width:220px !important;
+    max-height:160px !important;
+  }
+}
+/* SHIROHA_V28_4_PRACTICE_ART_FIX_END */
+
+
+/* SHIROHA_V28_4_1_CARD_ART_FIX_START
+   修复插画卡片本身的蓝色气泡干扰；图片尺寸改为克制显示，保证素材完整、不挤压卡片。 */
+
+/* 去掉插画卡片内部过重的圆形蓝色气泡，不再让背景块压到素材上。 */
+.hero-card::after,
+.hero-visual-card::before,
+.hero-visual-card::after,
+.import-stage-panel::before,
+.import-stage-panel::after,
+.page-art-strip::before,
+.page-art-strip::after,
+.practice-art-strip::before,
+.practice-art-strip::after,
+.exam-art-strip::before,
+.exam-art-strip::after,
+.wrongbook-art-strip::before,
+.wrongbook-art-strip::after,
+.records-art-strip::before,
+.records-art-strip::after,
+.settings-art-strip::before,
+.settings-art-strip::after,
+.bank-art-strip::before,
+.bank-art-strip::after{
+  content:none !important;
+  display:none !important;
+}
+
+/* 统一改为干净的蓝白亚克力卡片底，而不是局部大蓝圆。 */
+.hero-card,
+.import-stage-panel,
+.page-art-strip{
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.98) 0%, rgba(248,251,255,.98) 58%, rgba(240,247,255,.96) 100%) !important;
+  border:1px solid rgba(47,111,237,.12) !important;
+  box-shadow:0 14px 34px rgba(37,99,235,.055), inset 0 1px 0 rgba(255,255,255,.86) !important;
+  overflow:hidden;
+}
+
+/* 插画完整显示：不再激进放大，不裁切，不硬塞。 */
+.hero-mascot-main,
+.import-art-main,
+.page-art-strip img,
+.asset-reference-details img{
+  width:auto !important;
+  height:auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  background:none !important;
+  box-shadow:none !important;
+  -webkit-mask-image:none !important;
+  mask-image:none !important;
+  filter:drop-shadow(0 12px 24px rgba(59,130,246,.10)) saturate(1.02) brightness(1.01) !important;
+}
+
+/* 首页可以稍大，但仍要完整显示。 */
+.hero-mascot-main{
+  max-width:min(23vw,250px) !important;
+  max-height:250px !important;
+  right:18px !important;
+  bottom:0 !important;
+}
+
+/* 导入页与普通分页插画保持中等尺寸。 */
+.import-art-main{
+  max-width:min(21vw,220px) !important;
+  max-height:190px !important;
+  justify-self:center !important;
+}
+
+.page-art-strip{
+  grid-template-columns:minmax(0,1fr) minmax(150px,220px) !important;
+  min-height:118px !important;
+  align-items:center !important;
+  gap:16px !important;
+}
+
+.page-art-strip img{
+  justify-self:center !important;
+  max-width:200px !important;
+  max-height:150px !important;
+}
+
+/* 刷题练习、考试页略强调，但不超过卡片高度。 */
+.practice-art-strip img,
+.exam-art-strip img{
+  max-width:220px !important;
+  max-height:160px !important;
+  margin:0 !important;
+}
+
+/* 错题、记录、设置页更克制。 */
+.wrongbook-art-strip img,
+.records-art-strip img,
+.settings-art-strip img,
+.bank-art-strip img{
+  max-width:188px !important;
+  max-height:140px !important;
+  margin:0 !important;
+}
+
+/* 题库管理、记录、设置等偏工具页，插画不抢内容。 */
+.bank-art-strip,
+.records-art-strip,
+.settings-art-strip{
+  min-height:108px !important;
+}
+
+/* App / 小屏幕：图片继续缩小，避免撑高卡片和遮挡内容。 */
+@media(max-width:900px){
+  .hero-mascot-main{
+    max-width:min(32vw,210px) !important;
+    max-height:210px !important;
+  }
+  .import-art-main{
+    max-width:min(34vw,180px) !important;
+    max-height:156px !important;
+  }
+  .page-art-strip img{
+    max-width:160px !important;
+    max-height:124px !important;
+  }
+  .practice-art-strip img,
+  .exam-art-strip img{
+    max-width:175px !important;
+    max-height:132px !important;
+  }
+}
+
+@media(max-width:720px){
+  .hero-mascot-main{
+    position:relative !important;
+    right:auto !important;
+    bottom:auto !important;
+    margin:6px auto 0 !important;
+    max-width:min(54vw,185px) !important;
+    max-height:185px !important;
+  }
+
+  .import-stage-panel,
+  .page-art-strip{
+    grid-template-columns:1fr !important;
+    min-height:auto !important;
+  }
+
+  .import-art-main,
+  .page-art-strip img{
+    max-width:min(54vw,150px) !important;
+    max-height:122px !important;
+    justify-self:center !important;
+  }
+
+  .practice-art-strip img,
+  .exam-art-strip img{
+    max-width:min(56vw,160px) !important;
+    max-height:126px !important;
+  }
+}
+
+/* SHIROHA_V28_4_1_CARD_ART_FIX_END */
+
+
+/* SHIROHA_V28_4_2_ART_SIZE_TUNING_START
+   按页面微调插画在卡片里的尺寸与位置：
+   - 题库管理：缩小约20%
+   - 刷题练习：放大约20%，并移到更居中的位置
+   - 考试模式：适当缩小（原先偏大）
+   - 刷题记录：缩小约20%
+   - 错题本：缩小约10%
+   - 设置/导出：缩小约20%
+*/
+.bank-art-strip img{
+  max-width:150px !important;
+  max-height:112px !important;
+}
+
+.practice-art-strip{
+  grid-template-columns:minmax(0,1fr) minmax(180px,260px) !important;
+}
+.practice-art-strip img{
+  justify-self:center !important;
+  align-self:center !important;
+  max-width:264px !important;
+  max-height:192px !important;
+  margin:0 auto !important;
+}
+
+.exam-art-strip img{
+  max-width:188px !important;
+  max-height:140px !important;
+}
+
+.records-art-strip img{
+  max-width:150px !important;
+  max-height:112px !important;
+}
+
+.wrongbook-art-strip img{
+  max-width:170px !important;
+  max-height:126px !important;
+}
+
+.settings-art-strip img{
+  max-width:150px !important;
+  max-height:112px !important;
+}
+
+/* 中尺寸屏幕 */
+@media (max-width:900px){
+  .bank-art-strip img{
+    max-width:128px !important;
+    max-height:96px !important;
+  }
+
+  .practice-art-strip{
+    grid-template-columns:1fr auto !important;
+  }
+  .practice-art-strip img{
+    max-width:210px !important;
+    max-height:156px !important;
+  }
+
+  .exam-art-strip img{
+    max-width:156px !important;
+    max-height:118px !important;
+  }
+
+  .records-art-strip img,
+  .settings-art-strip img{
+    max-width:128px !important;
+    max-height:96px !important;
+  }
+
+  .wrongbook-art-strip img{
+    max-width:152px !important;
+    max-height:114px !important;
+  }
+}
+
+/* 手机端 */
+@media (max-width:720px){
+  .bank-art-strip img{
+    max-width:min(44vw,120px) !important;
+    max-height:92px !important;
+  }
+
+  .practice-art-strip img{
+    max-width:min(62vw,190px) !important;
+    max-height:144px !important;
+  }
+
+  .exam-art-strip img{
+    max-width:min(50vw,142px) !important;
+    max-height:108px !important;
+  }
+
+  .records-art-strip img,
+  .settings-art-strip img{
+    max-width:min(44vw,120px) !important;
+    max-height:92px !important;
+  }
+
+  .wrongbook-art-strip img{
+    max-width:min(48vw,136px) !important;
+    max-height:102px !important;
+  }
+}
+/* SHIROHA_V28_4_2_ART_SIZE_TUNING_END */
+
+
+/* SHIROHA_V28_4_4_ART_BALANCE_START
+   插画尺寸二次收敛：不再激进放大，保证素材在卡片里完整显示，并兼顾卡片高度。
+   只调“图片在卡片中的显示尺寸和位置”，不替换素材。 */
+
+/* 卡片底统一为干净蓝白，不再使用圆形气泡背景。 */
+.hero-card::after,
+.hero-visual-card::before,
+.hero-visual-card::after,
+.import-stage-panel::before,
+.import-stage-panel::after,
+.page-art-strip::before,
+.page-art-strip::after,
+.practice-art-strip::before,
+.practice-art-strip::after,
+.exam-art-strip::before,
+.exam-art-strip::after,
+.wrongbook-art-strip::before,
+.wrongbook-art-strip::after,
+.records-art-strip::before,
+.records-art-strip::after,
+.settings-art-strip::before,
+.settings-art-strip::after,
+.bank-art-strip::before,
+.bank-art-strip::after{
+  content:none !important;
+  display:none !important;
+}
+
+.hero-card,
+.import-stage-panel,
+.page-art-strip{
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.985) 0%, rgba(248,251,255,.985) 60%, rgba(241,248,255,.965) 100%) !important;
+  border:1px solid rgba(47,111,237,.12) !important;
+  box-shadow:0 14px 34px rgba(37,99,235,.052), inset 0 1px 0 rgba(255,255,255,.88) !important;
+  overflow:hidden;
+}
+
+/* 基础规则：完整显示，不裁切，不强行撑满。 */
+.hero-mascot-main,
+.import-art-main,
+.page-art-strip img,
+.asset-reference-details img{
+  width:auto !important;
+  height:auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  background:none !important;
+  box-shadow:none !important;
+  -webkit-mask-image:none !important;
+  mask-image:none !important;
+  filter:drop-shadow(0 10px 20px rgba(59,130,246,.10)) saturate(1.02) brightness(1.01) !important;
+}
+
+/* 首页：略有存在感，但不压文字。 */
+.hero-mascot-main{
+  max-width:min(22vw,235px) !important;
+  max-height:235px !important;
+  right:18px !important;
+  bottom:2px !important;
+}
+
+/* 导入页：中等偏小，避免右侧素材抢主体流程。 */
+.import-art-main{
+  max-width:min(20vw,205px) !important;
+  max-height:170px !important;
+  justify-self:center !important;
+}
+
+/* 通用分页插画：先收敛到适中比例。 */
+.page-art-strip{
+  grid-template-columns:minmax(0,1fr) minmax(140px,205px) !important;
+  min-height:112px !important;
+  align-items:center !important;
+  gap:14px !important;
+}
+
+.page-art-strip img{
+  justify-self:center !important;
+  max-width:180px !important;
+  max-height:132px !important;
+  margin:0 !important;
+}
+
+/* 题库管理：偏大，缩小约20%。 */
+.bank-art-strip img{
+  max-width:144px !important;
+  max-height:108px !important;
+}
+
+/* 刷题练习：使用原学习素材，但不再激进放大；居中显示。 */
+.practice-art-strip{
+  grid-template-columns:minmax(0,1fr) minmax(155px,215px) !important;
+}
+.practice-art-strip img{
+  justify-self:center !important;
+  align-self:center !important;
+  max-width:205px !important;
+  max-height:150px !important;
+  margin:0 auto !important;
+}
+
+/* 考试模式：偏大，缩小一些。 */
+.exam-art-strip img{
+  max-width:166px !important;
+  max-height:122px !important;
+}
+
+/* 错题本：缩小约10%。 */
+.wrongbook-art-strip img{
+  max-width:162px !important;
+  max-height:120px !important;
+}
+
+/* 刷题记录：缩小约20%。 */
+.records-art-strip img{
+  max-width:144px !important;
+  max-height:108px !important;
+}
+
+/* 设置/导出：缩小约20%。 */
+.settings-art-strip img{
+  max-width:144px !important;
+  max-height:108px !important;
+}
+
+/* 工具型页面卡片高度不被图片撑高。 */
+.bank-art-strip,
+.records-art-strip,
+.settings-art-strip{
+  min-height:104px !important;
+}
+
+/* 中屏。 */
+@media(max-width:900px){
+  .hero-mascot-main{
+    max-width:min(30vw,195px) !important;
+    max-height:195px !important;
+  }
+  .import-art-main{
+    max-width:min(30vw,160px) !important;
+    max-height:136px !important;
+  }
+  .page-art-strip img{
+    max-width:148px !important;
+    max-height:112px !important;
+  }
+  .practice-art-strip img{
+    max-width:174px !important;
+    max-height:128px !important;
+  }
+  .exam-art-strip img{
+    max-width:142px !important;
+    max-height:106px !important;
+  }
+  .bank-art-strip img,
+  .records-art-strip img,
+  .settings-art-strip img{
+    max-width:122px !important;
+    max-height:92px !important;
+  }
+  .wrongbook-art-strip img{
+    max-width:138px !important;
+    max-height:104px !important;
+  }
+}
+
+/* 手机端：优先保证卡片完整和内容可读。 */
+@media(max-width:720px){
+  .hero-mascot-main{
+    position:relative !important;
+    right:auto !important;
+    bottom:auto !important;
+    margin:6px auto 0 !important;
+    max-width:min(50vw,170px) !important;
+    max-height:170px !important;
+  }
+
+  .import-stage-panel,
+  .page-art-strip{
+    grid-template-columns:1fr !important;
+    min-height:auto !important;
+  }
+
+  .import-art-main,
+  .page-art-strip img{
+    justify-self:center !important;
+    max-width:min(50vw,132px) !important;
+    max-height:104px !important;
+  }
+
+  .practice-art-strip img{
+    max-width:min(54vw,150px) !important;
+    max-height:112px !important;
+  }
+
+  .exam-art-strip img{
+    max-width:min(48vw,128px) !important;
+    max-height:96px !important;
+  }
+
+  .bank-art-strip img,
+  .records-art-strip img,
+  .settings-art-strip img{
+    max-width:min(42vw,112px) !important;
+    max-height:84px !important;
+  }
+
+  .wrongbook-art-strip img{
+    max-width:min(45vw,126px) !important;
+    max-height:94px !important;
+  }
+}
+/* SHIROHA_V28_4_4_ART_BALANCE_END */
+
+
+/* SHIROHA_V28_4_6_TITLE_AND_ART_BG_FIX_START
+   修复页面双标题重复感：通过差异化内卡标题减弱重复；
+   同时将分页插画区右侧背景统一为白色，不再使用淡蓝色块。 */
+.page-art-strip,
+.practice-art-strip,
+.exam-art-strip,
+.wrongbook-art-strip,
+.records-art-strip,
+.settings-art-strip,
+.bank-art-strip{
+  background:#ffffff !important;
+  background-image:none !important;
+  border:1px solid rgba(47,111,237,.08) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9) !important;
+}
+.page-art-strip::before,
+.page-art-strip::after,
+.practice-art-strip::before,
+.practice-art-strip::after,
+.exam-art-strip::before,
+.exam-art-strip::after,
+.wrongbook-art-strip::before,
+.wrongbook-art-strip::after,
+.records-art-strip::before,
+.records-art-strip::after,
+.settings-art-strip::before,
+.settings-art-strip::after,
+.bank-art-strip::before,
+.bank-art-strip::after{
+  content:none !important;
+  display:none !important;
+}
+.section-head .kicker + h2{
+  letter-spacing:.01em;
+}
+/* SHIROHA_V28_4_6_TITLE_AND_ART_BG_FIX_END */
+
+
+/* SHIROHA_V28_4_7_REMOVE_OUTER_TITLE_START
+   直接移除顶部外层页面标题区域，仅保留右侧题库选择与保存数据操作。 */
+.topbar{
+  justify-content:flex-end !important;
+  gap:16px !important;
+}
+.topbar > div:first-child{
+  display:none !important;
+}
+.topbar .top-actions{
+  margin-left:auto !important;
+}
+@media (max-width:720px){
+  .topbar{
+    padding-top:4px !important;
+    padding-bottom:10px !important;
+  }
+}
+/* SHIROHA_V28_4_7_REMOVE_OUTER_TITLE_END */
