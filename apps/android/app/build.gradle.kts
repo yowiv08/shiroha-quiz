@@ -11,7 +11,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 2
-        versionName = "0.3.4-alpha"
+        versionName = "0.3.5-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,7 +25,7 @@ android {
         }
         create("native") {
             dimension = "variant"
-            applicationId = "com.reiqir.shirohaquiz"
+            applicationId = "com.reqir.shirohaquiz"
         }
     }
 
@@ -67,7 +67,7 @@ android {
 val exportWebDebugApk by tasks.registering(Copy::class) {
     from(layout.buildDirectory.file("outputs/apk/web/debug/app-web-debug.apk"))
     into(layout.buildDirectory.dir("outputs/shiroha-quiz"))
-    rename { "Shiroha-Quiz-v0.3.4-alpha-web-debug.apk" }
+    rename { "Shiroha-Quiz-v0.3.5-alpha-web-debug.apk" }
 }
 
 val exportNativeDebugApk by tasks.registering(Copy::class) {
@@ -96,6 +96,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
