@@ -4,7 +4,7 @@
 
 ## 分类与用途
 
-- `00_角色基准/mascot_character_sheet.png`：角色设定与表情参考，不建议直接作为页面主图长期固定使用。
+- 
 - `01_主页欢迎/home_welcome_avatar.png`：首页欢迎区、空白首页、启动后的轻量引导。
 - `02_空状态/empty_state_no_question_bank.png`：无题库、无题目、无搜索结果等空状态。
 - `03_导入题库/import_question_bank_folder.png`：导入题库入口、首次导入引导、导入成功前提示。

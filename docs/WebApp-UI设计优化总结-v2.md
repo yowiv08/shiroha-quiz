@@ -2,7 +2,7 @@
 
 > 基于当前实际资源包 `main.zip`、项目内历史讨论，以及最新手机截图重新整理。  
 > 本版不包含 Codex 提示词，只保留设计判断、问题定位、修改方向和可执行的代码级建议。  
-> 适用范围：当前 Android Web 壳版本，即 `main/assets/web/index.html`、`main/assets/web/styles.css`、`main/assets/web/app.js`、`main/java/com/codex/shirohaquiz/WebShellActivity.kt`、`AndroidManifest.xml`。
+> 适用范围：当前 Android Web 壳版本，即 `apps/web/index.html`、`apps/web/styles.css`、`apps/web/app.js`、`apps/android/app/src/main/java/com/codex/shirohaquiz/WebShellActivity.kt`、`apps/android/app/src/main/AndroidManifest.xml`。
 
 ---
 
@@ -34,20 +34,21 @@ Shiroha Quiz 现在不是普通刷题网站，也不是传统题库 App。它最
 项目当前结构重点如下：
 
 ```text
-main/
-├─ AndroidManifest.xml
-├─ assets/web/
+apps/
+├─ android/app/src/main/
+│  ├─ AndroidManifest.xml
+│  ├─ java/com/codex/shirohaquiz/
+│  │  ├─ WebShellActivity.kt
+│  │  ├─ MainActivity.kt
+│  │  └─ ui/... 原生 Compose 雏形
+│  └─ res/...
+├─ web/
 │  ├─ index.html
 │  ├─ styles.css
 │  ├─ app.js
 │  ├─ question-bank.js
 │  ├─ app-icon.png
 │  └─ libs/pdf.min.mjs / pdf.worker.min.mjs
-├─ java/com/codex/shirohaquiz/
-│  ├─ WebShellActivity.kt
-│  ├─ MainActivity.kt
-│  └─ ui/... 原生 Compose 雏形
-└─ res/...
 ```
 
 当前启动入口是 `WebShellActivity`，核心代码是：
@@ -56,12 +57,14 @@ main/
 loadUrl("file:///android_asset/web/index.html")
 ```
 
+> 注：`apps/web/` 下的文件在构建时被复制到 Android 的 `assets/web/` 目录中。
+
 因此当前 Android App 的真实页面主要来自：
 
 ```text
-assets/web/index.html
-assets/web/styles.css
-assets/web/app.js
+apps/web/index.html
+apps/web/styles.css
+apps/web/app.js
 ```
 
 已有优点：
