@@ -167,7 +167,7 @@ GitHub Releases 页面：
 每次发布包含：
 
 - Android APK（调试安装包）
-- 源码压缩包（`shiroha-quiz-vX.X.X-alpha.zip`）
+- Web 端离线包（`shiroha-quiz-vX.X.X-alpha.zip`，可直接在浏览器运行）
 - GitHub 自动生成的 Source code (zip / tar.gz)
 
 > 当前为 alpha 测试版本，不建议用于正式考试场景。
