@@ -3023,3 +3023,173 @@ input:focus,select:focus,textarea:focus{
   }
 }
 /* SHIROHA_V28_4_7_REMOVE_OUTER_TITLE_END */
+
+
+/* SHIROHA_V28_4_8_APP_READABILITY_NAV_START
+   App 成品界面修正：
+   1) 隐藏开发阶段用于说明素材/布局的小字提示；
+   2) 移动端表单不再横向溢出卡片；
+   3) 底部导航做成更清晰的两排浅蓝选中态。 */
+
+/* 页面素材说明文字属于开发提示，成品隐藏；保留标题、按钮、表单标签。 */
+.page-art-strip span,
+.import-stage-copy p,
+.hero-card > div > p:not(.kicker),
+.asset-reference-details summary + img + p,
+.data-tool-card-v23 > .muted,
+.backup-restore-card-v283 > .muted{
+  display:none !important;
+}
+
+/* 导入/考试/练习页插画卡只保留简短主标题和步骤按钮，不显示解释性小字。 */
+.import-stage-copy b,
+.page-art-strip b{
+  display:block !important;
+  color:#10233f !important;
+  line-height:1.35 !important;
+}
+
+/* 移动端表单输入框、选择框不能超出白色卡片。 */
+.form-grid,
+.split-grid,
+.bank-current-bar-v28,
+.backup-import-grid-v283{
+  min-width:0 !important;
+}
+
+.form-grid label,
+.split-grid label,
+.bank-current-bar-v28 label,
+.backup-import-grid-v283 label{
+  min-width:0 !important;
+  overflow:hidden !important;
+}
+
+input,
+select,
+textarea,
+button{
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+
+.card,
+.hero-card,
+.import-stage-panel,
+.page-art-strip,
+.data-tool-card-v23{
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+
+/* 移动端留出底部导航安全距离，防止最后一个输入框被挡住。 */
+@media(max-width:720px){
+  body{
+    padding-bottom:calc(148px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .main{
+    padding-bottom:calc(152px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .form-grid,
+  .split-grid{
+    grid-template-columns:1fr !important;
+  }
+
+  .form-grid input,
+  .form-grid select,
+  .form-grid textarea,
+  .split-grid input,
+  .split-grid select,
+  .split-grid textarea{
+    width:100% !important;
+  }
+
+  /* App 底部导航：固定两排，浅蓝色选中态，颜色区分更明显。 */
+  .mobile-bottom-nav,
+  .bottom-nav,
+  nav.mobile-nav{
+    position:fixed !important;
+    left:16px !important;
+    right:16px !important;
+    bottom:calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index:1000 !important;
+    display:grid !important;
+    grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    gap:8px 8px !important;
+    padding:14px 14px !important;
+    border-radius:28px !important;
+    background:rgba(255,255,255,.94) !important;
+    border:1px solid rgba(47,111,237,.10) !important;
+    box-shadow:0 18px 44px rgba(37,99,235,.16), inset 0 1px 0 rgba(255,255,255,.86) !important;
+    backdrop-filter:blur(14px) saturate(1.08) !important;
+    -webkit-backdrop-filter:blur(14px) saturate(1.08) !important;
+    overflow:hidden !important;
+  }
+
+  .mobile-bottom-nav .nav,
+  .bottom-nav .nav,
+  nav.mobile-nav .nav,
+  .mobile-bottom-nav button,
+  .bottom-nav button,
+  nav.mobile-nav button{
+    min-width:0 !important;
+    width:100% !important;
+    min-height:58px !important;
+    padding:8px 4px !important;
+    border-radius:18px !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:4px !important;
+    color:#53657d !important;
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+    font-size:13px !important;
+    line-height:1.2 !important;
+    font-weight:750 !important;
+    white-space:nowrap !important;
+  }
+
+  .mobile-bottom-nav .nav.active,
+  .bottom-nav .nav.active,
+  nav.mobile-nav .nav.active,
+  .mobile-bottom-nav button.active,
+  .bottom-nav button.active,
+  nav.mobile-nav button.active{
+    background:linear-gradient(180deg,#eaf4ff 0%,#f7fbff 100%) !important;
+    color:#2f6fed !important;
+    box-shadow:0 10px 24px rgba(47,111,237,.16), inset 0 1px 0 rgba(255,255,255,.82) !important;
+  }
+
+  .mobile-bottom-nav svg,
+  .bottom-nav svg,
+  nav.mobile-nav svg{
+    width:22px !important;
+    height:22px !important;
+    stroke-width:2.2 !important;
+  }
+
+  .mobile-bottom-nav .nav.active svg,
+  .bottom-nav .nav.active svg,
+  nav.mobile-nav .nav.active svg{
+    color:#2f6fed !important;
+    stroke:#2f6fed !important;
+  }
+}
+
+/* 兼容旧的侧边栏在移动端变成底部导航的实现。 */
+@media(max-width:720px){
+  .sidebar .nav{
+    border-radius:18px !important;
+  }
+  .sidebar .nav.active{
+    background:linear-gradient(180deg,#eaf4ff 0%,#f7fbff 100%) !important;
+    color:#2f6fed !important;
+    box-shadow:0 10px 24px rgba(47,111,237,.14), inset 0 1px 0 rgba(255,255,255,.82) !important;
+  }
+}
+/* SHIROHA_V28_4_8_APP_READABILITY_NAV_END */
