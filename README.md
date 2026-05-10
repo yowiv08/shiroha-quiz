@@ -107,26 +107,8 @@ shiroha-quiz/
 
 `apps/web/` 为纯静态页面，无需构建：
 - 浏览器直接打开 `apps/web/index.html`
+- 或双击 `apps/web/打开Shiroha Quiz.cmd`
 - 或用 `npx serve apps/web`
-
-## 构建与发布
-
-**快速测试编译（不改版本号）：**
-```bash
-cd apps/android
-bash ./gradlew assembleWebDebug     # Web 壳子
-bash ./gradlew assembleNativeDebug  # 原生 Compose
-```
-
-**正式发布（更新版本号 + 编译 + 创建 Draft Release）：**
-```powershell
-.\build-release.ps1          # Web 壳子
-.\build-release-native.ps1   # 原生 Compose
-```
-
-发布脚本流程：输入版本号 → 更新 build.gradle.kts → 编译 APK → 打包 ZIP → 创建 GitHub Draft Release
-
-APK 输出：`apps/android/app/build/outputs/shiroha-quiz/`
 
 ## 下载与使用
 
