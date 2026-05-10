@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## v0.3.7-alpha
+
+- Web 壳子构建，独立版本号管理
+- 自适应图标 Safe Zone 修复
+- 项目宣传图 + README 全面更新
+- 图片素材 PNG → WebP 全面替换
+
+## v0.3.6-alpha
+
+- 双 productFlavors 架构：Web 壳子 + 原生 Compose 独立构建
+- Web 版使用 `app-icon.png` 作为桌面图标
+- 原生版 Compose 6 页面 + 完整导入链路
+- 源码上传助手脚本
+
+## v0.3.5-alpha
+
+- 接入原生导入链、考试页与题库状态管理
+- 清除冗余图片素材，换源 WebP
+- 优化 Web UI 设计
+
+## v0.3.4-alpha
+
+- 修复 AndroidManifest 合并冲突
+- 轻量开屏动画
+- APP 卡片体积优化
+
 ## v0.2.0-alpha
 
 - 安卓端切换为 WebView 壳方案，WebShellActivity 加载本地 web 资源作为过渡

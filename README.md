@@ -1,4 +1,4 @@
-![Shiroha Quiz](assets/promo.png)
+<img src="assets/promo.png" width="600" alt="Shiroha Quiz">
 
 # Shiroha Quiz
 
