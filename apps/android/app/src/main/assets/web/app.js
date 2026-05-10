@@ -2678,7 +2678,6 @@ function ensureBankManageExportPanelV23(){
       <button class="ghost" id="export-bank-invert-v23" type="button">反选</button>
       <button class="ghost" id="export-bank-current-v23" type="button">仅选当前题库</button>
       <button class="primary" id="export-selected-banks-v23" type="button">导出选中题库</button>
-      <button class="ghost" id="copy-selected-banks-v23" type="button">复制选中题库 JSON</button>
     </div>
     <div id="export-bank-summary-v23" class="notice warn">请选择需要导出的题库。</div>
   </div>`);
@@ -2687,7 +2686,6 @@ function ensureBankManageExportPanelV23(){
   $('#export-bank-invert-v23').onclick=()=>{const next=new Set();state.banks.forEach(b=>{if(!exportBankSelectedV23.has(b.id))next.add(b.id)});exportBankSelectedV23=next;renderBankList()};
   $('#export-bank-current-v23').onclick=()=>{exportBankSelectedV23=new Set([activeBank().id]);renderBankList()};
   $('#export-selected-banks-v23').onclick=exportSelectedBanksV23;
-  $('#copy-selected-banks-v23').onclick=copySelectedBanksJsonV23;
   renderBankToolbarV28();
 }
 function ensureImportBackupPanelV23(){/* v28.4.4: 导入配置 / 备份 JSON 入口已移动到设置/导出页，不再插入导入题库页。 */}
@@ -2703,13 +2701,11 @@ function ensureSettingsBackupPanelV23(){
     </div>
     <div class="actions wrap-v23">
       <button class="primary" id="settings-export-all-backup-v23" type="button">导出全部数据备份</button>
-      <button class="ghost" id="settings-copy-all-backup-v23" type="button">复制全部数据备份文本</button>
       <button class="ghost" id="settings-import-backup-v23" type="button">导入配置 / 备份 JSON</button>
     </div>
     <p class="muted">恢复前建议先导出备份。</p>
   </div>`);
   $('#settings-export-all-backup-v23').onclick=exportAllBackupV23;
-  $('#settings-copy-all-backup-v23').onclick=copyAllBackupJsonV23;
   $('#settings-import-backup-v23').onclick=()=>{backupImportModeV23=$('#settings-backup-mode-v23')?.value||'overwrite';$('#backup-json-file-v23').click()};
   const oldAll=$('#export-all-btn');if(oldAll)oldAll.onclick=exportAllBackupV23;
 }
@@ -2733,7 +2729,6 @@ function renderExportBankSummaryV23(){
   const all=$('#export-bank-all-v23');if(all){all.checked=state.banks.length>0&&selected.length===state.banks.length;all.indeterminate=selected.length>0&&selected.length<state.banks.length}
   if(summary){summary.textContent=selected.length?`已选择 ${selected.length} 个题库，共 ${qCount} 道题。`:'请至少选择一个题库。';summary.className='notice '+(selected.length?'ok':'warn')}
   const btn=$('#export-selected-banks-v23');if(btn)btn.disabled=!selected.length;
-  const copy=$('#copy-selected-banks-v23');if(copy)copy.disabled=!selected.length;
 }
 function selectedBanksV23(){return state.banks.filter(b=>exportBankSelectedV23.has(b.id))}
 function cleanFileNameV23(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,80)||'bank'}

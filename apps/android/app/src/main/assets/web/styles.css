@@ -4963,3 +4963,467 @@ button{
   }
 }
 /* SHIROHA_APP_V29_HEADER_ART_RECORDS_ACTION_ALIGN_END */
+
+/* SHIROHA_APP_V29_1_SPLASH_AND_LAYOUT_FIX_START
+   App only: restore lightweight opening loading animation; compact settings/export and bank management panels. */
+.app-splash-runner{
+  display:block;
+  width:min(68vw,276px);
+  max-height:92px;
+  object-fit:contain;
+  object-position:center center;
+  filter:drop-shadow(0 12px 20px rgba(47,111,237,.10));
+  animation:splashRunnerFloat 1.15s ease-in-out infinite;
+}
+@keyframes splashRunnerFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-5px)}
+}
+
+@media(max-width:720px){
+  /* 开屏：恢复角色动态感，但保持轻量和快速进入。 */
+  .app-splash{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    padding:24px !important;
+    background:linear-gradient(180deg,#edf6ff 0%,#f8fbff 58%,#ffffff 100%) !important;
+    animation:splashFadeOut .72s ease 1.05s both !important;
+    pointer-events:none !important;
+  }
+  .app-splash-card{
+    width:min(84vw,340px) !important;
+    min-height:214px !important;
+    padding:24px 22px 22px !important;
+    border-radius:30px !important;
+    gap:10px !important;
+    background:rgba(255,255,255,.92) !important;
+    border:1px solid rgba(47,111,237,.12) !important;
+    box-shadow:0 18px 42px rgba(37,99,235,.12), inset 0 1px 0 rgba(255,255,255,.92) !important;
+    animation:splashCardIn .42s cubic-bezier(.18,.86,.32,1.08) both !important;
+  }
+  .app-splash-runner{
+    display:block !important;
+    width:min(72vw,286px) !important;
+    max-height:94px !important;
+    margin:0 auto 2px !important;
+  }
+  .app-splash-title{
+    font-size:24px !important;
+    line-height:1.08 !important;
+  }
+  .app-splash-subtitle{
+    font-size:13px !important;
+    white-space:nowrap !important;
+  }
+  .app-splash-dots{
+    margin-top:6px !important;
+  }
+
+  /* 顶部行走素材不再压住内容卡片。 */
+  .card,
+  .hero-card,
+  .topbar{
+    position:relative !important;
+    z-index:8 !important;
+  }
+  .topbar .app-mobile-top-art,
+  .app-mobile-top-art{
+    z-index:6 !important;
+  }
+
+  /* 设置/导出：收短导出结果预览区，灰色占位提示保持单行感。 */
+  #settings.view > .card:first-child{
+    padding-bottom:18px !important;
+  }
+  #settings.view > .card:first-child > p{
+    margin:8px 0 10px !important;
+    font-size:16px !important;
+    line-height:1.35 !important;
+    color:#53657d !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+  #settings .actions{
+    margin-top:10px !important;
+    gap:10px !important;
+  }
+  #settings #export-output{
+    min-height:78px !important;
+    height:78px !important;
+    margin-top:10px !important;
+    padding:13px 16px !important;
+    line-height:1.45 !important;
+    font-size:15px !important;
+    color:#53657d !important;
+    resize:vertical !important;
+  }
+  #settings #export-output::placeholder{
+    color:#7a8798 !important;
+    opacity:.82 !important;
+  }
+  #settings .asset-reference-details{
+    margin-top:10px !important;
+  }
+  #settings-backup-panel-v23{
+    margin-top:12px !important;
+  }
+
+  /* 题库管理：内置题库加载卡收紧并对齐主卡片宽度。 */
+  #banks .builtin-bank-card-v252{
+    width:100% !important;
+    box-sizing:border-box !important;
+    margin:8px 0 10px !important;
+    padding:12px 14px !important;
+    border-radius:20px !important;
+    border:1px solid rgba(47,111,237,.10) !important;
+    background:#fff !important;
+    box-shadow:0 6px 16px rgba(37,99,235,.04), inset 0 1px 0 rgba(255,255,255,.92) !important;
+  }
+  #banks .builtin-bank-card-v252 .section-head{
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
+    align-items:center !important;
+    gap:10px !important;
+    margin:0 !important;
+  }
+  #banks .builtin-bank-card-v252 h3{
+    margin:0 !important;
+    font-size:18px !important;
+    line-height:1.2 !important;
+  }
+  #banks .builtin-bank-card-v252 .primary{
+    width:auto !important;
+    min-width:0 !important;
+    min-height:42px !important;
+    height:42px !important;
+    padding:0 14px !important;
+    border-radius:16px !important;
+    font-size:13px !important;
+    white-space:nowrap !important;
+  }
+  #builtin-bank-status-v252{
+    margin-top:8px !important;
+    font-size:13px !important;
+    line-height:1.35 !important;
+    color:#64748b !important;
+  }
+
+  /* 题库管理：批量导出工具条重排，删除复制 JSON 后按钮不再拥挤。 */
+  #bank-bulk-export-panel-v23{
+    width:100% !important;
+    box-sizing:border-box !important;
+    margin:10px 0 12px !important;
+    padding:12px 14px !important;
+    border-radius:20px !important;
+    background:#fff !important;
+    border:1px solid rgba(47,111,237,.10) !important;
+    box-shadow:0 6px 16px rgba(37,99,235,.04), inset 0 1px 0 rgba(255,255,255,.92) !important;
+  }
+  #bank-bulk-export-panel-v23 .section-head{
+    display:block !important;
+    margin:0 0 8px !important;
+  }
+  #bank-bulk-export-panel-v23 h3{
+    margin:0 !important;
+    font-size:18px !important;
+    line-height:1.2 !important;
+  }
+  .bank-current-bar-v28{
+    display:block !important;
+    margin:0 0 10px !important;
+  }
+  .bank-current-bar-v28 label{
+    display:grid !important;
+    gap:6px !important;
+    font-size:14px !important;
+  }
+  .bank-current-bar-v28 select{
+    min-height:46px !important;
+    height:46px !important;
+    border-radius:16px !important;
+  }
+  .bank-toolbar-actions-v28{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:8px !important;
+    margin-top:0 !important;
+  }
+  .bank-toolbar-actions-v28 .check-line-v23{
+    min-height:44px !important;
+    height:44px !important;
+    padding:0 10px !important;
+    border-radius:16px !important;
+    border:1px solid rgba(47,111,237,.12) !important;
+    background:#fff !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:8px !important;
+    font-size:13px !important;
+    font-weight:900 !important;
+    color:#263a53 !important;
+  }
+  .bank-toolbar-actions-v28 button{
+    width:100% !important;
+    min-height:44px !important;
+    height:44px !important;
+    padding:0 10px !important;
+    border-radius:16px !important;
+    font-size:13px !important;
+    white-space:nowrap !important;
+  }
+  #export-bank-summary-v23{
+    margin-top:8px !important;
+    padding:8px 10px !important;
+    border-radius:14px !important;
+    font-size:13px !important;
+    line-height:1.35 !important;
+  }
+}
+
+@media(max-width:380px){
+  .app-splash-card{
+    min-height:204px !important;
+  }
+  .app-splash-runner{
+    width:min(78vw,252px) !important;
+  }
+  #banks .builtin-bank-card-v252 .section-head{
+    grid-template-columns:1fr !important;
+  }
+  #banks .builtin-bank-card-v252 .primary{
+    width:100% !important;
+  }
+  .bank-toolbar-actions-v28{
+    gap:7px !important;
+  }
+  .bank-toolbar-actions-v28 button,
+  .bank-toolbar-actions-v28 .check-line-v23{
+    font-size:12px !important;
+    padding-left:7px !important;
+    padding-right:7px !important;
+  }
+}
+/* SHIROHA_APP_V29_1_SPLASH_AND_LAYOUT_FIX_END */
+
+/* SHIROHA_APP_V29_3_SPLASH_TOPBAR_ALIGN_FIX_START
+   App-only: correct splash image, prevent WebView content flash, move walking strip into the Shiroha Quiz top title line, and center-align title actions. */
+
+/* WebView 内部开屏：主界面在开屏结束前保持隐藏，避免先露出首页内容。 */
+body.app-splashing{
+  overflow:hidden !important;
+}
+body.app-splashing .app{
+  opacity:0 !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+body.app-splash-finished .app{
+  opacity:1 !important;
+  visibility:visible !important;
+  pointer-events:auto !important;
+}
+
+/* 开屏主图改用首页欢迎图，不再用走路条图。 */
+.app-splash-hero{
+  display:block;
+  width:min(54vw,210px);
+  max-height:210px;
+  object-fit:contain;
+  object-position:center center;
+  margin:0 auto 4px;
+  filter:drop-shadow(0 18px 28px rgba(47,111,237,.13));
+  animation:splashWelcomeFloat 1.45s ease-in-out infinite;
+}
+@keyframes splashWelcomeFloat{
+  0%,100%{transform:translateY(0) scale(1)}
+  50%{transform:translateY(-6px) scale(1.018)}
+}
+
+@media(max-width:720px){
+  .app-splash{
+    background:linear-gradient(180deg,#eef7ff 0%,#f8fcff 56%,#ffffff 100%) !important;
+    z-index:99999 !important;
+  }
+  .app-splash-card{
+    min-height:300px !important;
+    width:min(84vw,340px) !important;
+    padding:24px 22px 22px !important;
+    background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(247,252,255,.94)) !important;
+  }
+  .app-splash-hero{
+    width:min(58vw,224px) !important;
+    max-height:210px !important;
+  }
+  .app-splash-runner{
+    display:none !important;
+  }
+
+  /* 顶部：恢复 Shiroha Quiz 标题行，并把走路条图放到标题右侧，按中心线对齐。 */
+  .topbar{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:10px !important;
+    position:relative !important;
+    overflow:hidden !important;
+    margin:0 0 18px !important;
+    padding:14px 18px 16px !important;
+    border-radius:28px !important;
+    border:1px solid rgba(47,111,237,.10) !important;
+    background:linear-gradient(180deg,rgba(247,252,255,.98) 0%,rgba(255,255,255,.97) 100%) !important;
+    box-shadow:0 8px 24px rgba(37,99,235,.055), inset 0 1px 0 rgba(255,255,255,.96) !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  .topbar > div:first-child,
+  .topbar-title-group{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+    min-height:46px !important;
+    padding:0 min(38vw,168px) 0 0 !important;
+    position:relative !important;
+  }
+  .topbar-title-group .kicker{
+    display:block !important;
+    margin:0 !important;
+    text-transform:none !important;
+    letter-spacing:-.02em !important;
+    font-size:25px !important;
+    line-height:1.1 !important;
+    font-weight:900 !important;
+    color:#15233a !important;
+  }
+  .topbar-title-group h1,
+  .topbar #page-title{
+    display:none !important;
+  }
+  .topbar .app-mobile-top-art,
+  .app-mobile-top-art{
+    display:block !important;
+    position:absolute !important;
+    top:13px !important;
+    right:18px !important;
+    z-index:3 !important;
+    width:min(38vw,168px) !important;
+    height:46px !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+    object-fit:contain !important;
+    object-position:center center !important;
+    pointer-events:none !important;
+    user-select:none !important;
+    opacity:.98 !important;
+  }
+  .topbar .top-actions{
+    width:100% !important;
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) 112px !important;
+    align-items:center !important;
+    gap:10px !important;
+    margin:0 !important;
+    position:relative !important;
+    z-index:2 !important;
+  }
+  .topbar .top-actions select,
+  .topbar .top-actions button{
+    background:linear-gradient(180deg,#ffffff 0%,#f8fcff 100%) !important;
+    border-color:rgba(47,111,237,.12) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.96) !important;
+  }
+
+  /* 页面标题右侧操作：统一按中心线对齐，取消早期“往上/往下挪”的 margin 修正。 */
+  #banks .section-head,
+  #import .section-head,
+  #practice .section-head,
+  #exam .section-head,
+  #wrongbook .section-head,
+  #records .section-head{
+    align-items:center !important;
+  }
+  #banks .section-head > button,
+  #import .section-head > button,
+  #practice .section-head > .pill,
+  #exam .section-head > .pill,
+  #wrongbook .section-head > button,
+  #records .section-head > .actions{
+    align-self:center !important;
+    margin-top:0 !important;
+  }
+
+  /* 错题本：收藏题复习标题与“练习收藏题”按钮按标题行中心对齐；说明文字单独落到下一行。 */
+  #favorite-panel-v27 > .section-head{
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
+    grid-template-rows:auto auto !important;
+    column-gap:12px !important;
+    row-gap:6px !important;
+    align-items:center !important;
+    margin-bottom:14px !important;
+  }
+  #favorite-panel-v27 > .section-head > div{
+    display:contents !important;
+  }
+  #favorite-panel-v27 > .section-head h3{
+    grid-column:1 !important;
+    grid-row:1 !important;
+    margin:0 !important;
+    line-height:42px !important;
+    font-size:20px !important;
+  }
+  #favorite-panel-v27 > .section-head p{
+    grid-column:1 / -1 !important;
+    grid-row:2 !important;
+    margin:0 !important;
+    line-height:1.45 !important;
+  }
+  #favorite-panel-v27 > .section-head #practice-favorite-btn-v27{
+    grid-column:2 !important;
+    grid-row:1 !important;
+    align-self:center !important;
+    justify-self:end !important;
+    min-height:42px !important;
+    height:42px !important;
+    padding:0 14px !important;
+    border-radius:18px !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+    margin:0 !important;
+  }
+}
+
+@media(max-width:380px){
+  .topbar-title-group{
+    padding-right:132px !important;
+  }
+  .topbar-title-group .kicker{
+    font-size:23px !important;
+  }
+  .topbar .app-mobile-top-art,
+  .app-mobile-top-art{
+    width:132px !important;
+    height:42px !important;
+    top:14px !important;
+    right:16px !important;
+  }
+  #favorite-panel-v27 > .section-head{
+    column-gap:8px !important;
+  }
+  #favorite-panel-v27 > .section-head h3{
+    font-size:19px !important;
+    line-height:40px !important;
+  }
+  #favorite-panel-v27 > .section-head #practice-favorite-btn-v27{
+    min-height:40px !important;
+    height:40px !important;
+    padding:0 11px !important;
+    font-size:12px !important;
+  }
+}
+/* SHIROHA_APP_V29_3_SPLASH_TOPBAR_ALIGN_FIX_END */

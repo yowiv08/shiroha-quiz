@@ -71,9 +71,9 @@
               </button>
             </div>
             <div class="dashboard-progress-row">
-              <div class="dashboard-mini-metric"><b>393</b><span>题库默认题量</span></div>
-              <div class="dashboard-mini-metric"><b>按需</b><span>内置题库加载</span></div>
-              <div class="dashboard-mini-metric"><b>本地</b><span>localStorage 保存</span></div>
+              <div class="dashboard-mini-metric"><b>393</b><span>默认内置题量</span></div>
+              <div class="dashboard-mini-metric"><b>按需</b><span>完整题库按需加载</span></div>
+              <div class="dashboard-mini-metric"><b>本地</b><span>浏览器本地保存</span></div>
             </div>
           </div>
           <div class="dashboard-home-side">
@@ -93,7 +93,7 @@
             <div class="section-head compact"><div><p class="kicker">Start</p><h3>快速开始</h3></div></div>
             <div class="dashboard-quick-actions">
               <button id="load-built-in-bank-btn" class="primary" type="button">加载内置 C1 题库</button>
-              <button id="load-built-in-bank-btn-banks" class="ghost" type="button">在题库管理中加载</button>
+              <button id="load-built-in-bank-btn-banks" class="ghost" type="button">去题库管理加载</button>
             </div>
             <p class="muted">首次打开时可先加载内置 C1 题库；已有题库时可直接从顶部切换后开始练习。</p>
           </div>
@@ -224,8 +224,15 @@ C. 判断题
             <label>来源<select id="practice-source"><option value="all">全部题目</option><option value="wrong">仅错题本</option><option value="favorite">仅收藏题</option></select></label>
             <label>顺序<select id="practice-order"><option value="sequence">顺序</option><option value="random">随机</option></select></label>
             <label>题量<select id="practice-limit"><option value="20">20题</option><option value="50">50题</option><option value="100">100题</option><option value="half">题库一半</option><option value="all">全部题库</option></select></label>
+            <div class="settings-action-cell web-settings-action-cell">
+              <span class="control-label">快捷操作</span>
+              <div class="settings-action-buttons">
+                <button id="start-practice-btn" class="primary">开始练习</button>
+                <button id="reset-practice-btn" class="ghost">重置</button>
+              </div>
+            </div>
           </div>
-          <div class="actions"><button id="start-practice-btn" class="primary">开始练习</button><button id="reset-practice-btn" class="ghost">重置</button></div><p class="muted">点击开始后会进入沉浸练习页面，隐藏上方和侧边导航干扰；练习结束或退出后返回设置页。</p>
+          <p class="muted">点击开始后会进入沉浸练习页面，隐藏上方和侧边导航干扰；练习结束或退出后返回设置页。</p>
         </div>
         <div class="card quiz-card" id="practice-card">
           <div class="empty">选择条件后点击“开始练习”。</div>
@@ -251,8 +258,14 @@ C. 判断题
             <label>简答分值<input id="score-short" type="number" value="5" min="0" step="0.5" /></label>
             <label>题型范围<select id="exam-type"><option value="all">全部题型</option><option value="single">只考单选</option><option value="multiple">只考多选</option><option value="judge">只考判断</option><option value="blank">只考填空</option><option value="short">只考简答</option></select></label>
             <label>抽题方式<select id="exam-order"><option value="random">随机抽题</option><option value="sequence">顺序抽题</option></select></label>
+            <div class="settings-action-cell web-settings-action-cell">
+              <span class="control-label">快捷操作</span>
+              <div class="settings-action-buttons">
+                <button id="start-exam-btn" class="primary">开始考试</button>
+                <button id="submit-exam-btn" class="danger" disabled>交卷评分</button>
+              </div>
+            </div>
           </div>
-          <div class="actions"><button id="start-exam-btn" class="primary">开始考试</button><button id="submit-exam-btn" class="danger" disabled>交卷评分</button></div>
         </div>
         <div class="card quiz-card" id="exam-card"><div class="empty">考试开始后会在这里显示整套试卷。</div></div>
       </section>

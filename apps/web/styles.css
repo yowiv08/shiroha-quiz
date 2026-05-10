@@ -4921,3 +4921,86 @@ body.exam-focus #exam-card{
   }
 }
 /* SHIROHA_WEB_V28_8_HOME_SPACE_AND_TOGGLE_TUNE_END */
+
+
+/* SHIROHA_WEB_V29_2_FORM_ACTIONS_AND_HOME_TUNE_START */
+#practice .web-settings-action-cell,
+#exam .web-settings-action-cell{
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  gap:10px;
+  min-width:0;
+}
+#practice .web-settings-action-cell .control-label,
+#exam .web-settings-action-cell .control-label{
+  display:block;
+  font-size:14px;
+  line-height:1.2;
+  font-weight:800;
+  color:#39506b;
+}
+#practice .web-settings-action-cell .settings-action-buttons,
+#exam .web-settings-action-cell .settings-action-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  min-height:54px;
+}
+#practice .web-settings-action-cell .settings-action-buttons button,
+#exam .web-settings-action-cell .settings-action-buttons button{
+  min-width:128px;
+  white-space:nowrap;
+}
+#dashboard .dashboard-progress-row{
+  gap:14px !important;
+}
+#dashboard .dashboard-mini-metric{
+  align-items:flex-start !important;
+  gap:10px !important;
+}
+#dashboard .dashboard-mini-metric b{
+  min-width:2.6em;
+}
+#dashboard .dashboard-mini-metric span{
+  font-size:13px !important;
+  line-height:1.35 !important;
+  font-weight:750 !important;
+  color:#6c7f98 !important;
+}
+#dashboard .dashboard-quick-actions{
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  align-items:stretch !important;
+}
+#dashboard .dashboard-quick-actions button{
+  white-space:nowrap !important;
+  font-size:15px !important;
+  padding-left:14px !important;
+  padding-right:14px !important;
+}
+@media (max-width:980px){
+  #practice .web-settings-action-cell,
+  #exam .web-settings-action-cell{
+    grid-column:1 / -1;
+  }
+}
+@media (max-width:760px){
+  #dashboard .dashboard-quick-actions{
+    grid-template-columns:1fr !important;
+  }
+  #dashboard .dashboard-quick-actions button{
+    white-space:normal !important;
+  }
+  #practice .web-settings-action-cell .settings-action-buttons,
+  #exam .web-settings-action-cell .settings-action-buttons{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  #practice .web-settings-action-cell .settings-action-buttons button,
+  #exam .web-settings-action-cell .settings-action-buttons button{
+    width:100%;
+    min-width:0;
+  }
+}
+/* SHIROHA_WEB_V29_2_FORM_ACTIONS_AND_HOME_TUNE_END */

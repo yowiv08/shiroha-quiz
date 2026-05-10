@@ -3,17 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shiroha Quiz - v28.2 双端布局精修版</title>
+  <title>Shiroha Quiz - v29.3 App 开屏与对齐修正版</title>
   <link rel="icon" type="image/png" href="./app-icon.png" />
   <link rel="apple-touch-icon" href="./app-icon.png" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="preload" as="image" href="./media/home_welcome_avatar.webp" />
   <link rel="preload" as="image" href="./media/import_question_bank_folder.webp" />
   <link rel="preload" as="image" href="./media/app_header_walk_strip.webp" />
+  <style id="app-splash-critical">
+    body.app-splashing .app{opacity:0;visibility:hidden;pointer-events:none}
+    body.app-splashing .app-splash{opacity:1;visibility:visible}
+  </style>
 </head>
-<body>
+<body class="app-splashing">
   <div class="app-splash" aria-hidden="true">
     <div class="app-splash-card">
+      <img class="app-splash-hero" src="./media/home_welcome_avatar.webp" alt="" />
       <div class="app-splash-title">Shiroha Quiz</div>
       <div class="app-splash-subtitle">轻量刷题 · 题库导入 · 错题复习</div>
       <div class="app-splash-dots"><span></span><span></span><span></span></div>
@@ -218,7 +223,7 @@ C. 判断题
 
       <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题整理</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="page-art-strip wrongbook-art-strip"><div><b>错题复习与掌握状态</b><span>按掌握状态复习错题。</span></div><img src="./media/wrong_question_review_clipboard.webp" alt="错题复习素材" /></div><div class="form-grid"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label>快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
       <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>记录筛选与导出</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>查看练习和考试记录。</span></div><img src="./media/rest_sleep_pillow.webp" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
-      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免丢失</b><span>定期导出备份，避免丢失。</span></div><img src="./media/loading_waiting_hourglass.webp" alt="加载等待素材" /></div><p>本地数据建议定期导出备份。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.webp" alt="角色基准素材" /></details></div></section>
+      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免丢失</b><span>定期导出备份，避免丢失。</span></div><img src="./media/loading_waiting_hourglass.webp" alt="加载等待素材" /></div><p>本地数据建议定期导出备份。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出结果 / 备份文本预览"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.webp" alt="角色基准素材" /></details></div></section>
     </main>
   </div>
 
@@ -243,6 +248,19 @@ C. 判断题
     </div>
   </div>
   <div id="app-toast" class="app-toast" aria-live="polite"></div>
+  <script>
+    (function(){
+      var done=false;
+      function reveal(){
+        if(done)return;
+        done=true;
+        document.body.classList.remove('app-splashing');
+        document.body.classList.add('app-splash-finished');
+      }
+      window.addEventListener('load', function(){ setTimeout(reveal, 1650); }, {once:true});
+      setTimeout(reveal, 2600);
+    })();
+  </script>
   <script src="./question-bank.js"></script>
   <script src="./app.js"></script>
 
