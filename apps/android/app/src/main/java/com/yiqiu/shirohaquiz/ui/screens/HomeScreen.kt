@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,7 +34,8 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 @Composable
 fun HomeScreen(
     onGoImport: () -> Unit,
-    onGoPractice: () -> Unit
+    onGoPractice: () -> Unit,
+    onGoExam: () -> Unit
 ) {
     val context = LocalContext.current
     val activeBank = QuizRepository.activeBank()
@@ -49,7 +51,7 @@ fun HomeScreen(
         ShirohaHeader(
             kicker = "Shiroha Quiz",
             title = "原生题库首页",
-            subtitle = "这里只服务原生安卓。导入成功后的题库会直接进入原生状态，并接入后续练习与考试流程。"
+            subtitle = "这里只服务原生安卓。导入成功后的题库会直接进入原生状态，并接入练习与考试流程。"
         )
 
         GlassCard {
@@ -67,7 +69,7 @@ fun HomeScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = if (questionCount > 0) {
-                    "当前题库共 $questionCount 题，可以直接切到“练习”页查看真实导入结果。"
+                    "当前题库共 $questionCount 题，已经可以直接进入原生练习与考试。"
                 } else {
                     "当前还没有真实导入题目。先到“导入”页导入一份标准文本题库。"
                 },
@@ -77,6 +79,7 @@ fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ActionPillButton(Icons.Rounded.CloudUpload, "去导入", primary = true, onClick = onGoImport)
                 ActionPillButton(Icons.Rounded.PlayArrow, "进入练习", primary = false, onClick = onGoPractice)
+                ActionPillButton(Icons.Rounded.Timer, "开始考试", primary = false, onClick = onGoExam)
             }
         }
 
@@ -147,9 +150,9 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f)
             )
             ShortcutGlassCard(
-                title = "考试流程预留",
+                title = "原生考试模式",
                 icon = Icons.Rounded.Schedule,
-                desc = "后续接入真实得分与计时",
+                desc = "开始接入题量、计时、交卷和结果页",
                 modifier = Modifier.weight(1f)
             )
         }

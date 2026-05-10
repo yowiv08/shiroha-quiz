@@ -7,6 +7,7 @@
   <title>Shiroha Quiz - v28.2 双端布局精修版</title>
   <link rel="icon" type="image/png" href="./app-icon.png" />
   <link rel="apple-touch-icon" href="./app-icon.png" />
+  <link rel="preload" as="image" href="./media/peeking.webp" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="preload" as="image" href="./media/home_welcome_avatar.jpg" />
   <link rel="preload" as="image" href="./media/import_question_bank_folder.png" />
@@ -260,6 +261,11 @@ C. 判断题
       <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>记录筛选与导出</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>记录页使用休息状态素材，表示阶段性回顾和复盘。</span></div><img src="./media/rest_sleep_pillow.png" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
       <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免本地数据丢失</b><span>设置页使用等待/备份状态素材，保持单页视觉提示不拥挤。</span></div><img src="./media/loading_waiting_hourglass.png" alt="加载等待素材" /></div><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。</p><div class="actions"><button id="export-json-btn" class="primary">导出当前题库 JSON</button><button id="export-all-btn" class="ghost">导出全部数据 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.png" alt="角色基准素材" /></details></div></section>
     </main>
+  </div>
+
+  <div class="web-peeking-wrap">
+    <img class="web-peeking-art" src="./media/peeking.webp" alt="" />
+    <button type="button" class="web-peeking-toggle" aria-pressed="false" onclick="var wrap=this.parentElement; var hidden=wrap.classList.toggle('collapsed'); this.setAttribute('aria-pressed', hidden ? 'true' : 'false'); this.textContent = hidden ? '显示' : '隐藏';">隐藏</button>
   </div>
 
   <div id="edit-modal" class="modal hidden" aria-hidden="true">

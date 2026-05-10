@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.yiqiu.shirohaquiz.ui.screens.ExamScreen
 import com.yiqiu.shirohaquiz.ui.screens.HomeScreen
 import com.yiqiu.shirohaquiz.ui.screens.ImportScreen
 import com.yiqiu.shirohaquiz.ui.screens.MeScreen
@@ -39,12 +40,14 @@ import com.yiqiu.shirohaquiz.ui.screens.PracticeScreen
 
 private enum class MainTab(
     val title: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val showInBottomBar: Boolean = true
 ) {
     Home("首页", Icons.Rounded.Dashboard),
     Practice("练习", Icons.Rounded.School),
     Import("导入", Icons.Rounded.ImportExport),
-    Me("我的", Icons.Rounded.Settings)
+    Me("我的", Icons.Rounded.Settings),
+    Exam("考试", Icons.Rounded.School, showInBottomBar = false)
 }
 
 @Composable
@@ -58,7 +61,7 @@ fun ShirohaAppShell() {
                 containerColor = Color.White.copy(alpha = 0.82f),
                 tonalElevation = 0.dp
             ) {
-                MainTab.entries.forEach { tab ->
+                MainTab.entries.filter { it.showInBottomBar }.forEach { tab ->
                     NavigationBarItem(
                         selected = currentTab == tab,
                         onClick = { currentTab = tab },
@@ -109,13 +112,20 @@ fun ShirohaAppShell() {
                 when (tab) {
                     MainTab.Home -> HomeScreen(
                         onGoImport = { currentTab = MainTab.Import },
-                        onGoPractice = { currentTab = MainTab.Practice }
+                        onGoPractice = { currentTab = MainTab.Practice },
+                        onGoExam = { currentTab = MainTab.Exam }
                     )
+
                     MainTab.Practice -> PracticeScreen()
                     MainTab.Import -> ImportScreen(
                         onImportSaved = { currentTab = MainTab.Home }
                     )
+
                     MainTab.Me -> MeScreen()
+                    MainTab.Exam -> ExamScreen(
+                        onBackHome = { currentTab = MainTab.Home },
+                        onGoPractice = { currentTab = MainTab.Practice }
+                    )
                 }
             }
         }

@@ -4720,3 +4720,204 @@ body.exam-focus #exam-card{
   mix-blend-mode:normal !important;
 }
 /* SHIROHA_WEB_V28_5_ART_WHITE_CARD_FILL_END */
+
+
+
+
+
+/* SHIROHA_WEB_V28_7_HOME_BALANCE_AND_PEEKING_REFINEMENT_START
+   Web 首页再平衡：左上版本标签上提、首屏左右区尽量等高；右下角 peeking 素材去卡片化并增加小隐藏按钮。 */
+#dashboard .dashboard-home-hero{
+  grid-template-columns:minmax(0,1.22fr) minmax(332px,.78fr) !important;
+  gap:18px !important;
+  padding:18px 22px 20px !important;
+  min-height:388px !important;
+}
+#dashboard .dashboard-home-main{
+  justify-content:flex-start !important;
+  align-self:stretch !important;
+  height:100% !important;
+  gap:12px !important;
+}
+#dashboard .dashboard-home-main .kicker{
+  align-self:flex-start;
+  margin:0 0 2px 0 !important;
+}
+#dashboard .dashboard-home-main h2{
+  margin:0 !important;
+}
+#dashboard .dashboard-home-desc{
+  margin:0 0 2px 0 !important;
+}
+#dashboard .dashboard-action-grid{
+  margin-top:0 !important;
+}
+#dashboard .dashboard-progress-row{
+  margin-top:auto !important;
+}
+#dashboard .dashboard-home-side{
+  grid-template-rows:minmax(0,1fr) auto !important;
+  align-self:stretch !important;
+  height:100% !important;
+}
+#dashboard .dashboard-character-card{
+  min-height:0 !important;
+}
+#dashboard .dashboard-stat-grid{
+  align-self:end;
+}
+
+.web-peeking-wrap{
+  position:fixed;
+  right:10px;
+  bottom:18px;
+  width:clamp(110px, 8.6vw, 145px);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  z-index:8;
+  pointer-events:none;
+  user-select:none;
+}
+.web-peeking-wrap::before{
+  content:none !important;
+}
+.web-peeking-art{
+  display:block;
+  width:100%;
+  height:auto;
+  background:transparent !important;
+  position:relative;
+  filter:drop-shadow(0 10px 22px rgba(148,162,214,.16));
+  transition:opacity .18s ease, transform .18s ease;
+  pointer-events:none;
+}
+.web-peeking-toggle{
+  pointer-events:auto;
+  appearance:none;
+  border:1px solid rgba(210,223,246,.96);
+  background:rgba(255,255,255,.88);
+  color:#7386a5;
+  border-radius:999px;
+  padding:4px 10px;
+  min-height:24px;
+  line-height:1;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.02em;
+  box-shadow:0 10px 24px rgba(132,156,204,.12);
+  backdrop-filter:blur(10px);
+  cursor:pointer;
+}
+.web-peeking-toggle:hover{
+  color:#5676ac;
+  border-color:rgba(174,198,236,.98);
+  background:rgba(255,255,255,.96);
+}
+.web-peeking-wrap.collapsed{
+  width:auto;
+  align-items:flex-end;
+}
+.web-peeking-wrap.collapsed .web-peeking-art{
+  opacity:0;
+  transform:translateY(8px) scale(.92);
+  width:0;
+  height:0;
+  overflow:hidden;
+}
+@media (max-width: 1320px){
+  .web-peeking-wrap{display:none;}
+}
+/* SHIROHA_WEB_V28_7_HOME_BALANCE_AND_PEEKING_REFINEMENT_END */
+
+/* SHIROHA_WEB_V28_8_HOME_SPACE_AND_TOGGLE_TUNE_START
+   Web 首页二次微调：缩小右侧图片区域，取消左侧下段被 auto 撑开的空白；隐藏按钮右移并降低存在感。 */
+#dashboard .dashboard-home-hero{
+  min-height:338px !important;
+  padding:18px 22px !important;
+  align-items:stretch !important;
+}
+#dashboard .dashboard-home-main{
+  gap:10px !important;
+  justify-content:flex-start !important;
+}
+#dashboard .dashboard-home-main .kicker{
+  margin-bottom:0 !important;
+}
+#dashboard .dashboard-home-desc{
+  line-height:1.55 !important;
+  margin-bottom:0 !important;
+}
+#dashboard .dashboard-action-grid{
+  gap:10px !important;
+}
+#dashboard .dashboard-action-card{
+  min-height:104px !important;
+  padding:14px 12px !important;
+}
+#dashboard .dashboard-action-card::before{
+  width:36px !important;
+  height:36px !important;
+  border-radius:14px !important;
+}
+#dashboard .dashboard-progress-row{
+  margin-top:12px !important;
+  padding-top:12px !important;
+}
+#dashboard .dashboard-mini-metric b{
+  font-size:19px !important;
+}
+#dashboard .dashboard-home-side{
+  grid-template-rows:minmax(176px, .82fr) auto !important;
+  gap:10px !important;
+}
+#dashboard .dashboard-character-card{
+  min-height:176px !important;
+  padding:12px 18px !important;
+}
+#dashboard .dashboard-character-card .hero-mascot-main{
+  max-width:min(84%,205px) !important;
+  max-height:176px !important;
+}
+#dashboard .dashboard-stat-grid{
+  gap:10px !important;
+}
+#dashboard .dashboard-stat-grid > div{
+  min-height:78px !important;
+  padding:14px 12px !important;
+}
+#dashboard .dashboard-stat-grid b{
+  font-size:26px !important;
+}
+#dashboard .dashboard-stat-grid span{
+  margin-top:4px !important;
+  font-size:12px !important;
+}
+.web-peeking-wrap{
+  right:0 !important;
+  align-items:flex-end !important;
+  gap:4px !important;
+}
+.web-peeking-art{
+  width:94% !important;
+}
+.web-peeking-toggle{
+  align-self:flex-end !important;
+  transform:translateX(6px) !important;
+  opacity:.42 !important;
+  background:rgba(255,255,255,.42) !important;
+  border-color:rgba(205,220,246,.45) !important;
+  color:rgba(88,107,136,.72) !important;
+  box-shadow:none !important;
+}
+.web-peeking-toggle:hover{
+  opacity:.88 !important;
+  background:rgba(255,255,255,.82) !important;
+}
+@media(max-width:1180px){
+  #dashboard .dashboard-home-hero{
+    min-height:0 !important;
+  }
+}
+/* SHIROHA_WEB_V28_8_HOME_SPACE_AND_TOGGLE_TUNE_END */
