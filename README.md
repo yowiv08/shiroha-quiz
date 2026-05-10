@@ -1,3 +1,5 @@
+![Shiroha Quiz](assets/promo.png)
+
 # Shiroha Quiz
 
 Shiroha Quiz 是一个轻量、开源、可扩展的通用刷题项目，面向多题库、多题型和多端使用场景。
