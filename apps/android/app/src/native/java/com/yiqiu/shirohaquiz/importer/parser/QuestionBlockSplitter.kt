@@ -56,7 +56,9 @@ object QuestionBlockSplitter {
         text.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
             if (line.isBlank()) return@forEach
-            if (SectionTitleParser.isSectionHeading(line)) return@forEach
+            SectionTitleParser.parse(line)?.let { section ->
+                if (!section.isAnswerSection) return@forEach
+            }
 
             val explicitStart = parseQuestionStart(line)
             if (explicitStart != null) {
@@ -70,7 +72,7 @@ object QuestionBlockSplitter {
             }
 
             if (currentNumber == null) {
-                if (allowUnnumbered && isLikelyUnnumberedQuestionLine(line)) {
+                if (allowUnnumbered && (isLikelyUnnumberedQuestionLine(line) || isLikelyTypedQuestionLine(line, forcedType))) {
                     syntheticNumber += 1
                     currentNumber = syntheticNumber.toString()
                     currentLines += line
@@ -128,12 +130,22 @@ object QuestionBlockSplitter {
         return hasAnswer || hasOption
     }
 
+    private fun isLikelyTypedQuestionLine(line: String, forcedType: QuestionType?): Boolean {
+        if (forcedType == null) return false
+        if (line.length < 2) return false
+        if (optionStartRegex.containsMatchIn(line)) return false
+        if (answerLineRegex.containsMatchIn(line) || analysisLineRegex.containsMatchIn(line)) return false
+        if (SectionTitleParser.isSectionHeading(line)) return false
+        return true
+    }
+
     private fun isLikelyUnnumberedQuestionLine(line: String): Boolean {
         if (line.length < 4) return false
         if (optionStartRegex.containsMatchIn(line)) return false
         if (answerLineRegex.containsMatchIn(line) || analysisLineRegex.containsMatchIn(line)) return false
         if (SectionTitleParser.isSectionHeading(line)) return false
         if (embeddedAnswerRegex.containsMatchIn(line)) return true
+        if (Regex("""[（(]\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[)）]""", RegexOption.IGNORE_CASE).containsMatchIn(line)) return true
         if (Regex("""[（(]\s*[)）]""").containsMatchIn(line)) return true
         if (Regex("""[?？。]$""").containsMatchIn(line)) return true
         return false

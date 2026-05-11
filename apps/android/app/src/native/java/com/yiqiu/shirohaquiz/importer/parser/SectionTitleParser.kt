@@ -24,7 +24,7 @@ object SectionTitleParser {
         if (title.isBlank()) return null
         if (title.length > 60) return null
 
-        if (answerSectionRegex.containsMatchIn(title)) {
+        if (answerSectionRegex.containsMatchIn(title) && !isInlineAnswerLine(title)) {
             return SectionInfo(title = title, isAnswerSection = true)
         }
 
@@ -45,6 +45,10 @@ object SectionTitleParser {
             return SectionInfo(title = title)
         }
         return null
+    }
+
+    private fun isInlineAnswerLine(title: String): Boolean {
+        return Regex("""^\s*(?:答案|正确答案|参考答案|标准答案|答)\s*[:：]\s*\S+""").containsMatchIn(title)
     }
 
     fun isSectionHeading(rawLine: String): Boolean = parse(rawLine) != null

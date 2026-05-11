@@ -196,6 +196,9 @@ object StandardQuestionParser {
         if (forcedType != null) return forcedType
 
         if (options.isEmpty()) {
+            if (AnswerTokenParser.isJudgeAnswerText(answerText)) {
+                return QuestionType.JUDGE
+            }
             if (AnswerTokenParser.isObjectiveAnswerText(answerText)) {
                 val tokens = AnswerTokenParser.parseObjectiveAnswers(answerText)
                 if (tokens.all { it == "A" || it == "B" } && judgeKeywords.containsMatchIn(stem + answerText)) {

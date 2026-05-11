@@ -18,10 +18,20 @@ object AnswerTokenParser {
     fun isObjectiveAnswerText(raw: String): Boolean {
         val value = cleanup(raw)
         if (value.isBlank()) return false
-        if (judgeTrueRegex.matches(value) || judgeFalseRegex.matches(value)) return true
+        if (isJudgeAnswerText(value)) return true
         if (leadingChoiceRegex.find(value) != null) return true
-        val compact = value.replace(Regex("""[,，、;；/\\\s]+"""), "").uppercase()
+        val compact = value.replace(Regex("""[,，、;；/\\s]+"""), "").uppercase()
         return Regex("""^[A-G]{1,7}$""").matches(compact)
+    }
+
+    fun isJudgeAnswerText(raw: String): Boolean {
+        val value = cleanup(raw)
+        if (value.isBlank()) return false
+        if (judgeTrueRegex.matches(value) || judgeFalseRegex.matches(value)) return true
+        return Regex(
+            """^[ABab]\s*[.、．:：)）]?\s*(?:正确|错误|对|错|是|否|√|×|True|False)$""",
+            RegexOption.IGNORE_CASE
+        ).matches(value)
     }
 
     fun parseObjectiveAnswers(raw: String): List<String> {
