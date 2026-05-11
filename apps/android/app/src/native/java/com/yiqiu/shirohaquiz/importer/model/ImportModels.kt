@@ -11,12 +11,23 @@ data class Question(
     val answer: List<String> = emptyList(),
     val analysis: String = "",
     val category: String = "",
+    val images: List<QuestionImage> = emptyList(),
     val score: Double? = null
 )
 
 data class Option(
     val key: String,
     val text: String
+)
+
+data class QuestionImage(
+    val id: String = UUID.randomUUID().toString(),
+    val localPath: String,
+    val sourceName: String = "",
+    val order: Int = 0,
+    val width: Int? = null,
+    val height: Int? = null,
+    val sizeBytes: Long = 0L
 )
 
 enum class QuestionType {

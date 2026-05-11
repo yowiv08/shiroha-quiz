@@ -40,6 +40,7 @@ import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.MetricGlassCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
+import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
@@ -264,6 +265,10 @@ private fun ActiveExamPanel() {
             fontWeight = FontWeight.SemiBold,
             lineHeight = 34.sp
         )
+        if (examQuestion.images.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            QuestionImagesBlock(examQuestion.images, maxPreviewHeight = 360.dp, showMeta = true)
+        }
         Spacer(Modifier.height(18.dp))
 
         when (examQuestion.type) {
@@ -419,6 +424,10 @@ private fun FinishedExamPanel(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
+            if (question.images.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                QuestionImagesBlock(question.images, maxPreviewHeight = 220.dp, showMeta = false)
+            }
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "你的答案：${userAnswer.joinToString(" / ").ifBlank { "未作答" }}",

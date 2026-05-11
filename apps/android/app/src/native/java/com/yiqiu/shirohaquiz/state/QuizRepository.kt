@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
+import com.yiqiu.shirohaquiz.importer.model.QuestionImage
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import org.json.JSONArray
 import org.json.JSONObject
@@ -640,6 +641,26 @@ object QuizRepository {
             }
         }
 
+        val imagesArray = questionJson.optJSONArray("images") ?: JSONArray()
+        val images = buildList {
+            for (k in 0 until imagesArray.length()) {
+                val imageJson = imagesArray.optJSONObject(k) ?: continue
+                val path = imageJson.optString("localPath")
+                if (path.isBlank()) continue
+                add(
+                    QuestionImage(
+                        id = imageJson.optString("id"),
+                        localPath = path,
+                        sourceName = imageJson.optString("sourceName"),
+                        order = imageJson.optInt("order"),
+                        width = if (imageJson.has("width") && !imageJson.isNull("width")) imageJson.optInt("width") else null,
+                        height = if (imageJson.has("height") && !imageJson.isNull("height")) imageJson.optInt("height") else null,
+                        sizeBytes = imageJson.optLong("sizeBytes")
+                    )
+                )
+            }
+        }
+
         return sanitizeQuestion(
             Question(
                 id = questionJson.optString("id"),
@@ -652,6 +673,7 @@ object QuizRepository {
                 answer = answers,
                 analysis = questionJson.optString("analysis"),
                 category = questionJson.optString("category"),
+                images = images,
                 score = if (questionJson.has("score")) questionJson.optDouble("score") else null
             )
         )
@@ -687,6 +709,20 @@ object QuizRepository {
         val answersArray = JSONArray()
         question.answer.forEach { answersArray.put(it) }
         questionJson.put("answer", answersArray)
+
+        val imagesArray = JSONArray()
+        question.images.forEach { image ->
+            val imageJson = JSONObject()
+            imageJson.put("id", image.id)
+            imageJson.put("localPath", image.localPath)
+            imageJson.put("sourceName", image.sourceName)
+            imageJson.put("order", image.order)
+            imageJson.put("width", image.width)
+            imageJson.put("height", image.height)
+            imageJson.put("sizeBytes", image.sizeBytes)
+            imagesArray.put(imageJson)
+        }
+        questionJson.put("images", imagesArray)
         return questionJson
     }
 }

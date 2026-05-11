@@ -26,6 +26,7 @@ import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
+import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
@@ -72,6 +73,10 @@ fun PracticeScreen() {
                 lineHeight = 34.sp,
                 fontWeight = FontWeight.SemiBold
             )
+            if (question.images.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                QuestionImagesBlock(question.images, maxPreviewHeight = 360.dp, showMeta = true)
+            }
             Spacer(Modifier.height(18.dp))
 
             when (question.type) {

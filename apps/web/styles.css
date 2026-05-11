@@ -4506,30 +4506,6 @@ body.exam-focus #exam-card{
   width:100%;
   min-height:46px;
 }
-#dashboard .dashboard-stats-row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
-}
-#dashboard .dashboard-stat-item{
-  text-align:center;
-  padding:14px 8px;
-  border-radius:12px;
-  background:#f5f7fb;
-}
-#dashboard .dashboard-stat-item b{
-  display:block;
-  font-size:24px;
-  line-height:1.2;
-  color:var(--ink);
-}
-#dashboard .dashboard-stat-item span{
-  display:block;
-  margin-top:4px;
-  font-size:12px;
-  color:var(--muted);
-  font-weight:700;
-}
 #dashboard .dashboard-tips{
   margin:0;
   padding-left:18px;
@@ -5121,3 +5097,63 @@ body.exam-focus #exam-card{
   }
 }
 /* SHIROHA_WEB_V29_3_HOME_BALANCE_REFINE_END */
+
+
+/* SHIROHA_WEB_V29_6_DOCX_IMAGE_IMPORT_FIX_START
+   DOCX 图片题导入显示：支持从 Word 中提取 png/jpeg/gif/webp/bmp/svg 图片并在题干中渲染。 */
+.question-media{
+  margin:12px 0 10px;
+  padding:10px;
+  border:1px solid rgba(120,150,220,.16);
+  border-radius:18px;
+  background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+  overflow:hidden;
+}
+.question-image{
+  display:block;
+  max-width:100%;
+  max-height:520px;
+  object-fit:contain;
+  margin:0 auto;
+  border-radius:12px;
+}
+@media(max-width:720px){
+  .question-media{margin:10px 0;padding:8px;border-radius:16px;}
+  .question-image{max-height:360px;}
+}
+/* SHIROHA_WEB_V29_6_DOCX_IMAGE_IMPORT_FIX_END */
+
+
+/* SHIROHA_WEB_V29_7_DOCX_IMAGE_EXAM_VERIFIED_START
+   DOCX 图片题显示优化：导入阶段会压缩大图，这里限制展示尺寸，避免图形题/资料图撑开页面。 */
+.question-media{
+  margin:14px 0;
+  padding:10px;
+  border:1px solid rgba(120,154,210,.18);
+  border-radius:16px;
+  background:#fff;
+  overflow:auto;
+}
+.question-image{
+  display:block;
+  max-width:100%;
+  max-height:520px;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  margin:0 auto;
+}
+.import-table td .question-media,
+.preview-table td .question-media{
+  display:none!important;
+}
+@media(max-width:720px){
+  .question-media{padding:8px;border-radius:14px;margin:12px 0;}
+  .question-image{max-height:360px;}
+}
+/* SHIROHA_WEB_V29_7_DOCX_IMAGE_EXAM_VERIFIED_END */
+
+
+/* SHIROHA_WEB_V29_8_IMPORT_REVIEW_ANALYSIS_AND_LONG_STEM_FIX
+   逻辑改动在 app.js；这里保留版本标记，便于确认样式包版本。 */
