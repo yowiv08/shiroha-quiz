@@ -58,3 +58,7 @@ apps/web.zip
 
 # Added by source-upload script
 source-upload.ps1
+
+# Local test data
+test/
+apps/android/.gradle-user-home/
