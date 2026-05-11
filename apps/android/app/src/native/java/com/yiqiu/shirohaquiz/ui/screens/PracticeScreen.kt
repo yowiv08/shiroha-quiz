@@ -2,6 +2,8 @@ package com.yiqiu.shirohaquiz.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,58 +16,145 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.TextSnippet
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
+import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
-import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun PracticeScreen() {
+fun PracticeScreen(
+    onGoExam: () -> Unit = {}
+) {
     val bank = QuizRepository.activeBank()
+    val practiceQuestions = QuizRepository.activePracticeQuestions()
     val question = QuizRepository.currentPracticeQuestion()
     val result = QuizRepository.practiceLastResult
+    val availableCounts = remember(bank?.id, bank?.questions?.size) {
+        QuizRepository.questionTypeCounts(bank?.questions.orEmpty())
+    }
+    val availableTypes = practiceTypeOrder.filter { (availableCounts[it] ?: 0) > 0 }
+    var selectedQuestionCount by remember(bank?.id) {
+        mutableIntStateOf(bank?.questions?.size?.coerceAtMost(20) ?: 20)
+    }
+    var selectedTypes by remember(bank?.id) {
+        mutableStateOf(availableTypes.toSet().ifEmpty { QuizRepository.objectiveQuestionTypes() })
+    }
 
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(ShirohaSpacing.Xl),
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
-        ShirohaHeader(
-            kicker = "Practice",
-            title = "原生练习页",
-            subtitle = if (bank == null || bank.questions.isEmpty()) {
-                "当前还没有可练习的题目。先去导入页导入一份原生题库。"
-            } else {
-                "当前题库：${bank.name}，共 ${bank.questions.size} 题。练习提交后会自动写入错题本和学习记录。"
+        Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
+            Text(
+                text = "Practice",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "练习模式",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Timer,
+                    text = "切换考试",
+                    primary = false,
+                    modifier = Modifier.height(44.dp),
+                    onClick = onGoExam
+                )
             }
+        }
+
+        IllustrationHeroCard(
+            title = "选题型和题量，再开始练习",
+            subtitle = "先把本轮范围定好，进入后专注刷题。",
+            imageRes = R.drawable.illus_practice_hint,
+            imageSize = 76.dp
         )
 
-        if (question == null) {
+        if (bank == null || bank.questions.isEmpty()) {
             GlassCard {
-                NoticeCard("还没有可练习题目。请先在原生导入页完成一次标准题库导入。")
+                NoticeCard("还没有可练习题目。请先在导入页创建题库。")
             }
             return
         }
 
+        if (QuizRepository.practiceQuestions.isEmpty()) {
+            PracticeSetupPanel(
+                bankName = bank.name,
+                totalQuestions = bank.questions.size,
+                availableCounts = availableCounts,
+                selectedTypes = selectedTypes,
+                selectedQuestionCount = selectedQuestionCount.coerceAtMost(bank.questions.size),
+                onToggleType = { type ->
+                    val updated = if (selectedTypes.contains(type)) selectedTypes - type else selectedTypes + type
+                    selectedTypes = updated
+                },
+                onSelectQuestionCount = { selectedQuestionCount = it },
+                onStartPractice = {
+                    val safeTypes = selectedTypes.ifEmpty { QuizRepository.objectiveQuestionTypes() }
+                    val available = bank.questions.count { it.type in safeTypes }
+                    val count = selectedQuestionCount.coerceIn(1, available.coerceAtLeast(1))
+                    QuizRepository.startPracticeSession(
+                        questionCount = count,
+                        allowedTypes = safeTypes,
+                        sourceLabel = "当前题库",
+                        randomize = true
+                    )
+                }
+            )
+            return
+        }
+
+        if (question == null) {
+            GlassCard { NoticeCard("当前练习没有可显示的题目，请重新开始练习。") }
+            return
+        }
+
+        PracticeProgressCard(
+            currentIndex = QuizRepository.practiceIndex + 1,
+            total = practiceQuestions.size,
+            answered = QuizRepository.practiceAnsweredCount(),
+            correct = QuizRepository.practiceCorrectCount()
+        )
+
         GlassCard {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("第 ${QuizRepository.practiceIndex + 1} 题", selected = true)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatusChip("第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题", selected = true)
                 StatusChip(typeLabel(question.type))
-                StatusChip("原生题库")
+                StatusChip(QuizRepository.practiceSourceLabel)
             }
             Spacer(Modifier.height(18.dp))
             Text(
@@ -102,7 +191,7 @@ fun PracticeScreen() {
 
                 QuestionType.BLANK,
                 QuestionType.SHORT -> {
-                    NoticeCard("这道题属于 ${typeLabel(question.type)}，当前练习页先展示参考答案和解析，后续再补原生主观题作答。")
+                    NoticeCard("这道题属于 ${typeLabel(question.type)}，当前先展示参考答案和解析。")
                 }
             }
 
@@ -182,6 +271,115 @@ fun PracticeScreen() {
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PracticeSetupPanel(
+    bankName: String,
+    totalQuestions: Int,
+    availableCounts: Map<QuestionType, Int>,
+    selectedTypes: Set<QuestionType>,
+    selectedQuestionCount: Int,
+    onToggleType: (QuestionType) -> Unit,
+    onSelectQuestionCount: (Int) -> Unit,
+    onStartPractice: () -> Unit
+) {
+    val selectedAvailable = availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
+    GlassCard {
+        Text(
+            text = bankName,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "共 $totalQuestions 题 · 先选择题型和题量，再开始练习",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("题型", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            practiceTypeOrder.filter { (availableCounts[it] ?: 0) > 0 }.forEach { type ->
+                ActionPillButton(
+                    icon = Icons.Rounded.CheckCircle,
+                    text = "${typeLabel(type)} ${availableCounts[type] ?: 0}",
+                    primary = type in selectedTypes,
+                    onClick = { onToggleType(type) }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("题量", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val safeAvailable = selectedAvailable.coerceAtLeast(1)
+            val halfCount = (safeAvailable / 2).coerceAtLeast(1)
+            buildList {
+                if (safeAvailable >= 20) add(20 to "20 题")
+                if (safeAvailable >= 50) add(50 to "50 题")
+                if (safeAvailable >= 100) add(100 to "100 题")
+                add(halfCount to "一半 $halfCount 题")
+                add(safeAvailable to "全部 $safeAvailable 题")
+            }
+                .distinctBy { it.first }
+                .forEach { (count, label) ->
+                    ActionPillButton(
+                        icon = Icons.Rounded.PlayArrow,
+                        text = label,
+                        primary = selectedQuestionCount == count,
+                        onClick = { onSelectQuestionCount(count) }
+                    )
+                }
+        }
+        Spacer(Modifier.height(16.dp))
+        ActionPillButton(
+            icon = Icons.Rounded.PlayArrow,
+            text = "开始练习",
+            primary = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            fillWidthContent = true,
+            onClick = onStartPractice
+        )
+    }
+}
+
+@Composable
+private fun PracticeProgressCard(
+    currentIndex: Int,
+    total: Int,
+    answered: Int,
+    correct: Int
+) {
+    val accuracy = if (answered == 0) 0 else correct * 100 / answered
+    GlassCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("刷题进度", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("$currentIndex / $total", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "已提交 $answered 题 · 正确 $correct 题 · 正确率 $accuracy%",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private val practiceTypeOrder = listOf(
+    QuestionType.SINGLE,
+    QuestionType.MULTIPLE,
+    QuestionType.JUDGE,
+    QuestionType.BLANK,
+    QuestionType.SHORT
+)
 
 private fun typeLabel(type: QuestionType): String = when (type) {
     QuestionType.SINGLE -> "单选题"

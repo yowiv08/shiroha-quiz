@@ -52,7 +52,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.importer.model.ImportResult
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
 import com.yiqiu.shirohaquiz.importer.model.Option
@@ -65,6 +64,7 @@ import com.yiqiu.shirohaquiz.importer.parser.QuizImportParser
 import com.yiqiu.shirohaquiz.importer.parser.TextImportDecoder
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
+import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.LoadingIllustration
@@ -82,8 +82,8 @@ fun ImportScreen(
     onImportSaved: () -> Unit
 ) {
     val context = LocalContext.current
-    var rawText by rememberSaveable { mutableStateOf(sampleImportText()) }
-    var answerText by rememberSaveable { mutableStateOf(sampleAnswerText()) }
+    var rawText by rememberSaveable { mutableStateOf("") }
+    var answerText by rememberSaveable { mutableStateOf("") }
     var importedImages by remember { mutableStateOf<List<QuestionImportAssetExtractor.ExtractedImportImage>>(emptyList()) }
     var selectedFileName by rememberSaveable { mutableStateOf("未选择文件") }
     var selectedAnswerFileName by rememberSaveable { mutableStateOf("未选择答案文件") }
@@ -93,7 +93,7 @@ fun ImportScreen(
     var reviewIndex by rememberSaveable { mutableStateOf(0) }
     var reviewFilterName by rememberSaveable { mutableStateOf(ReviewFilter.ALL.name) }
     var statusText by rememberSaveable {
-        mutableStateOf("当前先接入原生标准题库导入。推荐优先导入 txt / json / csv / docx 这类结构化文本文件。")
+        mutableStateOf("请选择题库文件。")
     }
     var isStatusWarn by rememberSaveable { mutableStateOf(false) }
     var useDualImport by rememberSaveable { mutableStateOf(false) }
@@ -124,16 +124,16 @@ fun ImportScreen(
         val content = readImportedContent(context, uri, selectedFileName)
         if (content == null || content.text.isBlank()) {
             clearParsedResult(clearImages = true)
-            statusText = "当前原生导入还不能稳定读取这个文件。建议优先使用 txt / csv / json / docx。"
+            statusText = "当前导入还不能稳定读取这个文件。建议优先使用 txt / json / docx。"
             isStatusWarn = true
         } else {
             rawText = content.text
             importedImages = content.images
             clearParsedResult()
             statusText = if (content.images.isNotEmpty()) {
-                "已读取文件：$selectedFileName，并检测到 ${content.images.size} 张图片。解析后建议进入沉浸核对筛选图片题。"
+                "已读取：$selectedFileName，含 ${content.images.size} 张图片。"
             } else {
-                "已读取文件：$selectedFileName，可以直接开始原生解析。"
+                "已读取：$selectedFileName。"
             }
             isStatusWarn = false
         }
@@ -213,45 +213,26 @@ fun ImportScreen(
         return
     }
 
+    val shouldPickAnswerFile = useDualImport && selectedFileName != "未选择文件"
+
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(ShirohaSpacing.Xl),
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         ShirohaHeader(
             kicker = "Import",
-            title = "原生导入题库",
-            subtitle = "这里走的是真正的 Kotlin 原生导入链。解析后可以进入沉浸核对，逐题检查并修改。"
+            title = "导入题库",
+            subtitle = ""
         )
 
         IllustrationHeroCard(
-            title = "先导入，再核对，最后创建题库",
-            subtitle = "复杂题库不强求一次性全自动完美，解析后可以逐题修改题干、选项、答案和解析。",
+            title = "导入 · 核对 · 确认",
+            subtitle = "",
             imageRes = R.drawable.illus_import_hint,
-            imageSize = 124.dp
+            imageSize = 76.dp
         )
-
-        GlassCard {
-            Text(
-                text = "当前进度",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(12.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                StatusChip("标准文本导入", selected = !useDualImport)
-                StatusChip("原生结果预览", selected = true)
-                StatusChip("沉浸核对", selected = editableQuestions.isNotEmpty())
-                StatusChip("答案区解析", selected = true)
-                StatusChip("双文件导入", selected = useDualImport)
-            }
-            Spacer(Modifier.height(14.dp))
-            NoticeCard(statusText, warning = isStatusWarn)
-        }
 
         GlassCard {
             Text(
@@ -285,7 +266,7 @@ fun ImportScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "支持 txt / csv / json / docx 等文本型题库。",
+                            text = "支持 txt / json / docx 等文本型题库。",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -294,7 +275,11 @@ fun ImportScreen(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "当前文件：$selectedFileName",
+                text = if (useDualImport) {
+                    "当前题库文件：$selectedFileName\n当前答案文件：$selectedAnswerFileName"
+                } else {
+                    "当前文件：$selectedFileName"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -305,13 +290,19 @@ fun ImportScreen(
             ) {
                 ActionPillButton(
                     icon = Icons.Rounded.FileOpen,
-                    text = "选择文件",
+                    text = if (shouldPickAnswerFile) "选择答案文件" else "选择题库文件",
                     primary = true,
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
                     fillWidthContent = true,
-                    onClick = { filePicker.launch(arrayOf("*/*")) }
+                    onClick = {
+                        if (shouldPickAnswerFile) {
+                            answerFilePicker.launch(arrayOf("*/*"))
+                        } else {
+                            filePicker.launch(arrayOf("*/*"))
+                        }
+                    }
                 )
                 ActionPillButton(
                     icon = Icons.Rounded.Refresh,
@@ -327,7 +318,7 @@ fun ImportScreen(
                         rawText = sampleImportText()
                         importedImages = emptyList()
                         clearParsedResult()
-                        statusText = "已填入示例标准题库，可以直接测试原生解析。"
+                        statusText = "已填入示例题库。"
                         isStatusWarn = false
                     }
                 )
@@ -347,7 +338,7 @@ fun ImportScreen(
                     onClick = {
                         useDualImport = false
                         clearParsedResult()
-                        statusText = "已切换到原生标准导入模式。"
+                        statusText = "已切换到标准导入。"
                     }
                 )
                 ImportModeChip(
@@ -360,7 +351,7 @@ fun ImportScreen(
                     onClick = {
                         useDualImport = true
                         clearParsedResult()
-                        statusText = "已切换到原生双文件导入模式。"
+                        statusText = "已切换到双文件导入。先选择题库文件，再选择答案文件。"
                     }
                 )
             }
@@ -393,8 +384,8 @@ fun ImportScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp),
-                minLines = 10,
+                    .height(if (useDualImport) 180.dp else 220.dp),
+                minLines = if (useDualImport) 8 else 10,
                 textStyle = MaterialTheme.typography.bodyMedium,
                 placeholder = { Text("把标准题库文本粘贴到这里，或通过上方选择文件导入。") }
             )
@@ -403,7 +394,7 @@ fun ImportScreen(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = "答案文本",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(10.dp))
@@ -418,20 +409,7 @@ fun ImportScreen(
                         .height(180.dp),
                     minLines = 8,
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    placeholder = { Text("粘贴答案文本，或通过下方按钮选择答案文件。") }
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = "当前答案文件：$selectedAnswerFileName",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(10.dp))
-                ActionPillButton(
-                    icon = Icons.Rounded.FileOpen,
-                    text = "选择答案文件",
-                    primary = false,
-                    onClick = { answerFilePicker.launch(arrayOf("*/*")) }
+                    placeholder = { Text("粘贴答案文本，或通过上方按钮选择答案文件。") }
                 )
             }
 
@@ -511,7 +489,7 @@ fun ImportScreen(
         }
 
         if (importResult == null && rawText.isNotBlank()) {
-            LoadingIllustration("准备好以后，点击标题右侧“开始解析”，这里会切成结构化预览。")
+            LoadingIllustration("准备好以后，点击“开始解析”。")
         }
     }
 }
@@ -728,7 +706,7 @@ private fun NativeQuestionReviewScreen(
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(ShirohaSpacing.Xl),
+                .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
             verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
         ) {
             ShirohaHeader(
@@ -768,7 +746,7 @@ private fun NativeQuestionReviewScreen(
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(ShirohaSpacing.Xl),
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         ShirohaHeader(

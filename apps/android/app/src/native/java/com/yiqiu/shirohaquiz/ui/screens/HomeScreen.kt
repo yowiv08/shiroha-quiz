@@ -1,29 +1,29 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.ReportProblem
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
@@ -31,15 +31,14 @@ import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.MetricGlassCard
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
-import com.yiqiu.shirohaquiz.ui.components.ShortcutGlassCard
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     onGoImport: () -> Unit,
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit,
+    onOpenBankList: () -> Unit,
     onOpenBankDetail: (String) -> Unit,
     onOpenWrongBook: () -> Unit,
     onOpenRecords: () -> Unit
@@ -47,164 +46,175 @@ fun HomeScreen(
     val activeBank = QuizRepository.activeBank()
     val bankCount = QuizRepository.banks.size
     val questionCount = activeBank?.questions?.size ?: 0
-    val wrongCount = QuizRepository.wrongBook.size
-    val recordCount = QuizRepository.studyRecords.size
+    val bankName = activeBank?.name ?: "尚未导入题库"
+    val bankNameSize = when {
+        bankName.length > 28 -> 15.sp
+        bankName.length > 20 -> 17.sp
+        bankName.length > 14 -> 19.sp
+        else -> 22.sp
+    }
 
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(ShirohaSpacing.Xl),
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         ShirohaHeader(
             kicker = "Shiroha Quiz",
-            title = "原生题库首页",
-            subtitle = "这里是原生 Android 主流程。导入后的题库会直接进入原生状态，并接入练习、考试、错题本和学习记录。"
+            title = "首页",
+            subtitle = ""
         )
 
         IllustrationHeroCard(
             title = "欢迎回来",
-            subtitle = "这张小头像只承担欢迎和识别感，不去抢首页主信息的空间。",
+            subtitle = "继续练习、考试或查看学习记录。",
             imageRes = R.drawable.illus_home_welcome,
             imageSize = 84.dp
-        ) {
-            Text(
-                text = if (questionCount > 0) "今天可以继续把 ${activeBank?.name} 往前推一轮。" else "先导入一份题库，我们就能把原生链真正跑起来。",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        )
 
         GlassCard {
-            Text(
-                text = "当前题库",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = activeBank?.name ?: "尚未导入题库",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = if (questionCount > 0) {
-                    "当前题库共有 $questionCount 题，已经可以直接进入原生练习和考试。"
-                } else {
-                    "当前还没有真实导入题目。先去导入页完成一份标准题库的导入。"
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(16.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                ActionPillButton(Icons.Rounded.CloudUpload, "去导入", primary = true, onClick = onGoImport)
-                ActionPillButton(Icons.Rounded.PlayArrow, "进入练习", primary = false, onClick = onGoPractice)
-                ActionPillButton(Icons.Rounded.Timer, "开始考试", primary = false, onClick = onGoExam)
+                Text(
+                    text = "当前题库",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = bankName,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = bankNameSize),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionPillButton(
+                    Icons.Rounded.PlayArrow,
+                    "进入练习",
+                    primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    onClick = onGoPractice
+                )
+                ActionPillButton(
+                    Icons.Rounded.Timer,
+                    "开始考试",
+                    primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    onClick = onGoExam
+                )
             }
         }
+
+        CurrentStatusCard(
+            bankCount = bankCount,
+            wrongCount = QuizRepository.wrongBook.size,
+            recordCount = QuizRepository.studyRecords.size,
+            onOpenWrongBook = onOpenWrongBook,
+            onOpenRecords = onOpenRecords
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricGlassCard(
                 label = "题库数量",
                 value = bankCount.toString(),
-                desc = "原生侧当前挂载的题库",
-                modifier = Modifier.weight(1f)
+                desc = "进入题库管理",
+                modifier = Modifier.weight(1f),
+                onClick = onOpenBankList
             )
             MetricGlassCard(
                 label = "当前题量",
                 value = questionCount.toString(),
-                desc = "活动题库中的题目数",
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricGlassCard(
-                label = "错题数",
-                value = wrongCount.toString(),
-                desc = "练习和考试中累计的错题",
-                modifier = Modifier.weight(1f)
-            )
-            MetricGlassCard(
-                label = "记录数",
-                value = recordCount.toString(),
-                desc = "原生学习记录条目",
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ShortcutGlassCard(
-                title = "标准文本导入",
-                icon = Icons.Rounded.AutoStories,
-                desc = "优先覆盖最常见的题库格式",
-                modifier = Modifier.weight(1f)
-            )
-            ShortcutGlassCard(
-                title = "原生考试模式",
-                icon = Icons.Rounded.Schedule,
-                desc = "题量、计时、交卷和结果页已经接通",
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ShortcutGlassCard(
-                title = "错题本",
-                icon = Icons.Rounded.ReportProblem,
-                desc = "收拢练习和考试里的错题",
-                modifier = Modifier.weight(1f)
-            )
-            ShortcutGlassCard(
-                title = "学习记录",
-                icon = Icons.Rounded.History,
-                desc = "查看最近的练习和考试结果",
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionPillButton(Icons.Rounded.ReportProblem, "打开错题本", primary = false, onClick = onOpenWrongBook)
-            ActionPillButton(Icons.Rounded.History, "查看记录", primary = false, onClick = onOpenRecords)
-        }
-
-        GlassCard {
-            Text(
-                text = "题库列表",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(12.dp))
-            QuizRepository.banks.forEach { bank ->
-                val isActive = bank.id == activeBank?.id
-                Text(
-                    text = bank.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = buildString {
-                        append("${bank.questions.size} 题")
-                        if (isActive) append(" · 当前活动题库")
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionPillButton(
-                        icon = Icons.Rounded.PlayArrow,
-                        text = "查看详情",
-                        primary = isActive,
-                        onClick = { onOpenBankDetail(bank.id) }
-                    )
+                desc = "查看当前题库详情",
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    activeBank?.let { onOpenBankDetail(it.id) }
                 }
-                Spacer(Modifier.height(18.dp))
+            )
+        }
+    }
+}
+
+@Composable
+private fun CurrentStatusCard(
+    bankCount: Int,
+    wrongCount: Int,
+    recordCount: Int,
+    onOpenWrongBook: () -> Unit,
+    onOpenRecords: () -> Unit
+) {
+    GlassCard {
+        Text(
+            text = "当前状态",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "题库 $bankCount 份 · 错题 $wrongCount 条 · 记录 $recordCount 条",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                ActionPillButton(
+                    icon = Icons.Rounded.ReportProblem,
+                    text = "打开错题本",
+                    primary = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = onOpenWrongBook
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "收拢练习和考试里的错题",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                ActionPillButton(
+                    icon = Icons.Rounded.History,
+                    text = "查看学习记录",
+                    primary = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = onOpenRecords
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "查看最近的练习和考试结果",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

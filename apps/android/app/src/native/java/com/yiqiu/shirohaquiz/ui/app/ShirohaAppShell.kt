@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.ui.screens.BankDetailScreen
+import com.yiqiu.shirohaquiz.ui.screens.BankListScreen
 import com.yiqiu.shirohaquiz.ui.screens.ExamScreen
 import com.yiqiu.shirohaquiz.ui.screens.HomeScreen
 import com.yiqiu.shirohaquiz.ui.screens.ImportScreen
@@ -48,6 +49,7 @@ private enum class MainTab(
     Import("导入", Icons.Rounded.ImportExport),
     Me("我的", Icons.Rounded.Settings),
     Exam("考试", Icons.Rounded.School, showInBottomBar = false),
+    BankList("题库管理", Icons.Rounded.Dashboard, showInBottomBar = false),
     BankDetail("题库详情", Icons.Rounded.Dashboard, showInBottomBar = false),
     WrongBook("错题本", Icons.Rounded.School, showInBottomBar = false),
     Records("记录", Icons.Rounded.Dashboard, showInBottomBar = false)
@@ -100,6 +102,7 @@ fun ShirohaAppShell() {
                         onGoImport = { currentTab = MainTab.Import },
                         onGoPractice = { currentTab = MainTab.Practice },
                         onGoExam = { currentTab = MainTab.Exam },
+                        onOpenBankList = { currentTab = MainTab.BankList },
                         onOpenBankDetail = { bankId ->
                             detailBankId = bankId
                             currentTab = MainTab.BankDetail
@@ -108,7 +111,7 @@ fun ShirohaAppShell() {
                         onOpenRecords = { currentTab = MainTab.Records }
                     )
 
-                    MainTab.Practice -> PracticeScreen()
+                    MainTab.Practice -> PracticeScreen(onGoExam = { currentTab = MainTab.Exam })
                     MainTab.Import -> ImportScreen(onImportSaved = { currentTab = MainTab.Home })
                     MainTab.Me -> MeScreen(
                         onOpenWrongBook = { currentTab = MainTab.WrongBook },
@@ -117,6 +120,13 @@ fun ShirohaAppShell() {
                     MainTab.Exam -> ExamScreen(
                         onBackHome = { currentTab = MainTab.Home },
                         onGoPractice = { currentTab = MainTab.Practice }
+                    )
+                    MainTab.BankList -> BankListScreen(
+                        onBack = { currentTab = MainTab.Home },
+                        onOpenBankDetail = { bankId ->
+                            detailBankId = bankId
+                            currentTab = MainTab.BankDetail
+                        }
                     )
                     MainTab.BankDetail -> BankDetailScreen(
                         bankId = detailBankId,

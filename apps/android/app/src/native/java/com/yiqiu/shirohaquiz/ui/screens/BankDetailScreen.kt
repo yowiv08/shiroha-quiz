@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,13 +47,13 @@ fun BankDetailScreen(
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(ShirohaSpacing.Xl),
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         ShirohaHeader(
             kicker = "Bank Detail",
             title = bank?.name ?: "题库详情",
-            subtitle = "这里展示题库摘要、题型分布和快速操作，方便我们从原生首页直接进入练习和考试。"
+            subtitle = "题库摘要、题型分布和快速操作。"
         )
 
         if (bank == null) {
@@ -75,15 +77,33 @@ fun BankDetailScreen(
         }
 
         GlassCard {
-            Text(
-                text = "题库摘要",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "题库摘要",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Done,
+                    text = if (isActive) "当前题库" else "设为当前",
+                    primary = true,
+                    modifier = Modifier.height(44.dp),
+                    onClick = {
+                        if (!isActive) {
+                            QuizRepository.setActiveBank(context, bank.id)
+                        }
+                    }
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusChip("${bank.questions.size} 题", selected = true)
-                StatusChip(if (isActive) "当前活动题库" else "可切换题库", selected = isActive)
+                StatusChip(if (isActive) "活动题库" else "可切换题库", selected = isActive)
             }
             Spacer(Modifier.height(14.dp))
             Text(
@@ -92,27 +112,28 @@ fun BankDetailScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ActionPillButton(
-                    icon = Icons.Rounded.Done,
-                    text = if (isActive) "当前题库" else "设为当前题库",
-                    primary = true,
-                    onClick = {
-                        if (!isActive) {
-                            QuizRepository.setActiveBank(context, bank.id)
-                        }
-                    }
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 ActionPillButton(
                     icon = Icons.Rounded.PlayArrow,
                     text = "进入练习",
                     primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
                     onClick = onGoPractice
                 )
                 ActionPillButton(
                     icon = Icons.Rounded.Timer,
-                    text = "开始考试",
+                    text = "进入考试",
                     primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
                     onClick = onGoExam
                 )
             }

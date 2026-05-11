@@ -25,7 +25,9 @@ data class ExamSummary(
     val correct: Int,
     val durationSeconds: Int,
     val remainingSeconds: Int,
-    val autoSubmitted: Boolean
+    val autoSubmitted: Boolean,
+    val totalScore: Double = 0.0,
+    val earnedScore: Double = 0.0
 )
 
 data class WrongQuestionEntry(
@@ -34,8 +36,25 @@ data class WrongQuestionEntry(
     val question: Question,
     val lastAnswer: List<String>,
     val source: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val wrongCount: Int = 1,
+    val rightCount: Int = 0,
+    val lastWrongAt: Long = timestamp,
+    val lastCorrectAt: Long? = null,
+    val status: String = WrongStatus.REVIEWING.label
 )
+
+enum class WrongStatus(val label: String) {
+    REVIEWING("复习中"),
+    NOT_MASTERED("未掌握"),
+    MASTERED("已掌握");
+
+    companion object {
+        fun normalize(value: String?): String {
+            return values().firstOrNull { it.label == value }?.label ?: NOT_MASTERED.label
+        }
+    }
+}
 
 data class StudyRecord(
     val id: String,
@@ -69,10 +88,15 @@ object QuizRepository {
     val studyRecords = mutableStateListOf<StudyRecord>()
 
     var activeBankId by mutableStateOf<String?>(null)
+    var practiceQuestions by mutableStateOf<List<Question>>(emptyList())
+        private set
+    var practiceSourceLabel by mutableStateOf("当前题库")
+        private set
     var practiceIndex by mutableStateOf(0)
     var selectedAnswer by mutableStateOf<List<String>>(emptyList())
     var practiceLastResult by mutableStateOf<QuestionCheckResult?>(null)
         private set
+    val practiceSessionResults = mutableStateMapOf<String, Boolean>()
 
     private var initialized by mutableStateOf(false)
     private var appContext: Context? = null
@@ -90,6 +114,8 @@ object QuizRepository {
     var examAutoSubmitted by mutableStateOf(false)
         private set
     val examAnswers = mutableStateMapOf<String, List<String>>()
+    var examTypeScores by mutableStateOf(defaultExamTypeScores())
+        private set
 
     fun init(context: Context) {
         if (initialized) return
@@ -110,16 +136,15 @@ object QuizRepository {
         wrongBook.clear()
         studyRecords.clear()
 
-        val sanitizedRestoredBanks = restoredBanks.map(::sanitizeBank)
-        if (sanitizedRestoredBanks.isNotEmpty()) {
-            banks.addAll(sanitizedRestoredBanks)
-            activeBankId = prefs.getString(KEY_ACTIVE_BANK_ID, sanitizedRestoredBanks.firstOrNull()?.id)
-        } else {
-            banks += demoBank()
-            activeBankId = "demo-bank"
-        }
+        val sanitizedRestoredBanks = restoredBanks
+            .map(::sanitizeBank)
+            .filterNot { bank -> bank.id == "demo-bank" || (bank.name == "示例题库" && bank.questions.isEmpty()) }
+        banks.addAll(sanitizedRestoredBanks)
+        activeBankId = prefs.getString(KEY_ACTIVE_BANK_ID, sanitizedRestoredBanks.firstOrNull()?.id)
+            ?.takeIf { id -> sanitizedRestoredBanks.any { it.id == id } }
+            ?: sanitizedRestoredBanks.firstOrNull()?.id
 
-        wrongBook.addAll(restoredWrongBook)
+        wrongBook.addAll(restoredWrongBook.map(::sanitizeWrongEntry))
         studyRecords.addAll(restoredStudyRecords)
         if (sanitizedRestoredBanks != restoredBanks) persist()
     }
@@ -153,9 +178,6 @@ object QuizRepository {
         wrongBook.removeAll { it.bankId == bankId }
         studyRecords.removeAll { it.bankId == bankId }
 
-        if (banks.isEmpty()) {
-            banks += demoBank()
-        }
         if (removingActive || banks.none { it.id == activeBankId }) {
             activeBankId = banks.firstOrNull()?.id
         }
@@ -167,15 +189,57 @@ object QuizRepository {
     fun activeBank(): QuizBank? = banks.firstOrNull { it.id == activeBankId } ?: banks.firstOrNull()
 
     fun currentPracticeQuestion(): Question? {
-        val questions = activeBank()?.questions.orEmpty()
+        val questions = activePracticeQuestions()
         if (questions.isEmpty()) return null
         val safeIndex = practiceIndex.coerceIn(0, questions.lastIndex)
         if (safeIndex != practiceIndex) practiceIndex = safeIndex
         return questions[safeIndex]
     }
 
+    fun activePracticeQuestions(): List<Question> {
+        return practiceQuestions.ifEmpty { activeBank()?.questions.orEmpty() }
+    }
+
+    fun startPracticeSession(
+        questionCount: Int,
+        allowedTypes: Set<QuestionType>,
+        sourceQuestions: List<Question>? = null,
+        sourceLabel: String = "当前题库",
+        randomize: Boolean = true
+    ): Boolean {
+        val selectedTypes = allowedTypes.ifEmpty { objectiveQuestionTypes() }
+        val source = (sourceQuestions ?: activeBank()?.questions.orEmpty()).filter { it.type in selectedTypes }
+        if (source.isEmpty()) return false
+        val count = questionCount.coerceIn(1, source.size)
+        practiceQuestions = if (randomize) source.shuffled().take(count) else source.take(count)
+        practiceSourceLabel = sourceLabel
+        practiceIndex = 0
+        selectedAnswer = emptyList()
+        practiceLastResult = null
+        practiceSessionResults.clear()
+        return true
+    }
+
+    fun startWrongBookPractice(entries: List<WrongQuestionEntry> = reviewDueWrongEntries()): Boolean {
+        val questions = entries
+            .filter { it.status != WrongStatus.MASTERED.label }
+            .map { it.question }
+            .distinctBy { it.id }
+        return startPracticeSession(
+            questionCount = questions.size,
+            allowedTypes = QuestionType.values().toSet(),
+            sourceQuestions = questions,
+            sourceLabel = "错题本",
+            randomize = false
+        )
+    }
+
+    fun endPracticeSession() {
+        resetPracticeState()
+    }
+
     fun nextQuestion() {
-        val questions = activeBank()?.questions.orEmpty()
+        val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
         practiceIndex = (practiceIndex + 1).coerceAtMost(questions.lastIndex)
         selectedAnswer = emptyList()
@@ -183,7 +247,7 @@ object QuizRepository {
     }
 
     fun previousQuestion() {
-        val questions = activeBank()?.questions.orEmpty()
+        val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
         practiceIndex = (practiceIndex - 1).coerceAtLeast(0)
         selectedAnswer = emptyList()
@@ -195,9 +259,12 @@ object QuizRepository {
         val index = bank.questions.indexOfFirst { it.id == entry.question.id }
         if (index >= 0) {
             activeBankId = bank.id
-            practiceIndex = index
+            practiceQuestions = listOf(bank.questions[index])
+            practiceSourceLabel = "错题本"
+            practiceIndex = 0
             selectedAnswer = emptyList()
             practiceLastResult = null
+            practiceSessionResults.clear()
         }
     }
 
@@ -205,6 +272,32 @@ object QuizRepository {
         wrongBook.removeAll { it.bankId == entry.bankId && it.question.id == entry.question.id }
         persist()
     }
+
+    fun markWrongQuestionMastered(entry: WrongQuestionEntry, mastered: Boolean = true) {
+        val index = wrongBook.indexOfFirst { it.bankId == entry.bankId && it.question.id == entry.question.id }
+        if (index < 0) return
+        val now = System.currentTimeMillis()
+        val current = wrongBook[index]
+        wrongBook[index] = if (mastered) {
+            current.copy(
+                status = WrongStatus.MASTERED.label,
+                rightCount = current.rightCount.coerceAtLeast(2),
+                lastCorrectAt = now
+            )
+        } else {
+            current.copy(
+                status = WrongStatus.REVIEWING.label,
+                rightCount = current.rightCount.coerceAtMost(1)
+            )
+        }
+        persist()
+    }
+
+    fun reviewDueWrongEntries(): List<WrongQuestionEntry> {
+        return wrongBook.filter { it.status != WrongStatus.MASTERED.label }
+    }
+
+    fun wrongBookActiveCount(): Int = reviewDueWrongEntries().size
 
     fun clearWrongBook() {
         wrongBook.clear()
@@ -223,10 +316,13 @@ object QuizRepository {
         val question = currentPracticeQuestion() ?: return null
         val result = evaluateQuestion(question, selectedAnswer)
         practiceLastResult = result
+        practiceSessionResults[question.id] = result.correct
 
         val bank = activeBank()
         recordPracticeResult(bank, question, result)
-        if (!result.correct) {
+        if (result.correct) {
+            markWrongQuestionRight(bank = bank, question = question)
+        } else {
             addWrongQuestion(
                 bank = bank,
                 question = question,
@@ -239,11 +335,51 @@ object QuizRepository {
     }
 
     fun startExam(questionCount: Int, durationMinutes: Int): Boolean {
-        val source = activeBank()?.questions.orEmpty()
+        return startExam(
+            questionCount = questionCount,
+            durationMinutes = durationMinutes,
+            allowedTypes = QuestionType.values().toSet(),
+            typeScores = defaultExamTypeScores()
+        )
+    }
+
+    fun startExam(
+        questionCount: Int,
+        durationMinutes: Int,
+        allowedTypes: Set<QuestionType>,
+        typeScores: Map<QuestionType, Double>,
+        randomize: Boolean = false
+    ): Boolean {
+        val selectedTypes = allowedTypes.ifEmpty { objectiveQuestionTypes() }
+        val source = activeBank()?.questions.orEmpty().filter { it.type in selectedTypes }
         if (source.isEmpty()) return false
 
         val count = questionCount.coerceIn(1, source.size)
-        examQuestions = source.take(count)
+        val pickedQuestions = if (randomize) source.shuffled().take(count) else source.take(count)
+        return beginExam(pickedQuestions, durationMinutes, typeScores)
+    }
+
+    fun startExamByTypeCounts(
+        typeCounts: Map<QuestionType, Int>,
+        durationMinutes: Int,
+        typeScores: Map<QuestionType, Double>
+    ): Boolean {
+        val source = activeBank()?.questions.orEmpty()
+        val pickedQuestions = typeCounts.entries.flatMap { (type, count) ->
+            if (count <= 0) emptyList() else source.filter { it.type == type }.shuffled().take(count)
+        }.shuffled()
+        if (pickedQuestions.isEmpty()) return false
+        return beginExam(pickedQuestions, durationMinutes, typeScores)
+    }
+
+    private fun beginExam(
+        questions: List<Question>,
+        durationMinutes: Int,
+        typeScores: Map<QuestionType, Double>
+    ): Boolean {
+        if (questions.isEmpty()) return false
+        examQuestions = questions
+        examTypeScores = defaultExamTypeScores() + typeScores.mapValues { it.value.coerceAtLeast(0.0) }
         examIndex = 0
         examDurationSeconds = durationMinutes.coerceAtLeast(1) * 60
         examRemainingSeconds = examDurationSeconds
@@ -260,6 +396,7 @@ object QuizRepository {
         examRemainingSeconds = 0
         examFinished = false
         examAutoSubmitted = false
+        examTypeScores = defaultExamTypeScores()
         examAnswers.clear()
     }
 
@@ -317,7 +454,9 @@ object QuizRepository {
         examQuestions.forEach { question ->
             val userAnswer = examAnswers[question.id].orEmpty()
             val result = evaluateQuestion(question, userAnswer)
-            if (!result.correct) {
+            if (result.correct) {
+                markWrongQuestionRight(bank = bank, question = question)
+            } else {
                 addWrongQuestion(
                     bank = bank,
                     question = question,
@@ -352,8 +491,16 @@ object QuizRepository {
             correct = examCorrectCount(),
             durationSeconds = examDurationSeconds,
             remainingSeconds = examRemainingSeconds,
-            autoSubmitted = examAutoSubmitted
+            autoSubmitted = examAutoSubmitted,
+            totalScore = examTotalScore(),
+            earnedScore = examEarnedScore()
         )
+    }
+
+    fun examTotalScore(): Double = examQuestions.sumOf { scoreForExamQuestion(it) }
+
+    fun examEarnedScore(): Double = examQuestions.sumOf { question ->
+        if (evaluateQuestion(question, examAnswers[question.id].orEmpty()).correct) scoreForExamQuestion(question) else 0.0
     }
 
     internal fun resetForTesting() {
@@ -361,22 +508,48 @@ object QuizRepository {
         wrongBook.clear()
         studyRecords.clear()
         activeBankId = null
-        practiceIndex = 0
-        selectedAnswer = emptyList()
-        practiceLastResult = null
+        resetPracticeState()
         initialized = false
         appContext = null
         resetExam()
     }
 
     private fun resetPracticeState() {
+        practiceQuestions = emptyList()
+        practiceSourceLabel = "当前题库"
         practiceIndex = 0
         selectedAnswer = emptyList()
         practiceLastResult = null
+        practiceSessionResults.clear()
     }
+
+    fun objectiveQuestionTypes(): Set<QuestionType> = setOf(
+        QuestionType.SINGLE,
+        QuestionType.MULTIPLE,
+        QuestionType.JUDGE
+    )
+
+    fun questionTypeCounts(questions: List<Question> = activeBank()?.questions.orEmpty()): Map<QuestionType, Int> {
+        return QuestionType.values().associateWith { type -> questions.count { it.type == type } }
+    }
+
+    fun practiceAnsweredCount(): Int = practiceSessionResults.size
+
+    fun practiceCorrectCount(): Int = practiceSessionResults.values.count { it }
 
     private fun sanitizeBank(bank: QuizBank): QuizBank {
         return bank.copy(questions = bank.questions.map(::sanitizeQuestion))
+    }
+
+    private fun sanitizeWrongEntry(entry: WrongQuestionEntry): WrongQuestionEntry {
+        val normalizedStatus = WrongStatus.normalize(entry.status)
+        return entry.copy(
+            question = sanitizeQuestion(entry.question),
+            wrongCount = entry.wrongCount.coerceAtLeast(0),
+            rightCount = entry.rightCount.coerceAtLeast(0),
+            lastWrongAt = if (entry.lastWrongAt > 0L) entry.lastWrongAt else entry.timestamp,
+            status = normalizedStatus
+        )
     }
 
     private fun sanitizeQuestion(question: Question): Question {
@@ -413,6 +586,18 @@ object QuizRepository {
             else -> emptyList()
         }
     }
+
+    private fun scoreForExamQuestion(question: Question): Double {
+        return question.score ?: examTypeScores[question.type] ?: defaultExamTypeScores()[question.type] ?: 1.0
+    }
+
+    private fun defaultExamTypeScores(): Map<QuestionType, Double> = mapOf(
+        QuestionType.SINGLE to 1.0,
+        QuestionType.MULTIPLE to 2.0,
+        QuestionType.JUDGE to 1.0,
+        QuestionType.BLANK to 2.0,
+        QuestionType.SHORT to 5.0
+    )
 
     private fun evaluateQuestion(question: Question, userAnswer: List<String>): QuestionCheckResult {
         val correctAnswer = question.answer.sorted()
@@ -457,17 +642,54 @@ object QuizRepository {
     ) {
         val bankId = bank?.id ?: return
         val bankName = bank.name
-        wrongBook.removeAll { it.bankId == bankId && it.question.id == question.id }
-        wrongBook.add(
-            0,
-            WrongQuestionEntry(
-                bankId = bankId,
+        val now = System.currentTimeMillis()
+        val index = wrongBook.indexOfFirst { it.bankId == bankId && it.question.id == question.id }
+        if (index >= 0) {
+            val current = wrongBook[index]
+            val nextWrongCount = current.wrongCount + 1
+            wrongBook[index] = current.copy(
                 bankName = bankName,
                 question = question,
                 lastAnswer = userAnswer,
                 source = source,
-                timestamp = System.currentTimeMillis()
+                timestamp = now,
+                wrongCount = nextWrongCount,
+                lastWrongAt = now,
+                status = if (nextWrongCount >= 2) WrongStatus.NOT_MASTERED.label else WrongStatus.REVIEWING.label
             )
+        } else {
+            wrongBook.add(
+                0,
+                WrongQuestionEntry(
+                    bankId = bankId,
+                    bankName = bankName,
+                    question = question,
+                    lastAnswer = userAnswer,
+                    source = source,
+                    timestamp = now,
+                    wrongCount = 1,
+                    rightCount = 0,
+                    lastWrongAt = now,
+                    lastCorrectAt = null,
+                    status = WrongStatus.REVIEWING.label
+                )
+            )
+        }
+    }
+
+    private fun markWrongQuestionRight(bank: QuizBank?, question: Question) {
+        val bankId = bank?.id ?: return
+        val index = wrongBook.indexOfFirst { it.bankId == bankId && it.question.id == question.id }
+        if (index < 0) return
+        val now = System.currentTimeMillis()
+        val current = wrongBook[index]
+        val nextRightCount = current.rightCount + 1
+        wrongBook[index] = current.copy(
+            question = question,
+            timestamp = now,
+            rightCount = nextRightCount,
+            lastCorrectAt = now,
+            status = if (nextRightCount >= 2) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
         )
     }
 
@@ -480,14 +702,6 @@ object QuizRepository {
             .putString(KEY_WRONG_BOOK, wrongBookToJson(wrongBook))
             .putString(KEY_STUDY_RECORDS, studyRecordsToJson(studyRecords))
             .apply()
-    }
-
-    private fun demoBank(): QuizBank {
-        return QuizBank(
-            id = "demo-bank",
-            name = "示例题库",
-            questions = emptyList()
-        )
     }
 
     private fun banksToJson(banks: List<QuizBank>): String {
@@ -511,6 +725,11 @@ object QuizRepository {
             item.put("source", entry.source)
             item.put("timestamp", entry.timestamp)
             item.put("lastAnswer", JSONArray(entry.lastAnswer))
+            item.put("wrongCount", entry.wrongCount)
+            item.put("rightCount", entry.rightCount)
+            item.put("lastWrongAt", entry.lastWrongAt)
+            if (entry.lastCorrectAt != null) item.put("lastCorrectAt", entry.lastCorrectAt)
+            item.put("status", entry.status)
             item.put("question", questionToJson(entry.question))
             array.put(item)
         }
@@ -574,7 +793,12 @@ object QuizRepository {
                         question = parseQuestion(questionJson),
                         lastAnswer = lastAnswer,
                         source = item.optString("source"),
-                        timestamp = item.optLong("timestamp")
+                        timestamp = item.optLong("timestamp"),
+                        wrongCount = item.optInt("wrongCount", 1),
+                        rightCount = item.optInt("rightCount", 0),
+                        lastWrongAt = item.optLong("lastWrongAt", item.optLong("timestamp")),
+                        lastCorrectAt = if (item.has("lastCorrectAt") && !item.isNull("lastCorrectAt")) item.optLong("lastCorrectAt") else null,
+                        status = WrongStatus.normalize(item.optString("status", WrongStatus.NOT_MASTERED.label))
                     )
                 )
             }

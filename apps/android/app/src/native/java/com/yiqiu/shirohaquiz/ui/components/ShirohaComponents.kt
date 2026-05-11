@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -58,22 +59,28 @@ fun ShirohaHeader(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)
     ) {
-        Text(
-            text = kicker,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelLarge
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (kicker.isNotBlank()) {
+            Text(
+                text = kicker,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (subtitle.isNotBlank()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -136,7 +143,7 @@ fun ActionPillButton(
     ) {
         Row(
             modifier = (if (fillWidthContent) Modifier.fillMaxSize() else Modifier)
-                .padding(horizontal = 16.dp, vertical = 11.dp),
+                .padding(horizontal = if (fillWidthContent) 10.dp else 16.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (fillWidthContent) Arrangement.Center else Arrangement.Start
         ) {
@@ -146,11 +153,13 @@ fun ActionPillButton(
                 modifier = Modifier.size(18.dp),
                 tint = if (primary) Color.White else MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(if (fillWidthContent) 6.dp else 8.dp))
             Text(
                 text = text,
                 color = if (primary) Color.White else MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -161,9 +170,11 @@ fun MetricGlassCard(
     label: String,
     value: String,
     desc: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
-    GlassCard(modifier = modifier) {
+    val cardModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    GlassCard(modifier = cardModifier) {
         Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(ShirohaSpacing.Xs))
         Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -181,9 +192,11 @@ fun ShortcutGlassCard(
     title: String,
     icon: ImageVector,
     desc: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
-    GlassCard(modifier = modifier) {
+    val cardModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    GlassCard(modifier = cardModifier) {
         Icon(icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(14.dp))
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -324,26 +337,31 @@ fun IllustrationHeroCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 content()
             }
-            Surface(
-                shape = RoundedCornerShape(ShirohaRadius.Lg),
-                color = Color.White.copy(alpha = 0.72f),
-                border = BorderStroke(1.dp, ShirohaColors.LineSoft)
+            Box(
+                modifier = Modifier.size(imageSize + 20.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(imageRes),
                     contentDescription = null,
                     modifier = Modifier
-                        .padding(12.dp)
-                        .size(imageSize),
+                        .size(imageSize)
+                        .alpha(0.88f),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -368,7 +386,9 @@ fun EmptyStateIllustration(
             Image(
                 painter = painterResource(imageRes),
                 contentDescription = null,
-                modifier = Modifier.size(140.dp),
+                modifier = Modifier
+                    .size(140.dp)
+                    .alpha(0.9f),
                 contentScale = ContentScale.Fit
             )
             Text(
@@ -413,7 +433,8 @@ fun LoadingIllustration(
                 contentDescription = null,
                 modifier = Modifier
                     .size(112.dp)
-                    .scale(scale.value),
+                    .scale(scale.value)
+                    .alpha(0.9f),
                 contentScale = ContentScale.Fit
             )
             Text(
