@@ -25,8 +25,8 @@ android {
         create("native") {
             dimension = "variant"
             applicationId = "com.reqir.shirohaquiz"
-            versionCode = 4
-            versionName = "0.1.2"
+            versionCode = 5
+            versionName = "0.1.3"
         }
     }
 
@@ -74,7 +74,7 @@ val exportWebDebugApk by tasks.registering(Copy::class) {
 val exportNativeDebugApk by tasks.registering(Copy::class) {
     from(layout.buildDirectory.file("outputs/apk/native/debug/app-native-debug.apk"))
     into(layout.buildDirectory.dir("outputs/shiroha-quiz"))
-    rename { "Shiroha-Quiz-v0.1.2-native-debug.apk" }
+    rename { "Shiroha-Quiz-v0.1.3-native-debug.apk" }
 }
 
 afterEvaluate {
