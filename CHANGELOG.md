@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.2.0-native
+
+- 优化原生 APP UI 设计
+- 功能实现
+- 版本更新：native 0.2.0
+
 ## v0.4.3-alpha
 
 - 优化原生 APP UI
