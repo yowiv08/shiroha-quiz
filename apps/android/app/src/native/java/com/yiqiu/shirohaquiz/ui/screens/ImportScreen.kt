@@ -1577,7 +1577,11 @@ private fun sampleAnswerText(): String = """
 
 @Composable
 private fun ImportStepHeroCard() {
-    GlassCard(modifier = Modifier.height(132.dp)) {
+    GlassCard(
+        modifier = Modifier.height(132.dp),
+        animated = true,
+        contentPadding = 16.dp
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1585,7 +1589,8 @@ private fun ImportStepHeroCard() {
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 ImportStepPill("1 导入文件", selected = true)
                 ImportStepPill("2 核对结果", selected = false)
@@ -1612,19 +1617,19 @@ private fun ImportStepPill(
         border = BorderStroke(1.dp, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft),
         modifier = Modifier
             .width(144.dp)
-            .defaultMinSize(minHeight = 34.dp)
+            .defaultMinSize(minHeight = 30.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
                 text = text,
                 color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.TextSecondary,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

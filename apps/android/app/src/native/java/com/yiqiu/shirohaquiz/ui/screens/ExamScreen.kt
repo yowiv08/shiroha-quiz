@@ -499,9 +499,15 @@ private fun ActiveExamPanel() {
         ExamMetricCard(
             title = "剩余时间",
             value = formatExamSeconds(QuizRepository.examRemainingSeconds),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .height(128.dp)
         )
-        GlassCard(modifier = Modifier.weight(1f)) {
+        GlassCard(
+            modifier = Modifier
+                .weight(1f)
+                .height(128.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -510,12 +516,15 @@ private fun ActiveExamPanel() {
                 Text("已答题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(QuizRepository.examAnsweredCount().toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             ActionPillButton(
                 icon = Icons.AutoMirrored.Rounded.ListAlt,
                 text = "答题卡",
                 primary = false,
-                modifier = Modifier.fillMaxWidth().height(42.dp),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(108.dp)
+                    .height(38.dp),
                 fillWidthContent = true,
                 onClick = { showAnswerCard = true }
             )

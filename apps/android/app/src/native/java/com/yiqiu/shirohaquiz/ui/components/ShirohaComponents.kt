@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -119,7 +121,7 @@ fun ShirohaHeader(
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    animated: Boolean = false,
+    animated: Boolean = true,
     contentPadding: Dp = ShirohaSpacing.Xl,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -177,11 +179,19 @@ fun ActionPillButton(
     fillWidthContent: Boolean = false,
     onClick: () -> Unit = {}
 ) {
+    val shape = RoundedCornerShape(ShirohaRadius.Pill)
+    val interactionSource = remember { MutableInteractionSource() }
+
     Surface(
         modifier = modifier
             .defaultMinSize(minHeight = 44.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(ShirohaRadius.Pill),
+            .clip(shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        shape = shape,
         color = if (primary) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.86f),
         border = BorderStroke(
             1.dp,

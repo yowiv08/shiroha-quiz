@@ -107,8 +107,8 @@ fun PracticeScreen(
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = ShirohaSpacing.Xl, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
             Text(
@@ -496,7 +496,7 @@ private fun PracticeSetupPanel(
 
 @Composable
 private fun CompactPracticeSetupHero() {
-    GlassCard(modifier = Modifier.height(132.dp)) {
+    GlassCard(modifier = Modifier.height(132.dp), animated = true) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -505,7 +505,7 @@ private fun CompactPracticeSetupHero() {
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.Start
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 PracticeSetupStepCard(index = "1", text = "选好参数")
                 PracticeSetupStepCard(index = "2", text = "开始练习")

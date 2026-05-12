@@ -12,11 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Warning
@@ -37,8 +36,8 @@ import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
+import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
-import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 import java.util.Calendar
 
@@ -65,21 +64,15 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = ShirohaSpacing.Xl, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.Top
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
-            Text(
-                text = "Shiroha Quiz",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.labelLarge
-            )
-            Text(
-                text = "首页",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        ShirohaHeader(
+            kicker = "Shiroha Quiz",
+            title = "首页",
+            subtitle = ""
+        )
+
+        Spacer(Modifier.height(ShirohaSpacing.Lg))
 
         IllustrationHeroCard(
             title = "欢迎回来",
@@ -89,6 +82,8 @@ fun HomeScreen(
             imageSize = 92.dp
         )
 
+        Spacer(Modifier.height(ShirohaSpacing.Lg))
+
         TodayStatusCard(
             bankName = bankName,
             todayPracticeCount = todayPracticeCount,
@@ -97,43 +92,55 @@ fun HomeScreen(
             onGoExam = onGoExam
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeShortcutCard(
-                icon = Icons.Rounded.AutoStories,
-                label = "题库数量",
-                value = bankCount.toString(),
-                desc = "进入题库管理",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenBankList
-            )
-            HomeShortcutCard(
-                icon = Icons.Rounded.Description,
-                label = "当前题量",
-                value = questionCount.toString(),
-                desc = "查看当前题库详情",
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    activeBank?.let { onOpenBankDetail(it.id) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeShortcutCard(
+                        icon = Icons.Rounded.AutoStories,
+                        label = "题库数量",
+                        value = bankCount.toString(),
+                        desc = "进入题库管理",
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenBankList
+                    )
+                    HomeShortcutCard(
+                        icon = Icons.Rounded.Description,
+                        label = "当前题量",
+                        value = questionCount.toString(),
+                        desc = "查看当前题库详情",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            activeBank?.let { onOpenBankDetail(it.id) }
+                        }
+                    )
                 }
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeShortcutCard(
-                icon = Icons.Rounded.Warning,
-                label = "错题本",
-                value = QuizRepository.wrongBook.size.toString(),
-                desc = "打开错题本",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenWrongBook
-            )
-            HomeShortcutCard(
-                icon = Icons.Rounded.Timer,
-                label = "学习记录",
-                value = QuizRepository.studyRecords.size.toString(),
-                desc = "查看学习记录",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenRecords
-            )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeShortcutCard(
+                        icon = Icons.Rounded.Warning,
+                        label = "错题本",
+                        value = QuizRepository.wrongBook.size.toString(),
+                        desc = "打开错题本",
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenWrongBook
+                    )
+                    HomeShortcutCard(
+                        icon = Icons.Rounded.Timer,
+                        label = "学习记录",
+                        value = QuizRepository.studyRecords.size.toString(),
+                        desc = "查看学习记录",
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenRecords
+                    )
+                }
+            }
         }
     }
 }
@@ -165,12 +172,16 @@ private fun TodayStatusCard(
             MiniStatusCard(
                 title = "今日练习",
                 value = "${todayPracticeCount} 次",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(72.dp)
             )
             MiniStatusCard(
                 title = "待复习",
                 value = "${pendingReviewCount} 题",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(72.dp)
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -182,7 +193,7 @@ private fun TodayStatusCard(
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(44.dp),
+                    .height(46.dp),
                 onClick = onGoPractice
             )
             ActionPillButton(
@@ -192,7 +203,7 @@ private fun TodayStatusCard(
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(44.dp),
+                    .height(46.dp),
                 onClick = onGoExam
             )
         }
@@ -245,7 +256,7 @@ private fun HomeShortcutCard(
 ) {
     Surface(
         modifier = modifier
-            .height(100.dp)
+            .height(112.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(26.dp),
         color = Color.White.copy(alpha = 0.72f),
