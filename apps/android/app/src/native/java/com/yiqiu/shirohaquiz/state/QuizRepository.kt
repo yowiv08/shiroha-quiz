@@ -543,6 +543,11 @@ object QuizRepository {
         examIndex = (examIndex - 1).coerceAtLeast(0)
     }
 
+    fun jumpToExamQuestion(index: Int) {
+        if (examQuestions.isEmpty()) return
+        examIndex = index.coerceIn(0, examQuestions.lastIndex)
+    }
+
     fun toggleExamAnswer(key: String, multiple: Boolean) {
         val question = currentExamQuestion() ?: return
         val current = examAnswers[question.id].orEmpty()

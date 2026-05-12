@@ -595,13 +595,7 @@ private fun ActiveExamPanel() {
         ExamAnswerCardDialog(
             onDismiss = { showAnswerCard = false },
             onJumpToQuestion = { index ->
-                val targetIndex = index.coerceIn(0, QuizRepository.examQuestions.lastIndex)
-                while (QuizRepository.examIndex < targetIndex) {
-                    QuizRepository.nextExamQuestion()
-                }
-                while (QuizRepository.examIndex > targetIndex) {
-                    QuizRepository.previousExamQuestion()
-                }
+                QuizRepository.jumpToExamQuestion(index)
                 showAnswerCard = false
             },
             onSubmit = {
