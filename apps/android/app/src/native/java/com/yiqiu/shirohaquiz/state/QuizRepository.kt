@@ -186,6 +186,102 @@ object QuizRepository {
         persist()
     }
 
+
+    fun renameBank(context: Context, bankId: String, newName: String): Boolean {
+        appContext = context.applicationContext
+        val index = banks.indexOfFirst { it.id == bankId }
+        if (index < 0) return false
+        val cleanName = uniqueBankNameForRename(newName.trim().ifBlank { "未命名题库" }, bankId)
+        val current = banks[index]
+        banks[index] = current.copy(name = cleanName)
+
+        for (i in wrongBook.indices) {
+            val entry = wrongBook[i]
+            if (entry.bankId == bankId) {
+                wrongBook[i] = entry.copy(bankName = cleanName)
+            }
+        }
+        for (i in studyRecords.indices) {
+            val record = studyRecords[i]
+            if (record.bankId == bankId) {
+                studyRecords[i] = record.copy(bankName = cleanName)
+            }
+        }
+        persist()
+        return true
+    }
+
+    fun updateQuestion(context: Context, bankId: String, updatedQuestion: Question): Boolean {
+        appContext = context.applicationContext
+        val bankIndex = banks.indexOfFirst { it.id == bankId }
+        if (bankIndex < 0) return false
+        val bank = banks[bankIndex]
+        val questionIndex = bank.questions.indexOfFirst { it.id == updatedQuestion.id }
+        if (questionIndex < 0) return false
+
+        val cleanQuestion = sanitizeQuestion(updatedQuestion)
+        val updatedQuestions = bank.questions.toMutableList().also { it[questionIndex] = cleanQuestion }
+        banks[bankIndex] = bank.copy(questions = updatedQuestions)
+
+        for (i in wrongBook.indices) {
+            val entry = wrongBook[i]
+            if (entry.bankId == bankId && entry.question.id == cleanQuestion.id) {
+                wrongBook[i] = entry.copy(
+                    bankName = banks[bankIndex].name,
+                    question = cleanQuestion
+                )
+            }
+        }
+
+        if (activeBankId == bankId) {
+            resetPracticeState()
+            resetExam()
+        }
+        persist()
+        return true
+    }
+
+    fun replaceBankQuestions(context: Context, bankId: String, questions: List<Question>): Boolean {
+        appContext = context.applicationContext
+        val bankIndex = banks.indexOfFirst { it.id == bankId }
+        if (bankIndex < 0) return false
+
+        val bank = banks[bankIndex]
+        val cleanQuestions = questions.map(::sanitizeQuestion)
+        banks[bankIndex] = bank.copy(questions = cleanQuestions)
+
+        val questionById = cleanQuestions.associateBy { it.id }
+        for (i in wrongBook.indices.reversed()) {
+            val entry = wrongBook[i]
+            if (entry.bankId == bankId) {
+                val updatedQuestion = questionById[entry.question.id]
+                if (updatedQuestion == null) {
+                    wrongBook.removeAt(i)
+                } else {
+                    wrongBook[i] = entry.copy(
+                        bankName = banks[bankIndex].name,
+                        question = updatedQuestion
+                    )
+                }
+            }
+        }
+
+        if (activeBankId == bankId) {
+            resetPracticeState()
+            resetExam()
+        }
+        persist()
+        return true
+    }
+
+    fun deleteQuestion(context: Context, bankId: String, questionId: String): Boolean {
+        appContext = context.applicationContext
+        val bank = banks.firstOrNull { it.id == bankId } ?: return false
+        val updatedQuestions = bank.questions.filterNot { it.id == questionId }
+        if (updatedQuestions.size == bank.questions.size) return false
+        return replaceBankQuestions(context, bankId, updatedQuestions)
+    }
+
     fun activeBank(): QuizBank? = banks.firstOrNull { it.id == activeBankId } ?: banks.firstOrNull()
 
     fun currentPracticeQuestion(): Question? {
@@ -788,6 +884,20 @@ object QuizRepository {
     }
 
 
+
+
+    private fun uniqueBankNameForRename(rawName: String, bankId: String): String {
+        val baseName = rawName.ifBlank { "未命名题库" }
+        val existingNames = banks.filterNot { it.id == bankId }.map { it.name }.toSet()
+        if (baseName !in existingNames) return baseName
+        var index = 2
+        var candidate: String
+        do {
+            candidate = "$baseName $index"
+            index += 1
+        } while (candidate in existingNames)
+        return candidate
+    }
 
     private fun uniqueImportedBankName(rawName: String): String {
         val baseName = rawName.ifBlank { "导入题库" }

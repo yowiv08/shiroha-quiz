@@ -12,17 +12,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.R
+import com.yiqiu.shirohaquiz.importer.model.Option
+import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
@@ -38,12 +48,12 @@ fun BankDetailScreen(
     bankId: String?,
     onBack: () -> Unit,
     onGoPractice: () -> Unit,
-    onGoExam: () -> Unit
+    onGoExam: () -> Unit,
+    onOpenReview: () -> Unit
 ) {
     val context = LocalContext.current
     val bank = QuizRepository.banks.firstOrNull { it.id == bankId } ?: QuizRepository.activeBank()
     val isActive = bank?.id == QuizRepository.activeBank()?.id
-
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
@@ -122,7 +132,7 @@ fun BankDetailScreen(
                     primary = false,
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp),
+                        .height(48.dp),
                     fillWidthContent = true,
                     onClick = onGoPractice
                 )
@@ -132,7 +142,7 @@ fun BankDetailScreen(
                     primary = false,
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp),
+                        .height(48.dp),
                     fillWidthContent = true,
                     onClick = onGoExam
                 )
@@ -140,29 +150,34 @@ fun BankDetailScreen(
         }
 
         GlassCard {
-            Text(
-                text = "题目预览",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "题目预览",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Edit,
+                    text = "二次核对",
+                    primary = false,
+                    modifier = Modifier.height(42.dp),
+                    onClick = onOpenReview
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            NoticeCard("这里只显示前 5 题。点击“二次核对”可进入完整沉浸核对页，逐题查看和修改整份题库。", warning = false)
             Spacer(Modifier.height(12.dp))
             bank.questions.take(5).forEach { question ->
-                StatusChip(typeLabel(question.type))
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "${question.number}. ${question.question}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
+                QuestionPreviewBlock(
+                    question = question,
+                    editable = false,
+                    onEdit = {}
                 )
-                if (question.options.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = question.options.joinToString("  ") { "${it.key}. ${it.text}" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
             }
         }
 
@@ -188,6 +203,158 @@ fun BankDetailScreen(
             }
         }
     }
+}
+
+@Composable
+private fun QuestionPreviewBlock(
+    question: Question,
+    editable: Boolean,
+    onEdit: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StatusChip(typeLabel(question.type))
+        if (editable) {
+            Spacer(Modifier.weight(1f))
+            ActionPillButton(
+                icon = Icons.Rounded.Edit,
+                text = "修改",
+                primary = false,
+                modifier = Modifier.height(38.dp),
+                onClick = onEdit
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "${question.number}. ${question.question}",
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold
+    )
+    if (question.options.isNotEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = question.options.joinToString("  ") { "${it.key}. ${it.text}" },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    if (editable) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "答案：${question.answer.joinToString(" / ").ifBlank { "未识别" }}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+    Spacer(Modifier.height(14.dp))
+}
+
+@Composable
+private fun QuestionEditDialog(
+    question: Question,
+    onDismiss: () -> Unit,
+    onSave: (Question) -> Unit
+) {
+    var stem by remember(question.id) { mutableStateOf(question.question) }
+    var optionsText by remember(question.id) { mutableStateOf(formatOptions(question.options)) }
+    var answerText by remember(question.id) { mutableStateOf(question.answer.joinToString(" ")) }
+    var analysisText by remember(question.id) { mutableStateOf(question.analysis) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("修改题目") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "题型：${typeLabel(question.type)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = stem,
+                    onValueChange = { stem = it },
+                    label = { Text("题干") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+                OutlinedTextField(
+                    value = optionsText,
+                    onValueChange = { optionsText = it },
+                    label = { Text("选项，每行一个，例如 A. 选项内容") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+                OutlinedTextField(
+                    value = answerText,
+                    onValueChange = { answerText = it },
+                    label = { Text("答案，例如 A 或 A B") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = analysisText,
+                    onValueChange = { analysisText = it },
+                    label = { Text("解析") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        question.copy(
+                            question = stem.trim(),
+                            options = parseOptions(optionsText),
+                            answer = parseAnswer(answerText),
+                            analysis = analysisText.trim()
+                        )
+                    )
+                }
+            ) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+private fun formatOptions(options: List<Option>): String {
+    return options.joinToString("\n") { "${it.key}. ${it.text}" }
+}
+
+private fun parseOptions(raw: String): List<Option> {
+    return raw.lines().mapNotNull { line ->
+        val trimmed = line.trim()
+        if (trimmed.isBlank()) return@mapNotNull null
+        val match = Regex("^([A-Ga-g])\\s*[.．、:：]?\\s*(.+)$").find(trimmed)
+        if (match != null) {
+            Option(
+                key = match.groupValues[1].uppercase(),
+                text = match.groupValues[2].trim()
+            )
+        } else {
+            null
+        }
+    }
+}
+
+private fun parseAnswer(raw: String): List<String> {
+    return raw.split(Regex("[\\s,，、/]+"))
+        .map { it.trim().uppercase() }
+        .filter { it.isNotBlank() }
+        .distinct()
 }
 
 private fun typeLabel(type: QuestionType): String = when (type) {

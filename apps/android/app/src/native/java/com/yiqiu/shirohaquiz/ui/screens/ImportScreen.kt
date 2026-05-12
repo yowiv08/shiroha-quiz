@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -550,11 +551,49 @@ private fun ReviewTypeChip(
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+private fun ReviewCompactButton(
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+    primary: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = if (primary) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.82f),
+        border = if (primary) null else BorderStroke(1.dp, ShirohaColors.LineStrong)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                modifier = Modifier.size(15.dp),
+                tint = if (primary) Color.White else MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = text,
+                color = if (primary) Color.White else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -750,7 +789,7 @@ private fun NativeQuestionReviewScreen(
         ShirohaHeader(
             kicker = "Review",
             title = "沉浸核对",
-            subtitle = "逐题修改题干、题型、选项、答案和解析。可先筛选异常题、无答案题或硬错误，避免从头逐题翻。"
+            subtitle = "逐题核对导入结果，可先筛选异常或无答案。"
         )
 
         GlassCard {
@@ -789,64 +828,89 @@ private fun NativeQuestionReviewScreen(
         }
 
         GlassCard {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                StatusChip("第 ${safeIndex + 1} / ${questions.size} 题", selected = true)
-                if (filter != ReviewFilter.ALL) {
-                    StatusChip("${reviewFilterLabel(filter)} ${visiblePosition + 1} / ${visibleIndices.size}", selected = true)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "第 ${safeIndex + 1} / ${questions.size} 题",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = buildString {
+                            append(typeLabel(question.type))
+                            append(" · 答案：")
+                            append(answerDisplayText(question))
+                            if (filter != ReviewFilter.ALL) {
+                                append(" · ${reviewFilterLabel(filter)} ${visiblePosition + 1}/${visibleIndices.size}")
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                StatusChip(typeLabel(question.type), selected = true)
-                StatusChip("答案：${answerDisplayText(question)}", selected = question.answer.isNotEmpty())
-            }
-            Spacer(Modifier.height(14.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ActionPillButton(
-                    icon = Icons.Rounded.ArrowBack,
-                    text = "返回导入页",
-                    primary = false,
+                ReviewCompactButton(
+                    icon = Icons.Rounded.CheckCircle,
+                    text = "保存返回",
+                    primary = true,
                     onClick = onBack
                 )
-                ActionPillButton(
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ReviewCompactButton(
+                    icon = Icons.Rounded.ArrowBack,
+                    text = "返回",
+                    modifier = Modifier.weight(1f),
+                    onClick = onBack
+                )
+                ReviewCompactButton(
                     icon = Icons.Rounded.ArrowBack,
                     text = if (filter == ReviewFilter.ALL) "上一题" else "上一条",
-                    primary = false,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         val target = previousIndexInList(visibleIndices, safeIndex) ?: (safeIndex - 1)
                         onIndexChange(target)
                     }
                 )
-                ActionPillButton(
+                ReviewCompactButton(
                     icon = Icons.Rounded.ArrowForward,
                     text = if (filter == ReviewFilter.ALL) "下一题" else "下一条",
-                    primary = false,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         val target = nextIndexInList(visibleIndices, safeIndex) ?: (safeIndex + 1)
                         onIndexChange(target)
                     }
                 )
-                ActionPillButton(
-                    icon = Icons.Rounded.ArrowBack,
-                    text = "上一异常",
-                    primary = false,
-                    onClick = { previousIndexInList(anomalyIndices, safeIndex)?.let(onIndexChange) }
-                )
-                ActionPillButton(
-                    icon = Icons.Rounded.ArrowForward,
-                    text = "下一异常",
-                    primary = false,
-                    onClick = { nextIndexInList(anomalyIndices, safeIndex)?.let(onIndexChange) }
-                )
-                ActionPillButton(
-                    icon = Icons.Rounded.CheckCircle,
-                    text = "保存并返回",
-                    primary = true,
-                    onClick = onBack
-                )
+            }
+            if (anomalyIndices.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ReviewCompactButton(
+                        icon = Icons.Rounded.ArrowBack,
+                        text = "上一异常",
+                        modifier = Modifier.weight(1f),
+                        onClick = { previousIndexInList(anomalyIndices, safeIndex)?.let(onIndexChange) }
+                    )
+                    ReviewCompactButton(
+                        icon = Icons.Rounded.ArrowForward,
+                        text = "下一异常",
+                        modifier = Modifier.weight(1f),
+                        onClick = { nextIndexInList(anomalyIndices, safeIndex)?.let(onIndexChange) }
+                    )
+                }
             }
         }
 

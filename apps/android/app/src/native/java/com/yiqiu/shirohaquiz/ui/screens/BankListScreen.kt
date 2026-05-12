@@ -14,15 +14,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
+import com.yiqiu.shirohaquiz.state.QuizBank
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
@@ -37,6 +46,38 @@ fun BankListScreen(
 ) {
     val context = LocalContext.current
     val activeBank = QuizRepository.activeBank()
+    var renameTarget by remember { mutableStateOf<QuizBank?>(null) }
+    var renameText by remember { mutableStateOf("") }
+
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("重命名题库") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("题库名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val bank = renameTarget
+                        if (bank != null && renameText.isNotBlank()) {
+                            QuizRepository.renameBank(context, bank.id, renameText)
+                        }
+                        renameTarget = null
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("取消") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -47,7 +88,7 @@ fun BankListScreen(
         ShirohaHeader(
             kicker = "Banks",
             title = "题库管理",
-            subtitle = "这里集中管理原生题库。可以切换当前题库、查看题库详情，也可以删除不需要的导入题库。"
+            subtitle = "管理原生题库，支持切换、查看、重命名和删除。"
         )
 
         GlassCard {
@@ -78,7 +119,7 @@ fun BankListScreen(
                         StatusChip("当前题库", selected = true)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = bank.name,
                     style = MaterialTheme.typography.headlineSmall,
@@ -90,18 +131,18 @@ fun BankListScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ActionPillButton(
                         icon = Icons.Rounded.Done,
-                        text = if (isActive) "当前" else "设为当前",
+                        text = "当前",
                         primary = isActive,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .height(40.dp),
                         fillWidthContent = true,
                         onClick = {
                             if (!isActive) {
@@ -115,9 +156,22 @@ fun BankListScreen(
                         primary = false,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .height(40.dp),
                         fillWidthContent = true,
                         onClick = { onOpenBankDetail(bank.id) }
+                    )
+                    ActionPillButton(
+                        icon = Icons.Rounded.Edit,
+                        text = "重命名",
+                        primary = false,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        fillWidthContent = true,
+                        onClick = {
+                            renameTarget = bank
+                            renameText = bank.name
+                        }
                     )
                     ActionPillButton(
                         icon = Icons.Rounded.DeleteOutline,
@@ -125,7 +179,7 @@ fun BankListScreen(
                         primary = false,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .height(40.dp),
                         fillWidthContent = true,
                         onClick = {
                             if (bank.id != "demo-bank") {
