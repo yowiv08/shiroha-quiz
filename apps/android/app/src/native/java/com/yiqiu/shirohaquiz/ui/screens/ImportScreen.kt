@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,8 +50,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.importer.model.ImportResult
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
@@ -66,7 +69,6 @@ import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
-import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.LoadingIllustration
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
@@ -75,6 +77,7 @@ import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import androidx.compose.ui.res.painterResource
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -124,7 +127,7 @@ fun ImportScreen(
         val content = readImportedContent(context, uri, selectedFileName)
         if (content == null || content.text.isBlank()) {
             clearParsedResult(clearImages = true)
-            statusText = "当前导入还不能稳定读取这个文件。建议优先使用 txt / json / docx。"
+            statusText = "当前导入还不能稳定读取这个文件。建议优先使用 docx / txt / json。"
             isStatusWarn = true
         } else {
             rawText = content.text
@@ -227,12 +230,7 @@ fun ImportScreen(
             subtitle = ""
         )
 
-        IllustrationHeroCard(
-            title = "导入 · 核对 · 确认",
-            subtitle = "",
-            imageRes = R.drawable.illus_import_hint,
-            imageSize = 76.dp
-        )
+        ImportStepHeroCard()
 
         GlassCard {
             Text(
@@ -266,7 +264,7 @@ fun ImportScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "支持 txt / json / docx 等文本型题库。",
+                            text = "支持 docx / txt / json 等文本型题库。",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1384,3 +1382,52 @@ private fun sampleAnswerText(): String = """
 2. AB
 3. 对
 """.trimIndent()
+
+@Composable
+private fun ImportStepHeroCard() {
+    GlassCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ImportStepPill("1 导入文件", selected = true)
+                ImportStepPill("2 核对结果", selected = false)
+                ImportStepPill("3 创建题库", selected = false)
+            }
+            Image(
+                painter = painterResource(R.drawable.illus_import_hint),
+                contentDescription = null,
+                modifier = Modifier.size(134.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImportStepPill(
+    text: String,
+    selected: Boolean
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) ShirohaColors.BrandPrimarySoft else Color.White.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}

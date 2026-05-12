@@ -503,6 +503,100 @@ object QuizRepository {
         if (evaluateQuestion(question, examAnswers[question.id].orEmpty()).correct) scoreForExamQuestion(question) else 0.0
     }
 
+
+
+    fun exportBanksBackupJson(bankIds: Set<String>): String {
+        val selectedBanks = banks.filter { bankIds.contains(it.id) }
+        val root = JSONObject()
+        root.put("kind", "shiroha_quiz_selected_banks")
+        root.put("version", 1)
+        root.put("exportedAt", System.currentTimeMillis())
+        root.put("banks", JSONArray(banksToJson(selectedBanks)))
+        return root.toString(2)
+    }
+
+    fun exportFullBackupJson(): String {
+        val root = JSONObject()
+        root.put("kind", "shiroha_quiz_full_backup")
+        root.put("version", 1)
+        root.put("exportedAt", System.currentTimeMillis())
+        root.put("activeBankId", activeBankId)
+        root.put("banks", JSONArray(banksToJson(banks)))
+        root.put("wrongBook", JSONArray(wrongBookToJson(wrongBook)))
+        root.put("studyRecords", JSONArray(studyRecordsToJson(studyRecords)))
+        return root.toString(2)
+    }
+
+    fun importBackupJson(context: Context, rawText: String): String {
+        appContext = context.applicationContext
+        val text = rawText.trim()
+        if (text.isBlank()) return "导入失败：文件内容为空。"
+
+        val root = runCatching {
+            if (text.startsWith("[")) {
+                JSONObject().put("banks", JSONArray(text))
+            } else {
+                JSONObject(text)
+            }
+        }.getOrElse { return "导入失败：不是有效的 JSON 备份文件。" }
+
+        val bankArray = root.optJSONArray("banks") ?: return "导入失败：备份中没有题库数据。"
+        val importedBanks = runCatching { parseBanksJson(bankArray.toString()).map(::sanitizeBank) }
+            .getOrElse { return "导入失败：题库数据无法解析。" }
+        if (importedBanks.isEmpty()) return "导入失败：备份中没有可用题库。"
+
+        val idMap = mutableMapOf<String, String>()
+        val now = System.currentTimeMillis()
+        val addedBanks = importedBanks.mapIndexed { index, bank ->
+            val newId = "bank_${now}_$index"
+            idMap[bank.id] = newId
+            bank.copy(
+                id = newId,
+                name = uniqueImportedBankName(bank.name.ifBlank { "导入题库" })
+            )
+        }
+        banks.addAll(addedBanks)
+        if (activeBankId == null && addedBanks.isNotEmpty()) activeBankId = addedBanks.first().id
+
+        val importedWrongBook = root.optJSONArray("wrongBook")?.let { array ->
+            runCatching { parseWrongBookJson(array.toString()) }.getOrDefault(emptyList())
+        }.orEmpty()
+        val mappedWrongBook = importedWrongBook.mapNotNull { entry ->
+            val mappedBankId = idMap[entry.bankId] ?: return@mapNotNull null
+            val mappedBankName = addedBanks.firstOrNull { it.id == mappedBankId }?.name ?: entry.bankName
+            sanitizeWrongEntry(entry.copy(bankId = mappedBankId, bankName = mappedBankName))
+        }
+        wrongBook.addAll(0, mappedWrongBook)
+
+        val importedRecords = root.optJSONArray("studyRecords")?.let { array ->
+            runCatching { parseStudyRecordsJson(array.toString()) }.getOrDefault(emptyList())
+        }.orEmpty()
+        val mappedRecords = importedRecords.map { record ->
+            val mappedBankId = record.bankId?.let { idMap[it] }
+            val mappedBankName = mappedBankId?.let { id -> addedBanks.firstOrNull { it.id == id }?.name }
+                ?: record.bankName
+            record.copy(bankId = mappedBankId ?: record.bankId, bankName = mappedBankName)
+        }
+        studyRecords.addAll(0, mappedRecords)
+
+        resetPracticeState()
+        resetExam()
+        persist()
+        return "已导入 ${addedBanks.size} 个题库" +
+            if (mappedWrongBook.isNotEmpty() || mappedRecords.isNotEmpty()) "，同时恢复 ${mappedWrongBook.size} 条错题、${mappedRecords.size} 条记录。" else "。"
+    }
+
+    fun clearAllLocalData(context: Context) {
+        appContext = context.applicationContext
+        banks.clear()
+        wrongBook.clear()
+        studyRecords.clear()
+        activeBankId = null
+        resetPracticeState()
+        resetExam()
+        persist()
+    }
+
     internal fun resetForTesting() {
         banks.clear()
         wrongBook.clear()
@@ -691,6 +785,21 @@ object QuizRepository {
             lastCorrectAt = now,
             status = if (nextRightCount >= 2) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
         )
+    }
+
+
+
+    private fun uniqueImportedBankName(rawName: String): String {
+        val baseName = rawName.ifBlank { "导入题库" }
+        val existingNames = banks.map { it.name }.toSet()
+        if (baseName !in existingNames) return baseName
+        var index = 2
+        var candidate: String
+        do {
+            candidate = "$baseName 导入$index"
+            index += 1
+        } while (candidate in existingNames)
+        return candidate
     }
 
     private fun persist() {

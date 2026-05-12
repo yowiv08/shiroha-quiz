@@ -45,9 +45,7 @@ import java.util.Date
 import java.util.Locale
 
 private enum class WrongBookFilter(val label: String) {
-    REVIEW_DUE("需复习"),
     NOT_MASTERED("未掌握"),
-    REVIEWING("复习中"),
     MASTERED("已掌握"),
     ALL("全部")
 }
@@ -65,14 +63,13 @@ fun WrongBookScreen(
     onGoPractice: () -> Unit
 ) {
     val wrongBook = QuizRepository.wrongBook.toList()
-    var filter by remember { mutableStateOf(WrongBookFilter.REVIEW_DUE) }
+    var filter by remember { mutableStateOf(WrongBookFilter.NOT_MASTERED) }
     var sort by remember { mutableStateOf(WrongBookSort.RECENT_WRONG) }
     val filteredEntries = remember(wrongBook, filter, sort) {
         wrongBook.filterBy(filter).sortBy(sort)
     }
     val reviewEntries = filteredEntries.filter { it.status != WrongStatus.MASTERED.label }
-    val notMasteredCount = wrongBook.count { it.status == WrongStatus.NOT_MASTERED.label }
-    val reviewingCount = wrongBook.count { it.status == WrongStatus.REVIEWING.label }
+    val notMasteredCount = wrongBook.count { it.status != WrongStatus.MASTERED.label }
     val masteredCount = wrongBook.count { it.status == WrongStatus.MASTERED.label }
 
     Column(
@@ -119,7 +116,7 @@ fun WrongBookScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "未掌握 $notMasteredCount · 复习中 $reviewingCount · 已掌握 $masteredCount",
+                        text = "未掌握 $notMasteredCount · 已掌握 $masteredCount",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -204,7 +201,7 @@ fun WrongBookScreen(
                 Spacer(Modifier.height(12.dp))
                 NoticeCard(
                     text = if (filter == WrongBookFilter.MASTERED) {
-                        "已掌握题不会进入刷错题。需要复习时可先标为复习中。"
+                        "已掌握题不会进入刷错题。需要复习时可先标为未掌握。"
                     } else {
                         "当前筛选下没有需要复习的错题。"
                     }
@@ -227,7 +224,7 @@ fun WrongBookScreen(
 private fun WrongQuestionPreview(entry: WrongQuestionEntry) {
     GlassCard {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip(entry.status, selected = entry.status != WrongStatus.MASTERED.label)
+            StatusChip(displayWrongStatus(entry.status), selected = entry.status != WrongStatus.MASTERED.label)
             StatusChip(typeLabel(entry.question.type))
             StatusChip(entry.bankName)
         }
@@ -291,9 +288,7 @@ private fun WrongQuestionPreview(entry: WrongQuestionEntry) {
 
 private fun List<WrongQuestionEntry>.filterBy(filter: WrongBookFilter): List<WrongQuestionEntry> {
     return when (filter) {
-        WrongBookFilter.REVIEW_DUE -> filter { it.status != WrongStatus.MASTERED.label }
-        WrongBookFilter.NOT_MASTERED -> filter { it.status == WrongStatus.NOT_MASTERED.label }
-        WrongBookFilter.REVIEWING -> filter { it.status == WrongStatus.REVIEWING.label }
+        WrongBookFilter.NOT_MASTERED -> filter { it.status != WrongStatus.MASTERED.label }
         WrongBookFilter.MASTERED -> filter { it.status == WrongStatus.MASTERED.label }
         WrongBookFilter.ALL -> this
     }
@@ -308,11 +303,12 @@ private fun List<WrongQuestionEntry>.sortBy(sort: WrongBookSort): List<WrongQues
 }
 
 private fun statusRank(status: String): Int = when (status) {
-    WrongStatus.NOT_MASTERED.label -> 0
-    WrongStatus.REVIEWING.label -> 1
-    WrongStatus.MASTERED.label -> 2
-    else -> 3
+    WrongStatus.MASTERED.label -> 1
+    else -> 0
 }
+
+private fun displayWrongStatus(status: String): String =
+    if (status == WrongStatus.MASTERED.label) "已掌握" else "未掌握"
 
 private fun typeLabel(type: QuestionType): String = when (type) {
     QuestionType.SINGLE -> "单选题"

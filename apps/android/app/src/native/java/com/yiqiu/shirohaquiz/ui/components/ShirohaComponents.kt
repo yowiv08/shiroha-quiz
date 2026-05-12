@@ -353,15 +353,15 @@ fun IllustrationHeroCard(
                 content()
             }
             Box(
-                modifier = Modifier.size(imageSize + 20.dp),
+                modifier = Modifier.size(imageSize + 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(imageRes),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(imageSize)
-                        .alpha(0.88f),
+                        .size(imageSize + 8.dp)
+                        .alpha(0.92f),
                     contentScale = ContentScale.Fit
                 )
             }

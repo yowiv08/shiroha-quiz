@@ -94,12 +94,15 @@ fun PracticeScreen(
             }
         }
 
-        IllustrationHeroCard(
-            title = "选题型和题量，再开始练习",
-            subtitle = "先把本轮范围定好，进入后专注刷题。",
-            imageRes = R.drawable.illus_practice_hint,
-            imageSize = 76.dp
-        )
+        val isPracticeRunning = QuizRepository.practiceQuestions.isNotEmpty()
+        if (!isPracticeRunning) {
+            IllustrationHeroCard(
+                title = "选好参数，开始练习。",
+                subtitle = "",
+                imageRes = R.drawable.illus_practice_hint,
+                imageSize = 96.dp
+            )
+        }
 
         if (bank == null || bank.questions.isEmpty()) {
             GlassCard {
@@ -148,15 +151,27 @@ fun PracticeScreen(
         )
 
         GlassCard {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatusChip("第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题", selected = true)
-                StatusChip(typeLabel(question.type))
-                StatusChip(QuizRepository.practiceSourceLabel)
+                FlowRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatusChip("第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题", selected = true)
+                    StatusChip(typeLabel(question.type))
+                }
+                ActionPillButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    text = "退出练习",
+                    primary = false,
+                    modifier = Modifier.height(38.dp),
+                    onClick = { QuizRepository.endPracticeSession() }
+                )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = question.question,
                 style = MaterialTheme.typography.headlineSmall,
@@ -167,7 +182,7 @@ fun PracticeScreen(
                 Spacer(Modifier.height(14.dp))
                 QuestionImagesBlock(question.images, maxPreviewHeight = 360.dp, showMeta = true)
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(14.dp))
 
             when (question.type) {
                 QuestionType.SINGLE,
@@ -195,7 +210,7 @@ fun PracticeScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
