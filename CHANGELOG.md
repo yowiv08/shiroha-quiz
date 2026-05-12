@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.2.2-native
+
+- 优化原生 APP 功能
+- 增加导入导出
+- 刷题体验优化
+- 卡片布局优化
+
 ## v0.2.0-native
 
 - 优化原生 APP UI 设计
