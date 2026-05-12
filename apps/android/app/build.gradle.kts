@@ -32,7 +32,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -65,24 +66,24 @@ android {
     }
 }
 
-val exportWebDebugApk by tasks.registering(Copy::class) {
-    from(layout.buildDirectory.file("outputs/apk/web/debug/app-web-debug.apk"))
+val exportWebReleaseApk by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.file("outputs/apk/web/release/app-web-release.apk"))
     into(layout.buildDirectory.dir("outputs/shiroha-quiz"))
-    rename { "Shiroha-Quiz-v0.4.3-alpha-web-debug.apk" }
+    rename { "Shiroha-Quiz-v0.4.3-alpha-web-release.apk" }
 }
 
-val exportNativeDebugApk by tasks.registering(Copy::class) {
-    from(layout.buildDirectory.file("outputs/apk/native/debug/app-native-debug.apk"))
+val exportNativeReleaseApk by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.file("outputs/apk/native/release/app-native-release.apk"))
     into(layout.buildDirectory.dir("outputs/shiroha-quiz"))
-    rename { "Shiroha-Quiz-v0.2.5-native-debug.apk" }
+    rename { "Shiroha-Quiz-v0.2.5-native-release.apk" }
 }
 
 afterEvaluate {
-    tasks.named("assembleWebDebug") {
-        finalizedBy(exportWebDebugApk)
+    tasks.named("assembleWebRelease") {
+        finalizedBy(exportWebReleaseApk)
     }
-    tasks.named("assembleNativeDebug") {
-        finalizedBy(exportNativeDebugApk)
+    tasks.named("assembleNativeRelease") {
+        finalizedBy(exportNativeReleaseApk)
     }
 }
 
