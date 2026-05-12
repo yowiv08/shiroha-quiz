@@ -117,8 +117,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
-    testImplementation(files("E:/codex/exercise/output/gradle-8.7/lib/junit-4.13.2.jar"))
-    testImplementation(files("E:/codex/exercise/output/gradle-8.7/lib/hamcrest-core-1.3.jar"))
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
