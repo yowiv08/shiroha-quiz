@@ -67,3 +67,6 @@ source-upload.ps1
 # Local test data
 test/
 apps/android/.gradle-user-home/
+
+# ZIP archives (redundant with folder content)
+assets/*.zip
