@@ -54,7 +54,7 @@ Android 工程通过 `productFlavors` 同时维护 WebView 壳版和原生 Compo
 | Flavor | 包名 | 入口 | 技术路线 | 源码版本 |
 |---|---|---|---|---|
 | `web` | `com.yiqiu.shirohaquiz` | `WebShellActivity` | WebView 加载本地 Web 资源 | `0.4.3-alpha` |
-| `native` | `com.reqir.shirohaquiz` | `MainActivity` | Kotlin + Jetpack Compose + Material3 | `0.2.3` |
+| `native` | `com.reqir.shirohaquiz` | `MainActivity` | Kotlin + Jetpack Compose + Material3 | `0.2.5` |
 
 > GitHub Releases 中的最新发布版本可能略低于源码中的开发版本，以 release 页面为准下载，以 `build.gradle.kts` 为准查看当前源码版本。
 
@@ -95,6 +95,9 @@ apps/android/
 | `WrongBookScreen.kt` | 错题本相关页面 |
 | `RecordsScreen.kt` | 练习 / 考试记录页面 |
 | `MeScreen.kt` | 设置、关于、数据管理相关入口 |
+| `AboutScreen.kt` | 版本信息与关于页面 |
+| `RecordDetailScreen.kt` | 单轮练习/考试记录逐题复盘 |
+| `StandardImportFormatScreen.kt` | 标准导入格式说明与 AI 清洗指引 |
 
 > 原生 Compose 版仍在快速开发中，README 只描述当前主线结构；具体完成度以源码和实际构建结果为准。
 
@@ -225,20 +228,20 @@ cd apps/android
 构建 WebView 壳版本：
 
 ```bash
-./gradlew assembleWebDebug
+./gradlew assembleWebRelease
 ```
 
 构建原生 Compose 版本：
 
 ```bash
-./gradlew assembleNativeDebug
+./gradlew assembleNativeRelease
 ```
 
 Windows PowerShell 可使用：
 
 ```powershell
-.\gradlew.bat assembleWebDebug
-.\gradlew.bat assembleNativeDebug
+.\gradlew.bat assembleWebRelease
+.\gradlew.bat assembleNativeRelease
 ```
 
 构建输出通常位于：
@@ -256,7 +259,7 @@ apps/android/app/build/outputs/
 - [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases)
 - [在线体验](https://reiqr.github.io/shiroha-quiz)
 
-当前 GitHub Releases 最新发布版本为 `v0.4.2-alpha`；源码中的 Android flavor 版本可能已经进入下一轮开发版本。
+当前 GitHub Releases 最新发布版本为 `v0.4.3-alpha`；源码中的 Android flavor 版本可能已经进入下一轮开发版本。
 
 每次发布通常包含：
 
