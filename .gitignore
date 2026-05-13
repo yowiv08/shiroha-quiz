@@ -60,6 +60,7 @@ apps/web.zip
 
 # Added by source-upload script
 source-upload.ps1
+tools/
 
 # Local test data
 test/
