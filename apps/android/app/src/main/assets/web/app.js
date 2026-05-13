@@ -3702,6 +3702,7 @@ function startPractice(){
   if(!practice.items.length){$('#practice-card').innerHTML='<div class="empty">当前条件下没有题目。</div>';showNotice('无法开始练习','当前筛选条件下没有题目。','warn');return}
   if((limit==='all'||limit==='half')&&practice.items.length>200){const msg=practice.items.length>500?`本轮将练习 ${practice.items.length} 道题，题量很大，手机 WebView 可能明显卡顿，建议减少题量或使用电脑端。是否继续？`:`本轮将练习 ${practice.items.length} 道题，手机 WebView 可能出现轻微卡顿，是否继续？`;if(!confirm(msg)){practice={items:[],idx:0,answered:0,correct:0,wrong:0,start:0,details:[],answerState:{}};return}}
   enterPracticeFocus();showNotice('练习开始',`本轮共 ${practice.items.length} 道题。`,'ok');renderPracticeQuestion();
+  resetViewScrollV282();
 }
 function renderPracticeQuestion(done=false){
   $('#practice-progress').textContent=`${Math.min(practice.idx+1,practice.items.length)} / ${practice.items.length}`;
@@ -3866,6 +3867,7 @@ function startExam(){
   document.body.classList.add('exam-focus');
   updateShellLayoutByView('exam');
   renderExamPaper();
+  resetViewScrollV282();
 }
 function updateTimer(){
   if(!exam.deadline)return;
