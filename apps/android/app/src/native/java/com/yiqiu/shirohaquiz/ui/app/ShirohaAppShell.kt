@@ -57,6 +57,7 @@ import com.yiqiu.shirohaquiz.ui.screens.ExamScreen
 import com.yiqiu.shirohaquiz.ui.screens.HomeScreen
 import com.yiqiu.shirohaquiz.ui.screens.ImportScreen
 import com.yiqiu.shirohaquiz.ui.screens.MeScreen
+import com.yiqiu.shirohaquiz.ui.screens.PersonalPreferenceScreen
 import com.yiqiu.shirohaquiz.ui.screens.PracticeScreen
 import com.yiqiu.shirohaquiz.ui.screens.RecordDetailScreen
 import com.yiqiu.shirohaquiz.ui.screens.RecordsScreen
@@ -85,6 +86,7 @@ private enum class MainTab(
     WrongBook("错题本", Icons.Rounded.School, showInBottomBar = false),
     Records("记录", Icons.Rounded.Dashboard, showInBottomBar = false),
     RecordDetail("记录详情", Icons.Rounded.Dashboard, showInBottomBar = false),
+    Preference("个人偏好", Icons.Rounded.Settings, showInBottomBar = false),
     StandardFormat("标准格式", Icons.Rounded.ImportExport, showInBottomBar = false),
     About("关于", Icons.Rounded.Settings, showInBottomBar = false)
 }
@@ -175,6 +177,7 @@ fun ShirohaAppShell() {
                     MainTab.Me -> MeScreen(
                         onOpenWrongBook = { currentTab = MainTab.WrongBook },
                         onOpenRecords = { currentTab = MainTab.Records },
+                        onOpenPreference = { currentTab = MainTab.Preference },
                         onOpenStandardFormat = { currentTab = MainTab.StandardFormat },
                         onOpenAbout = { currentTab = MainTab.About }
                     )
@@ -214,6 +217,9 @@ fun ShirohaAppShell() {
                     MainTab.RecordDetail -> RecordDetailScreen(
                         recordId = detailRecordId,
                         onBack = { currentTab = MainTab.Records }
+                    )
+                    MainTab.Preference -> PersonalPreferenceScreen(
+                        onBack = { currentTab = MainTab.Me }
                     )
                     MainTab.StandardFormat -> StandardImportFormatScreen(
                         onBack = { currentTab = MainTab.Me }

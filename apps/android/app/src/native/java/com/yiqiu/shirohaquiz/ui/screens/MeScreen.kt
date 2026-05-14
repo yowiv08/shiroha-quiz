@@ -64,6 +64,7 @@ import java.util.Locale
 fun MeScreen(
     onOpenWrongBook: () -> Unit,
     onOpenRecords: () -> Unit,
+    onOpenPreference: () -> Unit,
     onOpenStandardFormat: () -> Unit,
     onOpenAbout: () -> Unit
 ) {
@@ -182,9 +183,11 @@ fun MeScreen(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(12.dp))
-            PersonalPreferenceStrip(
-                enabled = QuizRepository.practiceNextRequiresResult,
-                onCheckedChange = { enabled -> QuizRepository.setPracticeNextRequiresResult(context, enabled) }
+            FeaturePlanStrip(
+                icon = Icons.Rounded.Settings,
+                title = "个人偏好",
+                desc = "开屏图片、练习跳题规则等设置。",
+                onClick = onOpenPreference
             )
             Spacer(Modifier.height(10.dp))
             FeaturePlanStrip(
@@ -364,27 +367,80 @@ private fun DataActionTile(
 }
 
 @Composable
-private fun PersonalPreferenceStrip(
-    enabled: Boolean,
+fun PersonalPreferenceScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
+    ) {
+        ShirohaHeader(
+            kicker = "Preference",
+            title = "个人偏好",
+            subtitle = ""
+        )
+
+        GlassCard {
+            Text(
+                text = "启动与练习",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "保留开屏启动图片",
+                desc = "下次启动时显示学习主题开屏图。",
+                checked = QuizRepository.startupSplashEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setStartupSplashEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "限制练习下一题",
+                desc = "提交答案或查看解析后，才能进入下一题。",
+                checked = QuizRepository.practiceNextRequiresResult,
+                onCheckedChange = { enabled -> QuizRepository.setPracticeNextRequiresResult(context, enabled) }
+            )
+        }
+
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("返回设置页")
+        }
+    }
+}
+
+@Composable
+private fun PreferenceSwitchRow(
+    title: String,
+    desc: String,
+    checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!enabled) }
+            .clickable { onCheckedChange(!checked) }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.Rounded.Settings,
-            contentDescription = "个人偏好",
+            contentDescription = title,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(26.dp)
         )
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "个人偏好",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -392,7 +448,7 @@ private fun PersonalPreferenceStrip(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "下一题需先提交答案或查看解析",
+                text = desc,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -401,7 +457,7 @@ private fun PersonalPreferenceStrip(
         }
         Spacer(Modifier.width(10.dp))
         Switch(
-            checked = enabled,
+            checked = checked,
             onCheckedChange = onCheckedChange
         )
     }
