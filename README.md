@@ -93,6 +93,12 @@ Shiroha Quiz 解决一个很实际的问题：
 - 支持批量导出单个题库 JSON
 - 恢复时可选合并或覆盖现有数据
 
+### 视觉与体验（原生版）
+
+- 暗夜模式 / 浅色模式切换
+- 自定义开屏图
+- 统一的 Design Token 间距与颜色系统
+
 ### 多端支持
 
 - Web 端功能完整，在线即可使用。
@@ -182,7 +188,7 @@ apps/android/
 
 ### Web 端快速上手
 
-1. 打开 `apps/web/index.html`，或访问在线版。
+1. 打开 `apps/web/index.html`，或访问 [在线版](https://reiqr.github.io/shiroha-quiz)。
 2. 进入 **导入题库**，粘贴文本或上传文件。
 3. 系统自动识别题型、选项、答案和解析。
 4. 在识别预览中确认题目无误。
@@ -332,7 +338,7 @@ apps/android/app/build/outputs/
 - [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases)
 - [在线体验](https://reiqr.github.io/shiroha-quiz)
 
-最新发布版本：`v1.0.0-beta`（含 Web `v0.4.4-alpha` / 原生 `v0.2.7-native`）。详见 [Releases](https://github.com/reiqr/shiroha-quiz/releases)。
+最新发布版本：`v1.0.0-beta`（Web `v0.4.4-alpha`） / `v0.3.0-native`（原生）。详见 [Releases](https://github.com/reiqr/shiroha-quiz/releases)。
 
 每次发布包含 Android APK 及相关说明文档。
 
