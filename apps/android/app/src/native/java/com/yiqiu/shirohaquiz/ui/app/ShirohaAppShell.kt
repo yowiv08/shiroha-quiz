@@ -1,7 +1,6 @@
 package com.yiqiu.shirohaquiz.ui.app
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -9,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -146,7 +144,7 @@ fun ShirohaAppShell() {
                         initialOffsetY = { 6 }
                     )) togetherWith fadeOut(
                         animationSpec = tween(durationMillis = 90)
-                    ) using SizeTransform(clip = false) { _, _ -> tween(durationMillis = 0) }
+                    )
                 },
                 contentAlignment = Alignment.TopStart,
                 label = "main_tabs"

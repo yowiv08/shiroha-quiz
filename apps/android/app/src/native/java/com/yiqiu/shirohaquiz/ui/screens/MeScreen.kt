@@ -24,11 +24,13 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -127,8 +129,8 @@ fun MeScreen(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DataActionTile(
                     icon = Icons.Rounded.FileOpen,
                     title = "导入题库",
@@ -147,8 +149,8 @@ fun MeScreen(
                     }
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DataActionTile(
                     icon = Icons.Rounded.Save,
                     title = "导出全部",
@@ -179,6 +181,11 @@ fun MeScreen(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(12.dp))
+            PersonalPreferenceStrip(
+                enabled = QuizRepository.practiceNextRequiresResult,
+                onCheckedChange = { enabled -> QuizRepository.setPracticeNextRequiresResult(context, enabled) }
+            )
+            Spacer(Modifier.height(10.dp))
             FeaturePlanStrip(
                 icon = Icons.Rounded.AutoStories,
                 title = "标准导入格式",
@@ -323,19 +330,19 @@ private fun DataActionTile(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         color = Color.White.copy(alpha = 0.68f),
         border = BorderStroke(1.dp, if (warning) ShirohaColors.StateWarningSoft else ShirohaColors.LineSoft)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
                 tint = if (warning) Color(0xFFE29A00) else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(21.dp)
             )
             Text(
                 text = title,
@@ -352,6 +359,50 @@ private fun DataActionTile(
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+@Composable
+private fun PersonalPreferenceStrip(
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!enabled) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Settings,
+            contentDescription = "个人偏好",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "个人偏好",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "下一题需先提交答案或查看解析",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Switch(
+            checked = enabled,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 

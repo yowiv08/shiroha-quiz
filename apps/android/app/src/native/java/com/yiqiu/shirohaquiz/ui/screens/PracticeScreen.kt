@@ -1,5 +1,10 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -14,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -42,6 +48,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -107,8 +117,8 @@ fun PracticeScreen(
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = ShirohaSpacing.Xl, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
             Text(
@@ -119,7 +129,8 @@ fun PracticeScreen(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "练习模式",
@@ -186,6 +197,7 @@ fun PracticeScreen(
             )
         }
         val isSubmitted = effectiveResult != null
+        val canGoNext = !QuizRepository.practiceNextRequiresResult || isSubmitted
         val displayedSelection = effectiveResult?.userAnswer ?: QuizRepository.selectedAnswer
         val isPracticeComplete = practiceQuestions.isNotEmpty() &&
             QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
@@ -278,32 +290,6 @@ fun PracticeScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 ActionPillButton(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    "上一题",
-                    primary = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    fillWidthContent = true,
-                    onClick = { QuizRepository.previousQuestion() }
-                )
-                ActionPillButton(
-                    Icons.AutoMirrored.Rounded.ArrowForward,
-                    "下一题",
-                    primary = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    fillWidthContent = true,
-                    onClick = { QuizRepository.nextQuestion() }
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ActionPillButton(
                     Icons.AutoMirrored.Rounded.TextSnippet,
                     "查看解析",
                     primary = false,
@@ -330,6 +316,33 @@ fun PracticeScreen(
                             QuizRepository.submitPracticeQuestion()
                         }
                     }
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionPillButton(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    "上一题",
+                    primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.previousQuestion() }
+                )
+                ActionPillButton(
+                    Icons.AutoMirrored.Rounded.ArrowForward,
+                    "下一题",
+                    primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    enabled = canGoNext,
+                    onClick = { QuizRepository.nextQuestion() }
                 )
             }
 
@@ -496,54 +509,80 @@ private fun PracticeSetupPanel(
 
 @Composable
 private fun CompactPracticeSetupHero() {
+    val density = LocalDensity.current
+    val floatDistancePx = with(density) { 2.6.dp.toPx() }
+    val heroFloat = rememberInfiniteTransition(label = "practice_illustration_float")
+    val imageOffsetY by heroFloat.animateFloat(
+        initialValue = -floatDistancePx,
+        targetValue = floatDistancePx,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "practice_illustration_float_y"
+    )
+
     GlassCard(
         modifier = Modifier.height(132.dp),
-        contentPadding = 12.dp
+        contentPadding = ShirohaSpacing.Xl
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                PracticeSetupStepCard(index = "1", text = "选好参数")
-                PracticeSetupStepCard(index = "2", text = "开始练习")
-                PracticeSetupStepCard(index = "3", text = "记录结果")
+                PracticeSetupStepCard(index = "1", text = "选好参数", selected = true)
+                PracticeSetupStepCard(index = "2", text = "开始练习", selected = false)
+                PracticeSetupStepCard(index = "3", text = "记录结果", selected = false)
             }
-            Image(
-                painter = painterResource(R.drawable.illus_practice_hint_webp),
-                contentDescription = "练习提示",
-                modifier = Modifier.size(92.dp)
-            )
+            Box(
+                modifier = Modifier.size(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.illus_practice_hint_webp),
+                    contentDescription = "练习提示",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .graphicsLayer { translationY = imageOffsetY }
+                        .alpha(0.92f),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun PracticeSetupStepCard(index: String, text: String) {
+private fun PracticeSetupStepCard(
+    index: String,
+    text: String,
+    selected: Boolean
+) {
     Surface(
         modifier = Modifier
-            .width(144.dp)
-            .defaultMinSize(minHeight = 34.dp),
+            .width(136.dp)
+            .defaultMinSize(minHeight = 28.dp),
         shape = RoundedCornerShape(ShirohaRadius.Pill),
-        color = ShirohaColors.BrandPrimarySoft,
-        border = BorderStroke(1.dp, ShirohaColors.LineSelected)
+        color = if (selected) ShirohaColors.BrandPrimarySoft else ShirohaColors.CardMuted,
+        border = BorderStroke(1.dp, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "$index  $text",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.TextSecondary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

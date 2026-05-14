@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,16 +64,14 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = ShirohaSpacing.Xl, vertical = 4.dp),
-        verticalArrangement = Arrangement.Top
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
         ShirohaHeader(
             kicker = "Shiroha Quiz",
             title = "首页",
             subtitle = ""
         )
-
-        Spacer(Modifier.height(ShirohaSpacing.Lg))
 
         IllustrationHeroCard(
             title = "欢迎回来",
@@ -81,8 +80,6 @@ fun HomeScreen(
             modifier = Modifier.height(132.dp),
             imageSize = 92.dp
         )
-
-        Spacer(Modifier.height(ShirohaSpacing.Lg))
 
         TodayStatusCard(
             bankName = bankName,
@@ -99,7 +96,9 @@ fun HomeScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = (-8).dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

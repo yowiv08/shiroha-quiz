@@ -1,5 +1,10 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -52,9 +58,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1577,36 +1586,58 @@ private fun sampleAnswerText(): String = """
 
 @Composable
 private fun ImportStepHeroCard() {
+    val density = LocalDensity.current
+    val floatDistancePx = with(density) { 2.6.dp.toPx() }
+    val heroFloat = rememberInfiniteTransition(label = "import_illustration_float")
+    val imageOffsetY by heroFloat.animateFloat(
+        initialValue = -floatDistancePx,
+        targetValue = floatDistancePx,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "import_illustration_float_y"
+    )
+
     GlassCard(
         modifier = Modifier.height(132.dp),
-        contentPadding = 12.dp
+        contentPadding = ShirohaSpacing.Xl
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                ImportStepPill("1 导入文件", selected = true)
-                ImportStepPill("2 核对结果", selected = false)
-                ImportStepPill("3 创建题库", selected = false)
+                ImportStepPill(index = "1", text = "导入文件", selected = true)
+                ImportStepPill(index = "2", text = "核对结果", selected = false)
+                ImportStepPill(index = "3", text = "创建题库", selected = false)
             }
-            Image(
-                painter = painterResource(R.drawable.illus_import_hint_webp),
-                contentDescription = null,
-                modifier = Modifier.size(104.dp),
-                contentScale = ContentScale.Fit
-            )
+            Box(
+                modifier = Modifier.size(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.illus_import_hint_webp),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(100.dp)
+                        .graphicsLayer { translationY = imageOffsetY }
+                        .alpha(0.92f),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ImportStepPill(
+    index: String,
     text: String,
     selected: Boolean
 ) {
@@ -1616,17 +1647,24 @@ private fun ImportStepPill(
         border = BorderStroke(1.dp, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft),
         modifier = Modifier
             .width(136.dp)
-            .defaultMinSize(minHeight = 30.dp)
+            .defaultMinSize(minHeight = 28.dp)
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.TextSecondary,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "$index  $text",
+                color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

@@ -36,6 +36,7 @@ import com.yiqiu.shirohaquiz.state.WrongStatus
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.EmptyStateIllustration
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
+import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
@@ -101,6 +102,14 @@ fun WrongBookScreen(
             )
             return
         }
+
+        IllustrationHeroCard(
+            title = "错题需要慢慢消化。",
+            subtitle = "筛选错题、集中复盘，再回到练习中巩固。",
+            imageRes = R.drawable.illus_wrongbook_hint_webp,
+            modifier = Modifier.height(132.dp),
+            imageSize = 92.dp
+        )
 
         GlassCard {
             Row(

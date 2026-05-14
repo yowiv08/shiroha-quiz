@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -177,6 +178,7 @@ fun ActionPillButton(
     primary: Boolean = true,
     modifier: Modifier = Modifier,
     fillWidthContent: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(ShirohaRadius.Pill)
@@ -186,9 +188,11 @@ fun ActionPillButton(
         modifier = modifier
             .defaultMinSize(minHeight = 44.dp)
             .clip(shape)
+            .alpha(if (enabled) 1f else 0.52f)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                enabled = enabled,
                 onClick = onClick
             ),
         shape = shape,
@@ -275,9 +279,19 @@ fun QuizOptionCard(
     selected: Boolean,
     onClick: () -> Unit = {}
 ) {
+    val shape = RoundedCornerShape(ShirohaRadius.Lg)
+    val interactionSource = remember { MutableInteractionSource() }
+
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(ShirohaRadius.Lg),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        shape = shape,
         color = if (selected) ShirohaColors.BrandPrimarySoft else Color.White.copy(alpha = 0.84f),
         border = BorderStroke(
             1.dp,
@@ -384,6 +398,19 @@ fun IllustrationHeroCard(
     imageSize: Dp = 96.dp,
     content: @Composable ColumnScope.() -> Unit = {}
 ) {
+    val density = LocalDensity.current
+    val floatDistancePx = with(density) { 2.6.dp.toPx() }
+    val heroFloat = rememberInfiniteTransition(label = "hero_illustration_float")
+    val imageOffsetY by heroFloat.animateFloat(
+        initialValue = -floatDistancePx,
+        targetValue = floatDistancePx,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "hero_illustration_float_y"
+    )
+
     GlassCard(modifier = modifier) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -420,6 +447,7 @@ fun IllustrationHeroCard(
                     contentDescription = null,
                     modifier = Modifier
                         .size(imageSize + 8.dp)
+                        .graphicsLayer { translationY = imageOffsetY }
                         .alpha(0.92f),
                     contentScale = ContentScale.Fit
                 )

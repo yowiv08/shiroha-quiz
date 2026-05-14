@@ -100,6 +100,7 @@ object QuizRepository {
     private const val KEY_ACTIVE_BANK_ID = "active_bank_id"
     private const val KEY_WRONG_BOOK = "wrong_book"
     private const val KEY_STUDY_RECORDS = "study_records"
+    private const val KEY_PRACTICE_NEXT_REQUIRES_RESULT = "practice_next_requires_result"
 
     val banks = mutableStateListOf<QuizBank>()
     val wrongBook = mutableStateListOf<WrongQuestionEntry>()
@@ -113,6 +114,8 @@ object QuizRepository {
     var practiceIndex by mutableStateOf(0)
     var selectedAnswer by mutableStateOf<List<String>>(emptyList())
     var practiceLastResult by mutableStateOf<QuestionCheckResult?>(null)
+        private set
+    var practiceNextRequiresResult by mutableStateOf(false)
         private set
     val practiceSessionResults = mutableStateMapOf<String, Boolean>()
     val practiceAnswerResults = mutableStateMapOf<String, StudyQuestionResult>()
@@ -163,6 +166,7 @@ object QuizRepository {
         activeBankId = prefs.getString(KEY_ACTIVE_BANK_ID, sanitizedRestoredBanks.firstOrNull()?.id)
             ?.takeIf { id -> sanitizedRestoredBanks.any { it.id == id } }
             ?: sanitizedRestoredBanks.firstOrNull()?.id
+        practiceNextRequiresResult = prefs.getBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, false)
 
         wrongBook.addAll(restoredWrongBook.map(::sanitizeWrongEntry))
         studyRecords.addAll(restoredStudyRecords)
@@ -431,6 +435,12 @@ object QuizRepository {
         } else {
             listOf(key)
         }
+    }
+
+    fun setPracticeNextRequiresResult(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        practiceNextRequiresResult = enabled
+        persist()
     }
 
     fun submitPracticeQuestion(): QuestionCheckResult? {
@@ -1170,6 +1180,7 @@ object QuizRepository {
             .putString(KEY_ACTIVE_BANK_ID, activeBankId)
             .putString(KEY_WRONG_BOOK, wrongBookToJson(wrongBook))
             .putString(KEY_STUDY_RECORDS, studyRecordsToJson(studyRecords))
+            .putBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, practiceNextRequiresResult)
             .apply()
     }
 
