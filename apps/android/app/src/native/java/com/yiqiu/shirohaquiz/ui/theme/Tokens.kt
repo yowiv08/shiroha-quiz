@@ -4,48 +4,84 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 object ShirohaColors {
-    val BgApp = Color(0xFFF4F6FB)
-    val BgElevated = Color(0xFFFBFCFE)
+    var isDarkMode: Boolean = false
+
+    val BgApp: Color
+        get() = if (isDarkMode) Color(0xFF0E1627) else Color(0xFFF4F6FB)
+    val BgElevated: Color
+        get() = if (isDarkMode) Color(0xFF13203A) else Color(0xFFFBFCFE)
     val BgDeepFocus = Color(0xFF0E1627)
 
-    val BgGradientTop = Color(0xFFF7F9FF)
-    val BgGradientMiddle = Color(0xFFF1F4FB)
-    val BgGradientBottom = Color(0xFFF6F7FB)
+    val BgGradientTop: Color
+        get() = if (isDarkMode) Color(0xFF0E1627) else Color(0xFFF7F9FF)
+    val BgGradientMiddle: Color
+        get() = if (isDarkMode) Color(0xFF101B31) else Color(0xFFF1F4FB)
+    val BgGradientBottom: Color
+        get() = if (isDarkMode) Color(0xFF15213A) else Color(0xFFF6F7FB)
 
-    val CardGlass = Color(0xC7FFFFFF)
-    val CardSoft = Color(0xE6FFFFFF)
-    val CardMuted = Color(0xFFF7F9FD)
-    val CardWhite84 = Color.White.copy(alpha = 0.84f)
-    val CardWhite86 = Color.White.copy(alpha = 0.86f)
-    val CardWhite78 = Color.White.copy(alpha = 0.78f)
-    val CardWhite72 = Color.White.copy(alpha = 0.72f)
-    val CardWhite68 = Color.White.copy(alpha = 0.68f)
-    val CardWhite62 = Color.White.copy(alpha = 0.62f)
-    val BottomBar = Color.White.copy(alpha = 0.82f)
+    val CardGlass: Color
+        get() = if (isDarkMode) Color(0xD91A2742) else Color(0xC7FFFFFF)
+    val CardSoft: Color
+        get() = if (isDarkMode) Color(0xE617233D) else Color(0xE6FFFFFF)
+    val CardMuted: Color
+        get() = if (isDarkMode) Color(0xFF1B2844) else Color(0xFFF7F9FD)
+    val CardWhite84: Color
+        get() = if (isDarkMode) Color(0xD61A2742) else Color.White.copy(alpha = 0.84f)
+    val CardWhite86: Color
+        get() = if (isDarkMode) Color(0xDB1B2945) else Color.White.copy(alpha = 0.86f)
+    val CardWhite78: Color
+        get() = if (isDarkMode) Color(0xC71A2742) else Color.White.copy(alpha = 0.78f)
+    val CardWhite72: Color
+        get() = if (isDarkMode) Color(0xB817233D) else Color.White.copy(alpha = 0.72f)
+    val CardWhite68: Color
+        get() = if (isDarkMode) Color(0xAD17233D) else Color.White.copy(alpha = 0.68f)
+    val CardWhite62: Color
+        get() = if (isDarkMode) Color(0x9E17233D) else Color.White.copy(alpha = 0.62f)
+    val BottomBar: Color
+        get() = if (isDarkMode) Color(0xF0121D33) else Color.White.copy(alpha = 0.82f)
 
-    val LineSoft = Color(0x38A0AEC0)
-    val LineStrong = Color(0xFFD8E0EF)
-    val LineSelected = Color(0xFF85A7FF)
+    val LineSoft: Color
+        get() = if (isDarkMode) Color(0x40B7C8E8) else Color(0x38A0AEC0)
+    val LineStrong: Color
+        get() = if (isDarkMode) Color(0xFF334462) else Color(0xFFD8E0EF)
+    val LineSelected: Color
+        get() = if (isDarkMode) Color(0xFF91AFFF) else Color(0xFF85A7FF)
 
-    val TextPrimary = Color(0xFF101828)
-    val TextSecondary = Color(0xFF667085)
-    val TextTertiary = Color(0xFF94A3B8)
-    val TextOnBrand = Color.White
-    val TextWarning = Color(0xFF9A6700)
-    val IconWarning = Color(0xFFE29A00)
+    val TextPrimary: Color
+        get() = if (isDarkMode) Color(0xFFF8FAFC) else Color(0xFF101828)
+    val TextSecondary: Color
+        get() = if (isDarkMode) Color(0xFFB8C2D6) else Color(0xFF667085)
+    val TextTertiary: Color
+        get() = if (isDarkMode) Color(0xFF8794AA) else Color(0xFF94A3B8)
+    val TextOnBrand: Color
+        get() = if (isDarkMode) Color(0xFF0F172A) else Color.White
+    val TextWarning: Color
+        get() = if (isDarkMode) Color(0xFFF9C46B) else Color(0xFF9A6700)
+    val IconWarning: Color
+        get() = if (isDarkMode) Color(0xFFF4B348) else Color(0xFFE29A00)
 
-    val BrandPrimary = Color(0xFF4F7CFF)
-    val BrandPrimarySoft = Color(0xFFEAF0FF)
-    val BrandSecondary = Color(0xFF6C8EEA)
+    val BrandPrimary: Color
+        get() = if (isDarkMode) Color(0xFF89A7FF) else Color(0xFF4F7CFF)
+    val BrandPrimarySoft: Color
+        get() = if (isDarkMode) Color(0xFF243A63) else Color(0xFFEAF0FF)
+    val BrandSecondary: Color
+        get() = if (isDarkMode) Color(0xFFB7C8FF) else Color(0xFF6C8EEA)
 
-    val OptionLabelIdle = Color(0xFFF3F5FA)
+    val OptionLabelIdle: Color
+        get() = if (isDarkMode) Color(0xFF25324F) else Color(0xFFF3F5FA)
 
-    val StateSuccess = Color(0xFF17B26A)
-    val StateSuccessSoft = Color(0xFFDDF7EA)
-    val StateWarning = Color(0xFFF79009)
-    val StateWarningSoft = Color(0xFFFFF7E8)
-    val StateDanger = Color(0xFFF04438)
-    val StateDangerSoft = Color(0xFFFEECEC)
+    val StateSuccess: Color
+        get() = if (isDarkMode) Color(0xFF5FE3A2) else Color(0xFF17B26A)
+    val StateSuccessSoft: Color
+        get() = if (isDarkMode) Color(0xFF123A2A) else Color(0xFFDDF7EA)
+    val StateWarning: Color
+        get() = if (isDarkMode) Color(0xFFF9B955) else Color(0xFFF79009)
+    val StateWarningSoft: Color
+        get() = if (isDarkMode) Color(0xFF3B2B12) else Color(0xFFFFF7E8)
+    val StateDanger: Color
+        get() = if (isDarkMode) Color(0xFFFF8A80) else Color(0xFFF04438)
+    val StateDangerSoft: Color
+        get() = if (isDarkMode) Color(0xFF3B1E24) else Color(0xFFFEECEC)
 }
 
 object ShirohaRadius {
@@ -118,7 +154,7 @@ object ShirohaMotion {
     const val HeroFloatMillis = 1700
     const val LoadingScaleMillis = 900
     const val SplashFadeMillis = 420
-    const val SplashHoldMillis = 1450L
+    const val SplashHoldMillis = 1450
 
     const val PageTransitionOffsetPx = 6
     val HeroFloatDistance = 2.6.dp

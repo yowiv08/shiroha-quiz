@@ -35,6 +35,8 @@ fun ShirohaQuizTheme(
     darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    ShirohaColors.isDarkMode = darkTheme
+
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = ShirohaTypography,

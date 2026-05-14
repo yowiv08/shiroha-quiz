@@ -720,12 +720,12 @@ private fun ReviewCompactButton(
                 imageVector = icon,
                 contentDescription = text,
                 modifier = Modifier.size(15.dp),
-                tint = if (primary) Color.White else MaterialTheme.colorScheme.primary
+                tint = if (primary) ShirohaColors.TextOnBrand else MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(5.dp))
             Text(
                 text = text,
-                color = if (primary) Color.White else MaterialTheme.colorScheme.onSurface,
+                color = if (primary) ShirohaColors.TextOnBrand else MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,

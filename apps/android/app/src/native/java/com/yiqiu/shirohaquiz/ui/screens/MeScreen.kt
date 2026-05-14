@@ -21,13 +21,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -55,6 +58,7 @@ import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
+import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -106,11 +110,27 @@ fun MeScreen(
             .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
-        ShirohaHeader(
-            kicker = "Me",
-            title = "设置与资料",
-            subtitle = ""
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
+        ) {
+            ShirohaHeader(
+                kicker = "Me",
+                title = "设置与资料",
+                subtitle = "",
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = { QuizRepository.setDarkThemeEnabled(context, !QuizRepository.darkThemeEnabled) }
+            ) {
+                Icon(
+                    imageVector = if (QuizRepository.darkThemeEnabled) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                    contentDescription = if (QuizRepository.darkThemeEnabled) "切换浅色模式" else "切换暗夜模式",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
         IllustrationHeroCard(
             title = "我是Shiroha",
             subtitle = "欢迎关注",
@@ -386,6 +406,21 @@ fun PersonalPreferenceScreen(
 
         GlassCard {
             Text(
+                text = "外观设置",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            ThemeChoiceRow(
+                darkThemeEnabled = QuizRepository.darkThemeEnabled,
+                onThemeChange = { enabled -> QuizRepository.setDarkThemeEnabled(context, enabled) }
+            )
+        }
+
+        GlassCard {
+            Text(
                 text = "启动与练习",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
@@ -413,6 +448,71 @@ fun PersonalPreferenceScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text("返回设置页")
+        }
+    }
+}
+
+
+@Composable
+private fun ThemeChoiceRow(
+    darkThemeEnabled: Boolean,
+    onThemeChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)
+    ) {
+        ThemeChoiceTile(
+            icon = Icons.Rounded.LightMode,
+            title = "浅色模式",
+            selected = !darkThemeEnabled,
+            modifier = Modifier.weight(1f),
+            onClick = { onThemeChange(false) }
+        )
+        ThemeChoiceTile(
+            icon = Icons.Rounded.DarkMode,
+            title = "暗夜模式",
+            selected = darkThemeEnabled,
+            modifier = Modifier.weight(1f),
+            onClick = { onThemeChange(true) }
+        )
+    }
+}
+
+@Composable
+private fun ThemeChoiceTile(
+    icon: ImageVector,
+    title: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Md),
+        color = if (selected) ShirohaColors.BrandPrimarySoft else ShirohaColors.CardWhite78,
+        border = BorderStroke(ShirohaDimens.Hairline, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

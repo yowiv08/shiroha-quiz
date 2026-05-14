@@ -102,6 +102,7 @@ object QuizRepository {
     private const val KEY_STUDY_RECORDS = "study_records"
     private const val KEY_PRACTICE_NEXT_REQUIRES_RESULT = "practice_next_requires_result"
     private const val KEY_STARTUP_SPLASH_ENABLED = "startup_splash_enabled"
+    private const val KEY_DARK_THEME_ENABLED = "dark_theme_enabled"
 
     val banks = mutableStateListOf<QuizBank>()
     val wrongBook = mutableStateListOf<WrongQuestionEntry>()
@@ -119,6 +120,8 @@ object QuizRepository {
     var practiceNextRequiresResult by mutableStateOf(false)
         private set
     var startupSplashEnabled by mutableStateOf(true)
+        private set
+    var darkThemeEnabled by mutableStateOf(false)
         private set
     val practiceSessionResults = mutableStateMapOf<String, Boolean>()
     val practiceAnswerResults = mutableStateMapOf<String, StudyQuestionResult>()
@@ -171,6 +174,7 @@ object QuizRepository {
             ?: sanitizedRestoredBanks.firstOrNull()?.id
         practiceNextRequiresResult = prefs.getBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, false)
         startupSplashEnabled = prefs.getBoolean(KEY_STARTUP_SPLASH_ENABLED, true)
+        darkThemeEnabled = prefs.getBoolean(KEY_DARK_THEME_ENABLED, false)
 
         wrongBook.addAll(restoredWrongBook.map(::sanitizeWrongEntry))
         studyRecords.addAll(restoredStudyRecords)
@@ -450,6 +454,12 @@ object QuizRepository {
     fun setStartupSplashEnabled(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         startupSplashEnabled = enabled
+        persist()
+    }
+
+    fun setDarkThemeEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        darkThemeEnabled = enabled
         persist()
     }
 
@@ -1192,6 +1202,7 @@ object QuizRepository {
             .putString(KEY_STUDY_RECORDS, studyRecordsToJson(studyRecords))
             .putBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, practiceNextRequiresResult)
             .putBoolean(KEY_STARTUP_SPLASH_ENABLED, startupSplashEnabled)
+            .putBoolean(KEY_DARK_THEME_ENABLED, darkThemeEnabled)
             .apply()
     }
 

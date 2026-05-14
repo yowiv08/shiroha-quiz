@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,7 +55,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         QuizRepository.init(applicationContext)
         setContent {
-            ShirohaQuizTheme {
+            ShirohaQuizTheme(darkTheme = QuizRepository.darkThemeEnabled) {
                 ShirohaStartupGate {
                     ShirohaAppShell()
                 }
@@ -68,12 +70,15 @@ private fun ShirohaStartupGate(
 ) {
     val shouldShowStartupSplash = remember { QuizRepository.startupSplashEnabled }
     var showSplash by remember { mutableStateOf(shouldShowStartupSplash) }
+    var splashProgress by remember { mutableFloatStateOf(if (shouldShowStartupSplash) 0f else 1f) }
 
     LaunchedEffect(shouldShowStartupSplash) {
         if (shouldShowStartupSplash) {
-            delay(ShirohaMotion.SplashHoldMillis)
+            splashProgress = 1f
+            delay(ShirohaMotion.SplashHoldMillis.toLong())
             showSplash = false
         } else {
+            splashProgress = 1f
             showSplash = false
         }
     }
@@ -84,13 +89,13 @@ private fun ShirohaStartupGate(
             visible = showSplash,
             exit = fadeOut(animationSpec = tween(durationMillis = ShirohaMotion.SplashFadeMillis))
         ) {
-            ShirohaSplashArtwork()
+            ShirohaSplashArtwork(progress = splashProgress)
         }
     }
 }
 
 @Composable
-private fun ShirohaSplashArtwork() {
+private fun ShirohaSplashArtwork(progress: Float) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -100,22 +105,24 @@ private fun ShirohaSplashArtwork() {
             painter = painterResource(id = R.drawable.splash_screen_study),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
+            contentScale = ContentScale.FillWidth,
+            alignment = Alignment.TopCenter
         )
-        ShirohaSplashNativeOverlay()
+        ShirohaSplashNativeOverlay(progress = progress)
     }
 }
 
 @Composable
-private fun ShirohaSplashNativeOverlay() {
+private fun ShirohaSplashNativeOverlay(progress: Float) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val progressBarWidth = maxWidth * 0.54f
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(
-                    top = maxHeight * 0.714f,
-                    start = 40.dp,
-                    end = 40.dp
+                    top = maxHeight * 0.712f,
+                    start = 34.dp,
+                    end = 34.dp
                 ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -123,8 +130,8 @@ private fun ShirohaSplashNativeOverlay() {
                 Text(
                     text = "Shiroha",
                     color = Color(0xFF1F5EA8),
-                    fontSize = 42.sp,
-                    lineHeight = 48.sp,
+                    fontSize = 41.sp,
+                    lineHeight = 47.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
@@ -132,13 +139,13 @@ private fun ShirohaSplashNativeOverlay() {
                 Text(
                     text = "Quiz",
                     color = Color(0xFFFF78AD),
-                    fontSize = 42.sp,
-                    lineHeight = 48.sp,
+                    fontSize = 41.sp,
+                    lineHeight = 47.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = "让自律成为习惯，让成长看得见",
                 color = Color(0xFF7C9ED6),
@@ -150,8 +157,9 @@ private fun ShirohaSplashNativeOverlay() {
             )
             Spacer(Modifier.height(30.dp))
             ShirohaSplashProgressBar(
+                progress = progress,
                 modifier = Modifier
-                    .width(maxWidth * 0.54f)
+                    .width(progressBarWidth)
                     .height(18.dp)
             )
             Spacer(Modifier.height(24.dp))
@@ -169,36 +177,48 @@ private fun ShirohaSplashNativeOverlay() {
 }
 
 @Composable
-private fun ShirohaSplashProgressBar(modifier: Modifier = Modifier) {
+private fun ShirohaSplashProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
     val shape = RoundedCornerShape(999.dp)
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = ShirohaMotion.SplashHoldMillis),
+        label = "splashProgress"
+    )
+
     Box(
         modifier = modifier
             .clip(shape)
             .background(Color.White.copy(alpha = 0.46f))
             .border(1.dp, Color(0xFFC8D8F4).copy(alpha = 0.62f), shape)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(0.48f)
-                .clip(shape)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFFFF6EA7),
-                            Color(0xFFFFA9CF)
+        if (animatedProgress > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedProgress)
+                    .clip(shape)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFFFF6EA7),
+                                Color(0xFFFFA9CF)
+                            )
                         )
                     )
+            ) {
+                Text(
+                    text = "✦",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 10.dp)
                 )
-        )
-        Text(
-            text = "✦",
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 9.dp)
-        )
+            }
+        }
     }
 }
