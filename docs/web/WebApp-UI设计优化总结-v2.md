@@ -1,5 +1,8 @@
 # Shiroha Quiz WebApp UI 设计优化总结 v2
 
+> 说明：本文是阶段性规划 / 历史设计记录，部分版本号和待办项可能已经被后续实现覆盖。  
+> 当前项目状态请优先参考根目录 `README.md`、`CHANGELOG.md` 和 `docs/native/原生开发进度.md`。
+
 > 基于当前实际资源包 `main.zip`、项目内历史讨论，以及最新手机截图重新整理。  
 > 本版不包含 Codex 提示词，只保留设计判断、问题定位、修改方向和可执行的代码级建议。  
 > 适用范围：当前 Android Web 壳版本，即 `apps/web/index.html`、`apps/web/styles.css`、`apps/web/app.js`、`apps/android/app/src/main/java/com/codex/shirohaquiz/WebShellActivity.kt`、`apps/android/app/src/main/AndroidManifest.xml`。

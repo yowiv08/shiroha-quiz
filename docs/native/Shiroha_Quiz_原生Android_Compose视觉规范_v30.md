@@ -1,6 +1,7 @@
 # Shiroha Quiz 原生 Android / Compose 视觉规范
 
-> 当前标准基线：**v25**  
+> 说明：本文是原生 Compose 视觉规范文档，文件名中的 v30 是设计阶段代号，不等同于 App 发布版本号。  
+> 文档内容承接 v25 之后的移动端优化经验，当前实现状态以根目录 `README.md` 和 `docs/native/原生开发进度.md` 为准。  
 > 适用范围：`apps/android/app/src/native/`  
 > 目的：作为后续原生 Android / Compose UI 调整的统一视觉标准，避免每个页面各自使用不同的尺寸、间距、字体和动效参数。
 

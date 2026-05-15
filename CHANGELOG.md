@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### 原生 Compose 版
+- 修复部分原生页面中文文案乱码。
+- 保持现有功能逻辑不变，仅做文案编码修复。
+- 已通过 `compileNativeDebugKotlin` 编译校验。
+
+### 已知问题
+- 离线运行 `testNativeDebugUnitTest` 时，如本地未缓存 `junit:junit:4.13.2`，测试依赖解析会失败；这不是本次文案修复引入的问题。
+
 ## Web 壳版本
 
 | 版本 | 日期 | 变更 |

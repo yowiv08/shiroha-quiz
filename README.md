@@ -18,7 +18,7 @@ Shiroha Quiz 解决一个很实际的问题：
 
 - **Web 版**：功能完整稳定，题库导入、刷题考试、错题复习均已就绪。
 - **Android WebView 壳版**：Web 资源打包进 APK，离线加载，适合日常手机刷题。
-- **Android 原生 Compose 版**：Kotlin + Compose 原生实现，启动快、体积小，已覆盖暗夜模式、AI 解析、批量做题等功能。
+- **Android 原生 Compose 版**：Kotlin + Compose 原生实现，正在快速迭代，核心导入、练习、考试、错题和记录流程已可用。
 
 ---
 
@@ -110,7 +110,7 @@ Shiroha Quiz 解决一个很实际的问题：
 
 - Web 端功能完整，在线即可使用。
 - Android WebView 壳版离线加载，适合日常刷题。
-- Android 原生 Compose 版核心流程可用，体验更流畅。
+- Android 原生 Compose 版核心流程可用，当前主线转向原生体验与稳定性收口。
 - 内置 C1 科目一题库，方便首次体验。
 
 ---
@@ -164,7 +164,7 @@ apps/android/
 
 ## 原生 Compose 当前状态
 
-原生版已覆盖从导入到复盘的全流程，包含 13 个页面：
+原生版已覆盖从导入到复盘的核心流程，包含 13 个页面。它已经适合体验原生流程，但仍处于快速迭代阶段，后续重点是导入核校、页面细节和发布前稳定性。
 
 | 页面 | 功能 |
 |------|------|
@@ -346,7 +346,11 @@ apps/android/app/build/outputs/
 - [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases)
 - [在线体验](https://reiqr.github.io/shiroha-quiz)
 
-最新发布版本：`v1.0.0-beta`（Web `v0.4.4-alpha`） / `v0.3.6-native`（原生）。详见 [Releases](https://github.com/reiqr/shiroha-quiz/releases)。
+最新版本请以 [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases) 为准。当前仓库文档记录的主要版本线为：
+
+- WebView 壳版：`v0.4.4-alpha`
+- 原生 Compose 版：`v0.3.6-native`
+- 统一测试发布：`v1.0.0-beta`
 
 每次发布包含 Android APK 及相关说明文档。
 
