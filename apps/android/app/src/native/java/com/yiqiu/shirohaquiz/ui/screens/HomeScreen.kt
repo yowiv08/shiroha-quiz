@@ -152,9 +152,11 @@ private fun TodayStatusCard(
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit
 ) {
-    val statusPillHeight = 64.dp
+    val currentBankHeight = 56.dp
+    val metricCardHeight = 52.dp
+    val actionButtonHeight = 44.dp
 
-    GlassCard {
+    GlassCard(contentPadding = ShirohaSpacing.Lg) {
         Text(
             text = "今日学习状态",
             style = MaterialTheme.typography.titleLarge,
@@ -168,7 +170,7 @@ private fun TodayStatusCard(
             value = bankName,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(statusPillHeight)
+                .height(currentBankHeight)
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -177,36 +179,36 @@ private fun TodayStatusCard(
                 value = "${todayPracticeCount} 次",
                 modifier = Modifier
                     .weight(1f)
-                    .height(statusPillHeight)
+                    .height(metricCardHeight)
             )
             MiniStatusCard(
                 title = "待复习",
                 value = "${pendingReviewCount} 题",
                 modifier = Modifier
                     .weight(1f)
-                    .height(statusPillHeight)
+                    .height(metricCardHeight)
             )
         }
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ActionPillButton(
                 icon = Icons.Rounded.PlayArrow,
-                text = "进入练习",
+                text = "继续练习",
                 primary = false,
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(statusPillHeight),
+                    .height(actionButtonHeight),
                 onClick = onGoPractice
             )
             ActionPillButton(
                 icon = Icons.Rounded.Timer,
-                text = "开始考试",
+                text = "模拟考试",
                 primary = false,
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(statusPillHeight),
+                    .height(actionButtonHeight),
                 onClick = onGoExam
             )
         }
@@ -226,8 +228,8 @@ private fun MiniStatusCard(
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineSoft)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Text(
                 text = title,
