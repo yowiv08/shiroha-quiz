@@ -1,5 +1,9 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,12 +12,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,8 +32,10 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,8 +44,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -58,8 +69,14 @@ import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
+import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
+import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
+import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlin.math.abs
 
 private enum class ExamGroupMode {
     RANDOM,
@@ -157,6 +174,9 @@ fun ExamScreen(
         }
     }
 
+    val isActiveExamRunning = QuizRepository.examQuestions.isNotEmpty() && !QuizRepository.examFinished && examQuestion != null
+    var examStatusExpanded by rememberSaveable(QuizRepository.examQuestions.size) { mutableStateOf(true) }
+
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
@@ -170,20 +190,34 @@ fun ExamScreen(
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelLarge
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
             ) {
                 Text(
                     text = "考试模式",
                     style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.BottomStart)
                 )
+                if (isActiveExamRunning && examStatusExpanded) {
+                    ExamCollapseTextPill(
+                        text = "收起",
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .width(64.dp)
+                            .height(28.dp),
+                        onClick = { examStatusExpanded = false }
+                    )
+                }
                 ActionPillButton(
                     icon = Icons.Rounded.PlayArrow,
                     text = "切换练习",
                     primary = false,
-                    modifier = Modifier.height(44.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .height(44.dp),
                     onClick = onGoPractice
                 )
             }
@@ -292,7 +326,10 @@ fun ExamScreen(
         }
 
         if (!QuizRepository.examFinished && examQuestion != null) {
-            ActiveExamPanel()
+            ActiveExamPanel(
+                examStatusExpanded = examStatusExpanded,
+                onExamStatusExpandedChange = { examStatusExpanded = it }
+            )
             return
         }
 
@@ -605,14 +642,88 @@ private fun ExamMetricCard(
     }
 }
 
+@Composable
+private fun ExamCollapseTextPill(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = ShirohaColors.CardWhite62,
+        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineSoft)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 0.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = ShirohaColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExamCollapsedStatusPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = ShirohaColors.CardWhite86,
+        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 0.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ActiveExamPanel() {
+private fun ActiveExamPanel(
+    examStatusExpanded: Boolean,
+    onExamStatusExpandedChange: (Boolean) -> Unit
+) {
     val examQuestion = QuizRepository.currentExamQuestion() ?: return
     val questionType = examQuestion.type
     var showAnswerCard by remember { mutableStateOf(false) }
     var showSubmitConfirm by remember { mutableStateOf(false) }
-    var examStatusExpanded by remember { mutableStateOf(true) }
+    var showExitConfirm by remember { mutableStateOf(false) }
     val answeredCount = QuizRepository.examAnsweredCount()
     val unansweredCount = QuizRepository.examQuestions.size - answeredCount
 
@@ -660,17 +771,6 @@ private fun ActiveExamPanel() {
                     )
                 }
             }
-            ActionPillButton(
-                icon = Icons.Rounded.Timer,
-                text = "收起",
-                primary = false,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(82.dp)
-                    .height(32.dp),
-                fillWidthContent = true,
-                onClick = { examStatusExpanded = false }
-            )
         }
     } else {
         Row(
@@ -678,24 +778,20 @@ private fun ActiveExamPanel() {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ActionPillButton(
+            ExamCollapsedStatusPill(
                 icon = Icons.Rounded.Timer,
                 text = formatExamSeconds(QuizRepository.examRemainingSeconds),
-                primary = false,
                 modifier = Modifier
                     .weight(1f)
-                    .height(54.dp),
-                fillWidthContent = true,
-                onClick = { examStatusExpanded = true }
+                    .height(42.dp),
+                onClick = { onExamStatusExpandedChange(true) }
             )
-            ActionPillButton(
+            ExamCollapsedStatusPill(
                 icon = Icons.AutoMirrored.Rounded.ListAlt,
                 text = "答题卡 $answeredCount/${QuizRepository.examQuestions.size}",
-                primary = false,
                 modifier = Modifier
                     .weight(1f)
-                    .height(54.dp),
-                fillWidthContent = true,
+                    .height(42.dp),
                 onClick = { showAnswerCard = true }
             )
         }
@@ -757,16 +853,28 @@ private fun ActiveExamPanel() {
         }
 
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionPillButton(Icons.AutoMirrored.Rounded.ArrowBack, "上一题", primary = false, onClick = { QuizRepository.previousExamQuestion() })
-            ActionPillButton(Icons.AutoMirrored.Rounded.ArrowForward, "下一题", primary = false, onClick = { QuizRepository.nextExamQuestion() })
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ActionPillButton(
+                Icons.Rounded.Timer,
+                "结束本场",
+                primary = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
+                onClick = { showExitConfirm = true }
+            )
             ActionPillButton(
                 Icons.Rounded.CheckCircle,
                 "立即交卷",
                 primary = true,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
                 onClick = {
                     if (unansweredCount > 0) {
                         showSubmitConfirm = true
@@ -775,9 +883,44 @@ private fun ActiveExamPanel() {
                     }
                 }
             )
-            ActionPillButton(Icons.Rounded.Timer, "结束本场", primary = false, onClick = { QuizRepository.resetExam() })
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ActionPillButton(
+                Icons.AutoMirrored.Rounded.ArrowBack,
+                "上一题",
+                primary = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
+                onClick = { QuizRepository.previousExamQuestion() }
+            )
+            ActionPillButton(
+                Icons.AutoMirrored.Rounded.ArrowForward,
+                "下一题",
+                primary = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
+                onClick = { QuizRepository.nextExamQuestion() }
+            )
         }
     }
+    }
+
+    if (showExitConfirm) {
+        ConfirmExitExamDialog(
+            onDismiss = { showExitConfirm = false },
+            onConfirmExit = {
+                showExitConfirm = false
+                QuizRepository.resetExam()
+            }
+        )
     }
 
     if (showAnswerCard) {
@@ -817,6 +960,48 @@ private fun ActiveExamPanel() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun ExamAnswerNumberChip(
+    text: String,
+    current: Boolean,
+    answered: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(ShirohaRadius.Pill)
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = shape,
+        color = when {
+            current -> MaterialTheme.colorScheme.primary
+            answered -> ShirohaColors.BrandPrimarySoft
+            else -> ShirohaColors.CardWhite86
+        },
+        border = BorderStroke(
+            ShirohaDimens.Hairline,
+            when {
+                current -> MaterialTheme.colorScheme.primary
+                answered -> ShirohaColors.LineSelected
+                else -> ShirohaColors.LineStrong
+            }
+        )
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (current) ShirohaColors.TextOnBrand else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun ExamAnswerCardDialog(
     onDismiss: () -> Unit,
     onJumpToQuestion: (Int) -> Unit,
@@ -841,9 +1026,10 @@ private fun ExamAnswerCardDialog(
                     MetricGlassCard("已答", answered.toString(), "", Modifier.weight(1f))
                     MetricGlassCard("未答", unanswered.toString(), "", Modifier.weight(1f))
                 }
-                FlowRow(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     StatusChip("当前", selected = true)
                     StatusChip("已答")
@@ -851,27 +1037,31 @@ private fun ExamAnswerCardDialog(
                 }
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        QuizRepository.examQuestions.forEachIndexed { index, question ->
-                            val answeredQuestion = QuizRepository.examAnswers[question.id].orEmpty().isNotEmpty()
-                            val currentQuestion = index == QuizRepository.examIndex
-                            val icon = when {
-                                currentQuestion -> Icons.AutoMirrored.Rounded.ListAlt
-                                answeredQuestion -> Icons.Rounded.CheckCircle
-                                else -> Icons.Rounded.Timer
+                    QuizRepository.examQuestions.chunked(5).forEachIndexed { rowIndex, rowQuestions ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            rowQuestions.forEachIndexed { columnIndex, question ->
+                                val index = rowIndex * 5 + columnIndex
+                                val answeredQuestion = QuizRepository.examAnswers[question.id].orEmpty().isNotEmpty()
+                                val currentQuestion = index == QuizRepository.examIndex
+                                ExamAnswerNumberChip(
+                                    text = (index + 1).toString(),
+                                    current = currentQuestion,
+                                    answered = answeredQuestion,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp),
+                                    onClick = { onJumpToQuestion(index) }
+                                )
                             }
-                            ActionPillButton(
-                                icon = icon,
-                                text = (index + 1).toString(),
-                                primary = currentQuestion,
-                                modifier = Modifier.height(38.dp),
-                                onClick = { onJumpToQuestion(index) }
-                            )
+                            repeat(5 - rowQuestions.size) {
+                                Spacer(Modifier.weight(1f))
+                            }
                         }
                     }
                 }
@@ -882,6 +1072,30 @@ private fun ExamAnswerCardDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("继续答题") }
+        }
+    )
+}
+
+@Composable
+private fun ConfirmExitExamDialog(
+    onDismiss: () -> Unit,
+    onConfirmExit: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("确定要退出吗？") },
+        text = {
+            Text(
+                text = "结束本场后，本场考试进度和已选答案将不会保留。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirmExit) { Text("确定退出") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("继续考试") }
         }
     )
 }
@@ -963,21 +1177,51 @@ private fun Modifier.questionSwipeNavigation(
     onSwipeRight: () -> Unit
 ): Modifier {
     val thresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
-    var dragAmount by remember { mutableStateOf(0f) }
-    return pointerInput(onSwipeLeft, onSwipeRight, thresholdPx) {
-        detectHorizontalDragGestures(
-            onDragStart = { dragAmount = 0f },
-            onHorizontalDrag = { _, dragDelta -> dragAmount += dragDelta },
-            onDragCancel = { dragAmount = 0f },
-            onDragEnd = {
-                when {
-                    dragAmount <= -thresholdPx -> onSwipeLeft()
-                    dragAmount >= thresholdPx -> onSwipeRight()
-                }
-                dragAmount = 0f
-            }
-        )
+    val maxOffsetPx = with(LocalDensity.current) { 28.dp.toPx() }
+    val swipeOffset = remember { Animatable(0f) }
+    val swipeScope = rememberCoroutineScope()
+
+    fun resetSwipeOffset() {
+        swipeScope.launch { swipeOffset.animateTo(0f, animationSpec = tween(durationMillis = 130)) }
     }
+
+    val offsetFraction = if (maxOffsetPx > 0f) {
+        (abs(swipeOffset.value) / maxOffsetPx).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    return this
+        .graphicsLayer {
+            translationX = swipeOffset.value
+            alpha = 1f - offsetFraction * 0.04f
+        }
+        .pointerInput(onSwipeLeft, onSwipeRight, thresholdPx, maxOffsetPx) {
+            var dragAmount = 0f
+            detectHorizontalDragGestures(
+                onDragStart = {
+                    dragAmount = 0f
+                    swipeScope.launch { swipeOffset.stop() }
+                },
+                onHorizontalDrag = { _, dragDelta ->
+                    dragAmount += dragDelta
+                    val visualOffset = (dragAmount * 0.34f).coerceIn(-maxOffsetPx, maxOffsetPx)
+                    swipeScope.launch { swipeOffset.snapTo(visualOffset) }
+                },
+                onDragCancel = {
+                    dragAmount = 0f
+                    resetSwipeOffset()
+                },
+                onDragEnd = {
+                    when {
+                        dragAmount <= -thresholdPx -> onSwipeLeft()
+                        dragAmount >= thresholdPx -> onSwipeRight()
+                    }
+                    dragAmount = 0f
+                    resetSwipeOffset()
+                }
+            )
+        }
 }
 
 @Composable

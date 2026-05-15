@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -77,11 +78,13 @@ import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
+import com.yiqiu.shirohaquiz.ui.components.QuizOptionResultStyle
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -178,6 +181,12 @@ fun PracticeScreen(
         }
     }
 
+    val isPracticeRunning = practiceQuestions.isNotEmpty()
+    var isPracticeProgressExpanded by rememberSaveable(practiceQuestions.size) { mutableStateOf(true) }
+    val practiceAnsweredCount = QuizRepository.practiceAnsweredCount()
+    val practiceCorrectCount = QuizRepository.practiceCorrectCount()
+    val practiceAccuracy = if (practiceAnsweredCount == 0) 0 else practiceCorrectCount * 100 / practiceAnsweredCount
+
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
@@ -201,17 +210,28 @@ fun PracticeScreen(
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.SemiBold
                 )
-                ActionPillButton(
-                    icon = Icons.Rounded.Timer,
-                    text = "切换考试",
-                    primary = false,
-                    modifier = Modifier.height(44.dp),
-                    onClick = onGoExam
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    if (isPracticeRunning && !isPracticeProgressExpanded) {
+                        PracticeAccuracyCapsule(
+                            accuracy = practiceAccuracy,
+                            modifier = Modifier.height(34.dp),
+                            onClick = { isPracticeProgressExpanded = true }
+                        )
+                    }
+                    ActionPillButton(
+                        icon = Icons.Rounded.Timer,
+                        text = "切换考试",
+                        primary = false,
+                        modifier = Modifier.height(44.dp),
+                        onClick = onGoExam
+                    )
+                }
             }
         }
 
-        val isPracticeRunning = QuizRepository.practiceQuestions.isNotEmpty()
         if (!isPracticeRunning) {
             CompactPracticeSetupHero()
         }
@@ -292,8 +312,6 @@ fun PracticeScreen(
         val isPracticeComplete = practiceQuestions.isNotEmpty() &&
             QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
 
-        var isPracticeProgressExpanded by rememberSaveable(practiceQuestions.size) { mutableStateOf(true) }
-
         val questionCardModifier = if (QuizRepository.swipeNavigationEnabled) {
             Modifier.questionSwipeNavigation(
                 onSwipeLeft = { if (canGoNext) QuizRepository.nextQuestion() },
@@ -303,14 +321,16 @@ fun PracticeScreen(
             Modifier
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(if (isPracticeProgressExpanded) ShirohaSpacing.Lg else 6.dp)) {
-            PracticeProgressCard(
-                total = practiceQuestions.size,
-                answered = QuizRepository.practiceAnsweredCount(),
-                correct = QuizRepository.practiceCorrectCount(),
-                expanded = isPracticeProgressExpanded,
-                onToggle = { isPracticeProgressExpanded = !isPracticeProgressExpanded }
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)) {
+            if (isPracticeProgressExpanded) {
+                PracticeProgressCard(
+                    total = practiceQuestions.size,
+                    answered = practiceAnsweredCount,
+                    correct = practiceCorrectCount,
+                    expanded = true,
+                    onToggle = { isPracticeProgressExpanded = false }
+                )
+            }
 
             if (isPracticeComplete) {
                 PracticeCompletionCard(
@@ -368,6 +388,11 @@ fun PracticeScreen(
                             label = option.key,
                             text = option.text,
                             selected = displayedSelection.contains(option.key),
+                            resultStyle = practiceOptionResultStyle(
+                                optionKey = option.key,
+                                correctAnswers = question.answer,
+                                result = effectiveResult
+                            ),
                             onClick = {
                                 if (!isSubmitted) {
                                     val shouldAutoNext = QuizRepository.practiceAutoNextEnabled &&
@@ -382,7 +407,7 @@ fun PracticeScreen(
                                         val submitted = QuizRepository.submitPracticeQuestion()
                                         if (submitted != null && autoNextIndex < practiceQuestions.lastIndex) {
                                             autoNextScope.launch {
-                                                delay(220)
+                                                delay(320)
                                                 if (QuizRepository.practiceIndex == autoNextIndex &&
                                                     QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
                                                 ) {
@@ -468,10 +493,7 @@ fun PracticeScreen(
 
             if (effectiveResult != null) {
                 Spacer(Modifier.height(16.dp))
-                NoticeCard(
-                    text = if (effectiveResult.correct) "回答正确" else "回答错误",
-                    warning = !effectiveResult.correct
-                )
+                AnswerResultCapsule(correct = effectiveResult.correct)
                 Spacer(Modifier.height(8.dp))
                 NoticeCard("正确答案：${effectiveResult.answerText}", warning = false)
                 if (question.analysis.isNotBlank()) {
@@ -878,6 +900,64 @@ private fun PracticeCompletionCard(
     }
 }
 
+
+private fun practiceOptionResultStyle(
+    optionKey: String,
+    correctAnswers: List<String>,
+    result: QuestionCheckResult?
+): QuizOptionResultStyle {
+    if (result == null) return QuizOptionResultStyle.Neutral
+    val normalizedKey = optionKey.trim().uppercase()
+    val isCorrectAnswer = correctAnswers.any { it.trim().uppercase() == normalizedKey }
+    val isUserSelected = result.userAnswer.any { it.trim().uppercase() == normalizedKey }
+    return when {
+        isCorrectAnswer -> QuizOptionResultStyle.Correct
+        isUserSelected -> QuizOptionResultStyle.Wrong
+        else -> QuizOptionResultStyle.Neutral
+    }
+}
+
+@Composable
+private fun AnswerResultCapsule(correct: Boolean) {
+    val accent = if (correct) ShirohaColors.StateSuccess else ShirohaColors.StateDanger
+    val background = if (correct) ShirohaColors.StateSuccessSoft else ShirohaColors.StateDangerSoft
+    val text = if (correct) "回答正确" else "回答错误"
+    Surface(
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = background.copy(alpha = if (ShirohaColors.isDarkMode) 0.9f else 0.76f),
+        border = BorderStroke(ShirohaDimens.Hairline, accent.copy(alpha = 0.42f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (correct) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = text,
+                    modifier = Modifier.size(15.dp),
+                    tint = accent
+                )
+            } else {
+                Text(
+                    text = "×",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
+                )
+            }
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = accent
+            )
+        }
+    }
+}
+
 @Composable
 private fun PracticeProgressCard(
     total: Int,
@@ -887,19 +967,7 @@ private fun PracticeProgressCard(
     onToggle: () -> Unit
 ) {
     val accuracy = if (answered == 0) 0 else correct * 100 / answered
-    if (!expanded) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PracticeAccuracyCapsule(
-                text = "正确率 $accuracy%",
-                onClick = onToggle
-            )
-        }
-        return
-    }
+    if (!expanded) return
 
     GlassCard {
         Row(
@@ -951,37 +1019,24 @@ private fun PracticePanelCapsule(
 
 @Composable
 private fun PracticeAccuracyCapsule(
-    text: String,
+    accuracy: Int,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier
-            .defaultMinSize(minHeight = 34.dp)
+    Box(
+        modifier = modifier
+            .width(38.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(ShirohaRadius.Pill),
-        color = ShirohaColors.CardWhite86,
-        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.CheckCircle,
-                contentDescription = "展开正确率",
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Text(
+            text = "$accuracy%",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -991,21 +1046,51 @@ private fun Modifier.questionSwipeNavigation(
     onSwipeRight: () -> Unit
 ): Modifier {
     val thresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
-    var dragAmount by remember { mutableStateOf(0f) }
-    return pointerInput(onSwipeLeft, onSwipeRight, thresholdPx) {
-        detectHorizontalDragGestures(
-            onDragStart = { dragAmount = 0f },
-            onHorizontalDrag = { _, dragDelta -> dragAmount += dragDelta },
-            onDragCancel = { dragAmount = 0f },
-            onDragEnd = {
-                when {
-                    dragAmount <= -thresholdPx -> onSwipeLeft()
-                    dragAmount >= thresholdPx -> onSwipeRight()
-                }
-                dragAmount = 0f
-            }
-        )
+    val maxOffsetPx = with(LocalDensity.current) { 34.dp.toPx() }
+    val swipeOffset = remember { Animatable(0f) }
+    val swipeScope = rememberCoroutineScope()
+
+    fun resetSwipeOffset() {
+        swipeScope.launch { swipeOffset.animateTo(0f, animationSpec = tween(durationMillis = 140)) }
     }
+
+    val offsetFraction = if (maxOffsetPx > 0f) {
+        (abs(swipeOffset.value) / maxOffsetPx).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    return this
+        .graphicsLayer {
+            translationX = swipeOffset.value
+            alpha = 1f - offsetFraction * 0.05f
+        }
+        .pointerInput(onSwipeLeft, onSwipeRight, thresholdPx, maxOffsetPx) {
+            var dragAmount = 0f
+            detectHorizontalDragGestures(
+                onDragStart = {
+                    dragAmount = 0f
+                    swipeScope.launch { swipeOffset.stop() }
+                },
+                onHorizontalDrag = { _, dragDelta ->
+                    dragAmount += dragDelta
+                    val visualOffset = (dragAmount * 0.42f).coerceIn(-maxOffsetPx, maxOffsetPx)
+                    swipeScope.launch { swipeOffset.snapTo(visualOffset) }
+                },
+                onDragCancel = {
+                    dragAmount = 0f
+                    resetSwipeOffset()
+                },
+                onDragEnd = {
+                    when {
+                        dragAmount <= -thresholdPx -> onSwipeLeft()
+                        dragAmount >= thresholdPx -> onSwipeRight()
+                    }
+                    dragAmount = 0f
+                    resetSwipeOffset()
+                }
+            )
+        }
 }
 
 @Composable

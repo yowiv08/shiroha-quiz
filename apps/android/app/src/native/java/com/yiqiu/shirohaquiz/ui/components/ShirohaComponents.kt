@@ -275,15 +275,44 @@ fun ShortcutGlassCard(
     }
 }
 
+enum class QuizOptionResultStyle {
+    Neutral,
+    Correct,
+    Wrong
+}
+
 @Composable
 fun QuizOptionCard(
     label: String,
     text: String,
     selected: Boolean,
+    resultStyle: QuizOptionResultStyle = QuizOptionResultStyle.Neutral,
     onClick: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(ShirohaRadius.Lg)
     val interactionSource = remember { MutableInteractionSource() }
+    val isCorrect = resultStyle == QuizOptionResultStyle.Correct
+    val isWrong = resultStyle == QuizOptionResultStyle.Wrong
+    val containerColor = when (resultStyle) {
+        QuizOptionResultStyle.Correct -> ShirohaColors.StateSuccessSoft.copy(alpha = if (ShirohaColors.isDarkMode) 0.9f else 0.72f)
+        QuizOptionResultStyle.Wrong -> ShirohaColors.StateDangerSoft.copy(alpha = if (ShirohaColors.isDarkMode) 0.9f else 0.72f)
+        QuizOptionResultStyle.Neutral -> if (selected) ShirohaColors.BrandPrimarySoft else ShirohaColors.CardWhite84
+    }
+    val borderColor = when (resultStyle) {
+        QuizOptionResultStyle.Correct -> ShirohaColors.StateSuccess.copy(alpha = 0.45f)
+        QuizOptionResultStyle.Wrong -> ShirohaColors.StateDanger.copy(alpha = 0.45f)
+        QuizOptionResultStyle.Neutral -> if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft
+    }
+    val labelColor = when (resultStyle) {
+        QuizOptionResultStyle.Correct -> ShirohaColors.StateSuccess
+        QuizOptionResultStyle.Wrong -> ShirohaColors.StateDanger
+        QuizOptionResultStyle.Neutral -> if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.OptionLabelIdle
+    }
+    val labelTextColor = when {
+        isCorrect || isWrong -> ShirohaColors.TextOnBrand
+        selected -> ShirohaColors.TextOnBrand
+        else -> MaterialTheme.colorScheme.onSurface
+    }
 
     Surface(
         modifier = Modifier
@@ -295,11 +324,8 @@ fun QuizOptionCard(
                 onClick = onClick
             ),
         shape = shape,
-        color = if (selected) ShirohaColors.BrandPrimarySoft else ShirohaColors.CardWhite84,
-        border = BorderStroke(
-            ShirohaDimens.Hairline,
-            if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft
-        )
+        color = containerColor,
+        border = BorderStroke(ShirohaDimens.Hairline, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -309,13 +335,13 @@ fun QuizOptionCard(
         ) {
             Surface(
                 shape = CircleShape,
-                color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.OptionLabelIdle,
+                color = labelColor,
                 modifier = Modifier.size(ShirohaDimens.OptionLabelSize)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = label,
-                        color = if (selected) ShirohaColors.TextOnBrand else MaterialTheme.colorScheme.onSurface,
+                        color = labelTextColor,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -324,11 +350,12 @@ fun QuizOptionCard(
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (selected || resultStyle != QuizOptionResultStyle.Neutral) FontWeight.SemiBold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            if (selected) {
+            if (selected && resultStyle == QuizOptionResultStyle.Neutral) {
                 Spacer(Modifier.weight(1f))
                 StatusChip("已选", selected = true)
             }
