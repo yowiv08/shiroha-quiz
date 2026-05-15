@@ -173,7 +173,10 @@ fun ShirohaAppShell() {
                         onGoExam = { currentTab = MainTab.Exam },
                         onOpenRecords = { currentTab = MainTab.Records }
                     )
-                    MainTab.Import -> ImportScreen(onImportSaved = { currentTab = MainTab.Home })
+                    MainTab.Import -> ImportScreen(
+                        onImportSaved = { currentTab = MainTab.Home },
+                        onOpenPreference = { currentTab = MainTab.Preference }
+                    )
                     MainTab.Me -> MeScreen(
                         onOpenWrongBook = { currentTab = MainTab.WrongBook },
                         onOpenRecords = { currentTab = MainTab.Records },

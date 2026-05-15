@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,11 +44,13 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RemoveCircle
 import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +70,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.yiqiu.shirohaquiz.ai.AiReviewSuggestion
+import com.yiqiu.shirohaquiz.ai.ShirohaAiClient
 import com.yiqiu.shirohaquiz.importer.model.ImportResult
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
 import com.yiqiu.shirohaquiz.importer.model.Option
@@ -99,7 +104,8 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ImportScreen(
-    onImportSaved: () -> Unit
+    onImportSaved: () -> Unit,
+    onOpenPreference: () -> Unit
 ) {
     val context = LocalContext.current
     val importScope = rememberCoroutineScope()
@@ -122,6 +128,10 @@ fun ImportScreen(
     var busyText by rememberSaveable { mutableStateOf("") }
     var rawTextEditorExpanded by rememberSaveable { mutableStateOf(true) }
     var answerTextEditorExpanded by rememberSaveable { mutableStateOf(true) }
+    var previewOnlyAnomaly by rememberSaveable { mutableStateOf(false) }
+    var showAiConfigPrompt by rememberSaveable { mutableStateOf(false) }
+    var rawFullEditorMode by rememberSaveable { mutableStateOf(false) }
+    var answerFullEditorMode by rememberSaveable { mutableStateOf(false) }
 
     fun clearParsedResult(clearImages: Boolean = false) {
         importResult = null
@@ -129,6 +139,7 @@ fun ImportScreen(
         reviewMode = false
         reviewIndex = 0
         reviewFilterName = ReviewFilter.ALL.name
+        previewOnlyAnomaly = false
         if (clearImages) importedImages = emptyList()
     }
 
@@ -141,6 +152,38 @@ fun ImportScreen(
         val softCount = result.warnings.count { it.level == WarningLevel.WARNING }
         statusText = "已完成${if (useDualImport) "双文件" else "原生"}解析：${result.questions.size} 题，硬错误 $hardCount 条，可确认提示 $softCount 条。"
         isStatusWarn = hardCount > 0
+    }
+
+    if (rawFullEditorMode) {
+        FullImportTextEditorScreen(
+            title = if (useDualImport) "编辑题目文本" else "编辑原始文本",
+            value = rawText,
+            placeholder = "把标准题库文本粘贴到这里，或通过文件导入后在这里调整。",
+            onValueChange = {
+                rawText = it
+                if (importResult != null || editableQuestions.isNotEmpty() || reviewMode || importedImages.isNotEmpty()) {
+                    clearParsedResult(clearImages = true)
+                }
+            },
+            onBack = { rawFullEditorMode = false }
+        )
+        return
+    }
+
+    if (answerFullEditorMode) {
+        FullImportTextEditorScreen(
+            title = "编辑答案文本",
+            value = answerText,
+            placeholder = "粘贴答案文本，或通过上方按钮选择答案文件。",
+            onValueChange = {
+                answerText = it
+                if (importResult != null || editableQuestions.isNotEmpty() || reviewMode) {
+                    clearParsedResult()
+                }
+            },
+            onBack = { answerFullEditorMode = false }
+        )
+        return
     }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -441,20 +484,47 @@ fun ImportScreen(
             )
         } else {
             GlassCard {
+                val hasRawText = rawText.isNotBlank()
+                val hasSelectedFile = selectedFileName != "未选择文件"
+                val rawTextTitle = when {
+                    useDualImport -> "题目文本"
+                    hasRawText || hasSelectedFile -> "原始文本"
+                    else -> "手动粘贴"
+                }
+                val rawTextHint = when {
+                    useDualImport -> "题库文件内容，可在解析前核对调整。"
+                    hasRawText || hasSelectedFile -> "可在解析前核对或调整导入文本。"
+                    else -> "也可以直接粘贴题库文本后解析。"
+                }
+                val rawTextActionButtonWidth = 128.dp
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (useDualImport) "题目文本" else "原始文本",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = rawTextTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = rawTextHint,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
                     ActionPillButton(
                         icon = Icons.Rounded.PlayArrow,
                         text = "开始解析",
                         primary = true,
+                        modifier = Modifier.width(rawTextActionButtonWidth),
+                        fillWidthContent = true,
                         onClick = { startParse() }
                     )
                 }
@@ -463,25 +533,53 @@ fun ImportScreen(
                     LargeImportTextPreview(
                         text = rawText,
                         label = "题目文本较长，已收起全文编辑以减少卡顿。",
-                        onEditFullText = { rawTextEditorExpanded = true }
+                        showEditButton = false,
+                        onEditFullText = { rawFullEditorMode = true }
                     )
                 } else {
                     OutlinedTextField(
                         value = rawText,
                         onValueChange = {
                             rawText = it
+                            rawTextEditorExpanded = it.length <= LARGE_TEXT_PREVIEW_THRESHOLD
                             if (importResult != null || editableQuestions.isNotEmpty() || reviewMode || importedImages.isNotEmpty()) {
                                 clearParsedResult(clearImages = true)
                             }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (useDualImport) 160.dp else 190.dp),
+                            .height(
+                                when {
+                                    useDualImport -> 160.dp
+                                    hasRawText || hasSelectedFile -> 190.dp
+                                    else -> 104.dp
+                                }
+                            ),
                         enabled = true,
-                        minLines = if (useDualImport) 7 else 9,
+                        minLines = when {
+                            useDualImport -> 7
+                            hasRawText || hasSelectedFile -> 9
+                            else -> 4
+                        },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         placeholder = { Text("把标准题库文本粘贴到这里，或通过上方选择文件导入。") }
                     )
+                }
+                if (hasRawText) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        ActionPillButton(
+                            icon = Icons.Rounded.Edit,
+                            text = "编辑全文",
+                            primary = false,
+                            modifier = Modifier.width(rawTextActionButtonWidth),
+                            fillWidthContent = true,
+                            onClick = { rawFullEditorMode = true }
+                        )
+                    }
                 }
 
                 if (useDualImport) {
@@ -496,13 +594,14 @@ fun ImportScreen(
                         LargeImportTextPreview(
                             text = answerText,
                             label = "答案文本较长，已收起全文编辑以减少卡顿。",
-                            onEditFullText = { answerTextEditorExpanded = true }
+                            onEditFullText = { answerFullEditorMode = true }
                         )
                     } else {
                         OutlinedTextField(
                             value = answerText,
                             onValueChange = {
                                 answerText = it
+                                answerTextEditorExpanded = it.length <= LARGE_TEXT_PREVIEW_THRESHOLD
                                 if (importResult != null || editableQuestions.isNotEmpty() || reviewMode) {
                                     clearParsedResult()
                                 }
@@ -523,6 +622,12 @@ fun ImportScreen(
                 val displayResult = result.copy(questions = editableQuestions)
                 NativeImportSummary(displayResult)
 
+                val warnings = importResult?.warnings.orEmpty()
+                val anomalyQuestions = editableQuestions.filter { question ->
+                    questionMatchesFilter(question, warningsForQuestion(question, warnings), ReviewFilter.ANOMALY)
+                }
+                val previewQuestions = if (previewOnlyAnomaly) anomalyQuestions else editableQuestions
+
                 GlassCard {
                     Text(
                         text = "核对与写入",
@@ -531,11 +636,17 @@ fun ImportScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = "建议先进入沉浸核对页逐题检查。保存题库时会使用核对后的题目，而不是原始解析结果。",
+                        text = "人工核对，可用AI辅助，最后确认保存",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "人工核对",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(10.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -554,41 +665,204 @@ fun ImportScreen(
                         )
                         ActionPillButton(
                             icon = Icons.Rounded.CheckCircle,
-                            text = "仅查看异常题",
-                            primary = false,
+                            text = if (previewOnlyAnomaly) "显示全部题" else "仅看异常题",
+                            primary = previewOnlyAnomaly,
                             onClick = {
-                                if (editableQuestions.isNotEmpty()) {
-                                    val warnings = importResult?.warnings.orEmpty()
-                                    reviewFilterName = ReviewFilter.ANOMALY.name
-                                    reviewIndex = firstMatchingQuestionIndex(editableQuestions, warnings, ReviewFilter.ANOMALY) ?: 0
-                                    reviewMode = true
+                                val nextOnlyAnomaly = !previewOnlyAnomaly
+                                previewOnlyAnomaly = nextOnlyAnomaly
+                                statusText = if (nextOnlyAnomaly) {
+                                    "快速预览已切换为仅显示异常题，共 ${anomalyQuestions.size} 题。"
+                                } else {
+                                    "快速预览已切换为全部题目。"
+                                }
+                                isStatusWarn = false
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "AI 辅助",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ActionPillButton(
+                            icon = Icons.Rounded.AutoAwesome,
+                            text = "AI 核对",
+                            primary = QuizRepository.isAiConfigured() && QuizRepository.aiReviewEnabled,
+                            modifier = Modifier.alpha(if (QuizRepository.isAiConfigured() && QuizRepository.aiReviewEnabled) 1f else ShirohaDimens.DisabledAlpha),
+                            enabled = editableQuestions.isNotEmpty() && !isImportBusy,
+                            onClick = {
+                                if (!QuizRepository.isAiConfigured()) {
+                                    showAiConfigPrompt = true
+                                    statusText = "AI 核对：请先在个人偏好 → AI 设置中配置接口。"
+                                    isStatusWarn = true
+                                    return@ActionPillButton
+                                }
+                                if (!QuizRepository.aiReviewEnabled) {
+                                    statusText = "AI 核对未启用，请先在个人偏好 → AI 设置中开启。"
+                                    isStatusWarn = true
+                                    return@ActionPillButton
+                                }
+                                val aiTargetQuestions = if (QuizRepository.aiOnlyAnomaly) anomalyQuestions else editableQuestions
+                                val limitedQuestions = aiTargetQuestions.take(QuizRepository.aiMaxQuestions)
+                                if (limitedQuestions.isEmpty()) {
+                                    statusText = if (QuizRepository.aiOnlyAnomaly) {
+                                        "AI 核对：当前开启了仅处理异常题，但没有可核对的异常题。"
+                                    } else {
+                                        "AI 核对：当前没有可供核对的题目。"
+                                    }
+                                    isStatusWarn = true
+                                    return@ActionPillButton
+                                }
+                                statusText = "AI 核对中：本次处理 ${limitedQuestions.size} 题。"
+                                isStatusWarn = false
+                                importScope.launch {
+                                    isImportBusy = true
+                                    busyText = "AI 核对中……"
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            ShirohaAiClient.reviewQuestions(
+                                                apiBaseUrl = QuizRepository.aiApiBaseUrl,
+                                                apiKey = QuizRepository.aiApiKey,
+                                                modelName = QuizRepository.aiModelName,
+                                                questions = limitedQuestions,
+                                                timeoutSeconds = QuizRepository.aiTimeoutSeconds
+                                            )
+                                        }
+                                    }.onSuccess { suggestions ->
+                                        val aiWarnings = suggestionsToImportWarnings(suggestions, editableQuestions)
+                                        importResult = displayResult.copy(
+                                            warnings = mergeAiWarnings(displayResult.warnings, aiWarnings)
+                                        )
+                                        previewOnlyAnomaly = true
+                                        statusText = if (aiWarnings.isEmpty()) {
+                                            "AI 核对完成：未发现需要重点提示的问题。"
+                                        } else {
+                                            "AI 核对完成：已生成 ${aiWarnings.size} 条核对建议，请进入沉浸核对确认。"
+                                        }
+                                        isStatusWarn = aiWarnings.isNotEmpty()
+                                    }.onFailure { error ->
+                                        statusText = "AI 核对失败：${error.message ?: "请检查接口配置"}"
+                                        isStatusWarn = true
+                                    }
+                                    isImportBusy = false
+                                    busyText = ""
                                 }
                             }
                         )
                         ActionPillButton(
-                            icon = Icons.Rounded.Save,
-                            text = "保存为当前题库",
-                            primary = true,
+                            icon = Icons.Rounded.AutoAwesome,
+                            text = "AI 解析",
+                            primary = QuizRepository.isAiConfigured() && QuizRepository.aiAnalysisEnabled,
+                            modifier = Modifier.alpha(if (QuizRepository.isAiConfigured() && QuizRepository.aiAnalysisEnabled) 1f else ShirohaDimens.DisabledAlpha),
+                            enabled = editableQuestions.isNotEmpty() && !isImportBusy,
                             onClick = {
-                                val bankName = selectedFileName.substringBeforeLast('.').ifBlank { "导入题库" }
-                                QuizRepository.importBank(context, bankName, editableQuestions)
-                                statusText = "已写入原生题库：$bankName，共 ${editableQuestions.size} 题。现在可以切到首页、练习或考试查看。"
+                                if (!QuizRepository.isAiConfigured()) {
+                                    showAiConfigPrompt = true
+                                    statusText = "AI 解析：请先在个人偏好 → AI 设置中配置接口。"
+                                    isStatusWarn = true
+                                    return@ActionPillButton
+                                }
+                                if (!QuizRepository.aiAnalysisEnabled) {
+                                    statusText = "AI 解析未启用，请先在个人偏好 → AI 设置中开启。"
+                                    isStatusWarn = true
+                                    return@ActionPillButton
+                                }
+                                val allAnalysisTargets = editableQuestions.filter(::shouldApplyAiAnalysis)
+                                val anomalyAnalysisTargets = anomalyQuestions.filter(::shouldApplyAiAnalysis)
+                                val usingFallbackTargets = QuizRepository.aiOnlyAnomaly && anomalyAnalysisTargets.isEmpty() && allAnalysisTargets.isNotEmpty()
+                                val aiTargetQuestions = if (QuizRepository.aiOnlyAnomaly && anomalyAnalysisTargets.isNotEmpty()) {
+                                    anomalyAnalysisTargets
+                                } else {
+                                    allAnalysisTargets
+                                }.take(QuizRepository.aiMaxQuestions)
+                                if (aiTargetQuestions.isEmpty()) {
+                                    statusText = "AI 解析：当前没有缺少解析或解析过短的题目。"
+                                    isStatusWarn = false
+                                    return@ActionPillButton
+                                }
+                                statusText = if (usingFallbackTargets) {
+                                    "AI 解析中：当前没有异常题，已改为处理缺解析题 ${aiTargetQuestions.size} 道。"
+                                } else {
+                                    "AI 解析中：本次处理 ${aiTargetQuestions.size} 道缺解析题。"
+                                }
                                 isStatusWarn = false
-                                onImportSaved()
+                                importScope.launch {
+                                    isImportBusy = true
+                                    busyText = "AI 解析生成中……"
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            ShirohaAiClient.generateAnalysis(
+                                                apiBaseUrl = QuizRepository.aiApiBaseUrl,
+                                                apiKey = QuizRepository.aiApiKey,
+                                                modelName = QuizRepository.aiModelName,
+                                                questions = aiTargetQuestions,
+                                                timeoutSeconds = QuizRepository.aiTimeoutSeconds
+                                            )
+                                        }
+                                    }.onSuccess { suggestions ->
+                                        val suggestionMap = suggestions.associateBy { it.questionId }
+                                        val changedIds = suggestionMap.keys
+                                        editableQuestions = editableQuestions.map { question ->
+                                            val suggestion = suggestionMap[question.id]
+                                            if (suggestion != null && shouldApplyAiAnalysis(question)) {
+                                                question.copy(analysis = suggestion.analysis)
+                                            } else {
+                                                question
+                                            }
+                                        }
+                                        importResult = displayResult.copy(questions = editableQuestions)
+                                        statusText = if (changedIds.isEmpty()) {
+                                            "AI 解析完成：没有可写入的解析建议。"
+                                        } else {
+                                            "AI 解析完成：已为 ${changedIds.size} 道题写入待核对解析，保存前请人工确认。"
+                                        }
+                                        isStatusWarn = false
+                                    }.onFailure { error ->
+                                        statusText = "AI 解析失败：${error.message ?: "请检查接口配置"}"
+                                        isStatusWarn = true
+                                    }
+                                    isImportBusy = false
+                                    busyText = ""
+                                }
                             }
                         )
                     }
+                    val aiStatusText = statusText.takeIf { shouldShowAiStatusInImport(it) }
+                    if (aiStatusText != null) {
+                        Spacer(Modifier.height(10.dp))
+                        NoticeCard(aiStatusText, warning = isStatusWarn)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "确认写入",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ActionPillButton(
+                        icon = Icons.Rounded.Save,
+                        text = "保存为当前题库",
+                        primary = true,
+                        onClick = {
+                            val bankName = selectedFileName.substringBeforeLast('.').ifBlank { "导入题库" }
+                            QuizRepository.importBank(context, bankName, editableQuestions)
+                            statusText = "已写入原生题库：$bankName，共 ${editableQuestions.size} 题。现在可以切到首页、练习或考试查看。"
+                            isStatusWarn = false
+                            onImportSaved()
+                        }
+                    )
                 }
 
                 NativeImportPreview(
-                    questions = editableQuestions,
-                    onReviewClick = {
-                        if (editableQuestions.isNotEmpty()) {
-                            reviewFilterName = ReviewFilter.ALL.name
-                            reviewIndex = 0
-                            reviewMode = true
-                        }
-                    }
+                    questions = previewQuestions,
+                    totalQuestionCount = editableQuestions.size,
+                    onlyShowAnomaly = previewOnlyAnomaly
                 )
             }
 
@@ -600,6 +874,29 @@ fun ImportScreen(
             }
         }
     }
+
+    if (showAiConfigPrompt) {
+        AlertDialog(
+            onDismissRequest = { showAiConfigPrompt = false },
+            title = { Text("需要配置 AI 接口") },
+            text = { Text("请先在 个人偏好 → AI 设置 中配置接口。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAiConfigPrompt = false
+                        onOpenPreference()
+                    }
+                ) {
+                    Text("去配置")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAiConfigPrompt = false }) {
+                    Text("稍后再说")
+                }
+            }
+        )
+    }
 }
 
 private const val LARGE_TEXT_PREVIEW_THRESHOLD = 5000
@@ -609,38 +906,102 @@ private const val LARGE_TEXT_PREVIEW_CHARS = 1200
 private fun LargeImportTextPreview(
     text: String,
     label: String,
+    showEditButton: Boolean = true,
     onEditFullText: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = ShirohaColors.CardWhite62,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(ShirohaRadius.Lg),
+        color = ShirohaColors.CardWhite78,
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineSoft)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "$label 共 ${text.length} 字，解析仍会使用完整文本。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (showEditButton) {
+                    Spacer(Modifier.width(10.dp))
+                    ActionPillButton(
+                        icon = Icons.Rounded.Edit,
+                        text = "编辑全文",
+                        primary = false,
+                        onClick = onEditFullText
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             SelectionContainer {
                 Text(
                     text = text.take(LARGE_TEXT_PREVIEW_CHARS).trimEnd() + if (text.length > LARGE_TEXT_PREVIEW_CHARS) "\n……" else "",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 8,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            ActionPillButton(
-                icon = Icons.Rounded.Edit,
-                text = "编辑全文",
-                primary = false,
-                onClick = onEditFullText
+        }
+    }
+}
+
+@Composable
+private fun FullImportTextEditorScreen(
+    title: String,
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
+    ) {
+        ShirohaHeader(
+            kicker = "Edit",
+            title = title,
+            subtitle = ""
+        )
+        GlassCard(
+            modifier = Modifier.weight(1f)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "全文编辑",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.CheckCircle,
+                    text = "完成",
+                    primary = true,
+                    modifier = Modifier.width(128.dp),
+                    fillWidthContent = true,
+                    onClick = onBack
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                minLines = 16,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                placeholder = { Text(placeholder) }
             )
         }
     }
@@ -792,27 +1153,23 @@ private fun NativeImportSummary(result: ImportResult) {
 @Composable
 private fun NativeImportPreview(
     questions: List<Question>,
-    onReviewClick: () -> Unit
+    totalQuestionCount: Int,
+    onlyShowAnomaly: Boolean
 ) {
     GlassCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "原生预览",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            ActionPillButton(
-                icon = Icons.Rounded.Edit,
-                text = "核对修改",
-                primary = false,
-                onClick = onReviewClick
-            )
-        }
+        Text(
+            text = if (onlyShowAnomaly) "异常题预览" else "快速预览",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
         Spacer(Modifier.height(12.dp))
+        if (questions.isEmpty()) {
+            NoticeCard(
+                text = if (onlyShowAnomaly) "当前没有可预览的异常题。" else "当前没有可预览的题目。",
+                warning = false
+            )
+            return@GlassCard
+        }
         questions.take(8).forEach { question ->
             val answerText = answerDisplayText(question)
             val optionText = question.options.joinToString("  ") { "${it.key}. ${it.text}" }
@@ -860,7 +1217,9 @@ private fun NativeImportPreview(
             Spacer(Modifier.height(18.dp))
         }
         if (questions.size > 8) {
-            NoticeCard("这里只显示前 8 题。完整核对请点击“核对修改”。", warning = false)
+            NoticeCard("当前仅展示前 8 题用于快速预览，完整核对请进入沉浸核对。", warning = false)
+        } else if (onlyShowAnomaly && questions.size < totalQuestionCount) {
+            NoticeCard("当前仅预览异常题。点击上方“显示全部题”可恢复全部预览。", warning = false)
         }
     }
 }
@@ -1292,6 +1651,61 @@ private fun NativeQuestionReviewScreen(
             )
         }
     }
+}
+
+
+private fun shouldShowAiStatusInImport(text: String): Boolean {
+    return text.startsWith("AI ") ||
+        text.startsWith("AI核对") ||
+        text.startsWith("AI解析") ||
+        text.contains("AI 核对") ||
+        text.contains("AI 解析")
+}
+
+private fun suggestionsToImportWarnings(
+    suggestions: List<AiReviewSuggestion>,
+    questions: List<Question>
+): List<ImportWarning> {
+    val questionById = questions.associateBy { it.id }
+    return suggestions
+        .filter { suggestion -> suggestion.status.lowercase() != "ok" || suggestion.needHumanReview }
+        .mapNotNull { suggestion ->
+            val question = questionById[suggestion.questionId] ?: return@mapNotNull null
+            val issueText = suggestion.issueTypes.takeIf { it.isNotEmpty() }?.joinToString("、").orEmpty()
+            val message = buildString {
+                append("AI建议")
+                if (issueText.isNotBlank()) append("[$issueText]")
+                if (suggestion.reason.isNotBlank()) append("：").append(suggestion.reason)
+                if (suggestion.suggestion.isNotBlank()) append("；建议：").append(suggestion.suggestion)
+            }
+            ImportWarning(
+                level = if (suggestion.status.lowercase() == "error") WarningLevel.ERROR else WarningLevel.WARNING,
+                questionNumber = question.number,
+                message = message.ifBlank { "AI 建议人工确认本题。" }
+            )
+        }
+}
+
+private fun mergeAiWarnings(
+    currentWarnings: List<ImportWarning>,
+    aiWarnings: List<ImportWarning>
+): List<ImportWarning> {
+    val nonAiWarnings = currentWarnings.filterNot { it.message.startsWith("AI建议") || it.message.startsWith("AI 建议") }
+    return nonAiWarnings + aiWarnings
+}
+
+private fun analysisTargetQuestions(
+    questions: List<Question>,
+    anomalyQuestions: List<Question>,
+    onlyAnomaly: Boolean
+): List<Question> {
+    val source = if (onlyAnomaly) anomalyQuestions else questions
+    return source.filter(::shouldApplyAiAnalysis)
+}
+
+private fun shouldApplyAiAnalysis(question: Question): Boolean {
+    val clean = question.analysis.trim()
+    return clean.isBlank() || clean.length < 20 || clean == "无" || clean == "暂无解析"
 }
 
 

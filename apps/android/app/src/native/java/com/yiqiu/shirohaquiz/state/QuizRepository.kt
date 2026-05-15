@@ -103,6 +103,16 @@ object QuizRepository {
     private const val KEY_PRACTICE_NEXT_REQUIRES_RESULT = "practice_next_requires_result"
     private const val KEY_STARTUP_SPLASH_ENABLED = "startup_splash_enabled"
     private const val KEY_DARK_THEME_ENABLED = "dark_theme_enabled"
+    private const val KEY_AI_PROVIDER = "ai_provider"
+    private const val KEY_AI_API_BASE_URL = "ai_api_base_url"
+    private const val KEY_AI_API_KEY = "ai_api_key"
+    private const val KEY_AI_MODEL_NAME = "ai_model_name"
+    private const val KEY_AI_REVIEW_ENABLED = "ai_review_enabled"
+    private const val KEY_AI_ANALYSIS_ENABLED = "ai_analysis_enabled"
+    private const val KEY_AI_ONLY_ANOMALY = "ai_only_anomaly"
+    private const val KEY_AI_REQUIRE_CONFIRM = "ai_require_confirm"
+    private const val KEY_AI_MAX_QUESTIONS = "ai_max_questions"
+    private const val KEY_AI_TIMEOUT_SECONDS = "ai_timeout_seconds"
 
     val banks = mutableStateListOf<QuizBank>()
     val wrongBook = mutableStateListOf<WrongQuestionEntry>()
@@ -122,6 +132,26 @@ object QuizRepository {
     var startupSplashEnabled by mutableStateOf(true)
         private set
     var darkThemeEnabled by mutableStateOf(false)
+        private set
+    var aiProvider by mutableStateOf("DeepSeek")
+        private set
+    var aiApiBaseUrl by mutableStateOf("")
+        private set
+    var aiApiKey by mutableStateOf("")
+        private set
+    var aiModelName by mutableStateOf("")
+        private set
+    var aiReviewEnabled by mutableStateOf(false)
+        private set
+    var aiAnalysisEnabled by mutableStateOf(false)
+        private set
+    var aiOnlyAnomaly by mutableStateOf(true)
+        private set
+    var aiRequireConfirm by mutableStateOf(true)
+        private set
+    var aiMaxQuestions by mutableStateOf(20)
+        private set
+    var aiTimeoutSeconds by mutableStateOf(60)
         private set
     val practiceSessionResults = mutableStateMapOf<String, Boolean>()
     val practiceAnswerResults = mutableStateMapOf<String, StudyQuestionResult>()
@@ -175,6 +205,16 @@ object QuizRepository {
         practiceNextRequiresResult = prefs.getBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, false)
         startupSplashEnabled = prefs.getBoolean(KEY_STARTUP_SPLASH_ENABLED, true)
         darkThemeEnabled = prefs.getBoolean(KEY_DARK_THEME_ENABLED, false)
+        aiProvider = prefs.getString(KEY_AI_PROVIDER, "DeepSeek") ?: "DeepSeek"
+        aiApiBaseUrl = prefs.getString(KEY_AI_API_BASE_URL, "") ?: ""
+        aiApiKey = prefs.getString(KEY_AI_API_KEY, "") ?: ""
+        aiModelName = prefs.getString(KEY_AI_MODEL_NAME, "") ?: ""
+        aiReviewEnabled = prefs.getBoolean(KEY_AI_REVIEW_ENABLED, false)
+        aiAnalysisEnabled = prefs.getBoolean(KEY_AI_ANALYSIS_ENABLED, false)
+        aiOnlyAnomaly = prefs.getBoolean(KEY_AI_ONLY_ANOMALY, true)
+        aiRequireConfirm = prefs.getBoolean(KEY_AI_REQUIRE_CONFIRM, true)
+        aiMaxQuestions = prefs.getInt(KEY_AI_MAX_QUESTIONS, 20).coerceIn(5, 100)
+        aiTimeoutSeconds = prefs.getInt(KEY_AI_TIMEOUT_SECONDS, 60).coerceIn(15, 180)
 
         wrongBook.addAll(restoredWrongBook.map(::sanitizeWrongEntry))
         studyRecords.addAll(restoredStudyRecords)
@@ -461,6 +501,66 @@ object QuizRepository {
         appContext = context.applicationContext
         darkThemeEnabled = enabled
         persist()
+    }
+
+    fun setAiInterfaceConfig(
+        context: Context,
+        provider: String,
+        apiBaseUrl: String,
+        apiKey: String,
+        modelName: String
+    ) {
+        appContext = context.applicationContext
+        aiProvider = provider.ifBlank { "DeepSeek" }
+        aiApiBaseUrl = apiBaseUrl.trim()
+        aiApiKey = apiKey.trim()
+        aiModelName = modelName.trim()
+        persist()
+    }
+
+    fun setAiReviewEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        aiReviewEnabled = enabled
+        persist()
+    }
+
+    fun setAiAnalysisEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        aiAnalysisEnabled = enabled
+        persist()
+    }
+
+    fun setAiOnlyAnomaly(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        aiOnlyAnomaly = enabled
+        persist()
+    }
+
+    fun setAiRequireConfirm(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        aiRequireConfirm = enabled
+        persist()
+    }
+
+    fun setAiProcessingLimits(context: Context, maxQuestions: Int, timeoutSeconds: Int) {
+        appContext = context.applicationContext
+        aiMaxQuestions = maxQuestions.coerceIn(5, 100)
+        aiTimeoutSeconds = timeoutSeconds.coerceIn(15, 180)
+        persist()
+    }
+
+    fun clearAiConfig(context: Context) {
+        appContext = context.applicationContext
+        aiApiBaseUrl = ""
+        aiApiKey = ""
+        aiModelName = ""
+        aiReviewEnabled = false
+        aiAnalysisEnabled = false
+        persist()
+    }
+
+    fun isAiConfigured(): Boolean {
+        return aiApiBaseUrl.isNotBlank() && aiApiKey.isNotBlank() && aiModelName.isNotBlank()
     }
 
     fun submitPracticeQuestion(): QuestionCheckResult? {
@@ -1203,6 +1303,16 @@ object QuizRepository {
             .putBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, practiceNextRequiresResult)
             .putBoolean(KEY_STARTUP_SPLASH_ENABLED, startupSplashEnabled)
             .putBoolean(KEY_DARK_THEME_ENABLED, darkThemeEnabled)
+            .putString(KEY_AI_PROVIDER, aiProvider)
+            .putString(KEY_AI_API_BASE_URL, aiApiBaseUrl)
+            .putString(KEY_AI_API_KEY, aiApiKey)
+            .putString(KEY_AI_MODEL_NAME, aiModelName)
+            .putBoolean(KEY_AI_REVIEW_ENABLED, aiReviewEnabled)
+            .putBoolean(KEY_AI_ANALYSIS_ENABLED, aiAnalysisEnabled)
+            .putBoolean(KEY_AI_ONLY_ANOMALY, aiOnlyAnomaly)
+            .putBoolean(KEY_AI_REQUIRE_CONFIRM, aiRequireConfirm)
+            .putInt(KEY_AI_MAX_QUESTIONS, aiMaxQuestions)
+            .putInt(KEY_AI_TIMEOUT_SECONDS, aiTimeoutSeconds)
             .apply()
     }
 

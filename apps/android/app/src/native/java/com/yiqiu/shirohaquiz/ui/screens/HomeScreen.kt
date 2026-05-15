@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,9 +95,7 @@ fun HomeScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = (-8).dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -152,6 +149,8 @@ private fun TodayStatusCard(
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit
 ) {
+    val statusPillHeight = 64.dp
+
     GlassCard {
         Text(
             text = "今日学习状态",
@@ -164,7 +163,9 @@ private fun TodayStatusCard(
         MiniStatusCard(
             title = "当前题库",
             value = bankName,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(statusPillHeight)
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -173,14 +174,14 @@ private fun TodayStatusCard(
                 value = "${todayPracticeCount} 次",
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp)
+                    .height(statusPillHeight)
             )
             MiniStatusCard(
                 title = "待复习",
                 value = "${pendingReviewCount} 题",
                 modifier = Modifier
                     .weight(1f)
-                    .height(72.dp)
+                    .height(statusPillHeight)
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -192,7 +193,7 @@ private fun TodayStatusCard(
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(statusPillHeight),
                 onClick = onGoPractice
             )
             ActionPillButton(
@@ -202,7 +203,7 @@ private fun TodayStatusCard(
                 fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(statusPillHeight),
                 onClick = onGoExam
             )
         }

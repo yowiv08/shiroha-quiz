@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DarkMode
@@ -32,6 +33,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +50,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.R
+import com.yiqiu.shirohaquiz.ai.ShirohaAiClient
 import com.yiqiu.shirohaquiz.state.QuizBank
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
@@ -60,6 +65,9 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -110,30 +118,43 @@ fun MeScreen(
             .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top
-        ) {
-            ShirohaHeader(
-                kicker = "Me",
-                title = "设置与资料",
-                subtitle = "",
-                modifier = Modifier.weight(1f)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Me",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
             )
-            IconButton(
-                onClick = { QuizRepository.setDarkThemeEnabled(context, !QuizRepository.darkThemeEnabled) }
+            Spacer(Modifier.height(ShirohaSpacing.Sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (QuizRepository.darkThemeEnabled) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                    contentDescription = if (QuizRepository.darkThemeEnabled) "切换浅色模式" else "切换暗夜模式",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                Text(
+                    text = "设置与资料",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(
+                    onClick = { QuizRepository.setDarkThemeEnabled(context, !QuizRepository.darkThemeEnabled) }
+                ) {
+                    Icon(
+                        imageVector = if (QuizRepository.darkThemeEnabled) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                        contentDescription = if (QuizRepository.darkThemeEnabled) "切换浅色模式" else "切换暗夜模式",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
         IllustrationHeroCard(
             title = "我是Shiroha",
-            subtitle = "欢迎关注",
+            subtitle = "欢迎关注我的一点一点进步",
             imageRes = R.drawable.illus_home_welcome_webp,
             modifier = Modifier.height(ShirohaDimens.HeroCardHeight),
             imageSize = ShirohaDimens.HeroImageSize
@@ -206,7 +227,7 @@ fun MeScreen(
             FeaturePlanStrip(
                 icon = Icons.Rounded.Settings,
                 title = "个人偏好",
-                desc = "开屏图片、练习跳题规则等设置。",
+                desc = "外观、开屏、练习和 AI 设置。",
                 onClick = onOpenPreference
             )
             Spacer(Modifier.height(10.dp))
@@ -443,12 +464,271 @@ fun PersonalPreferenceScreen(
             )
         }
 
+        AiSettingsPanel(context = context)
+
         TextButton(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text("返回设置页")
         }
+    }
+}
+
+
+@Composable
+private fun AiSettingsPanel(context: Context) {
+    var provider by remember { mutableStateOf(QuizRepository.aiProvider) }
+    var apiBaseUrl by remember { mutableStateOf(QuizRepository.aiApiBaseUrl) }
+    var apiKey by remember { mutableStateOf(QuizRepository.aiApiKey) }
+    var modelName by remember { mutableStateOf(QuizRepository.aiModelName) }
+    var maxQuestions by remember { mutableStateOf(QuizRepository.aiMaxQuestions.toString()) }
+    var timeoutSeconds by remember { mutableStateOf(QuizRepository.aiTimeoutSeconds.toString()) }
+    var statusText by remember { mutableStateOf<String?>(null) }
+    var statusWarning by remember { mutableStateOf(false) }
+    var isTestingConnection by remember { mutableStateOf(false) }
+    val aiScope = rememberCoroutineScope()
+
+    GlassCard {
+        Text(
+            text = "AI 设置",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (QuizRepository.isAiConfigured()) {
+                "AI 辅助已配置，后续可用于二次核对与解析生成。"
+            } else {
+                "配置接口后，可用于题库二次核对与解析生成。"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(14.dp))
+
+        Text(
+            text = "接口配置",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(10.dp))
+        AiProviderChoiceRow(
+            selectedProvider = provider,
+            onProviderChange = { selected -> provider = selected }
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = apiBaseUrl,
+            onValueChange = { apiBaseUrl = it },
+            label = { Text("API 地址") },
+            placeholder = { Text("https://api.example.com/v1") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = { apiKey = it },
+            label = { Text("API Key") },
+            placeholder = { Text("sk-...") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = modelName,
+            onValueChange = { modelName = it },
+            label = { Text("模型名称") },
+            placeholder = { Text("deepseek-chat / gpt-4o-mini / 自定义模型") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
+            TextButton(
+                onClick = {
+                    QuizRepository.setAiInterfaceConfig(
+                        context = context,
+                        provider = provider,
+                        apiBaseUrl = apiBaseUrl,
+                        apiKey = apiKey,
+                        modelName = modelName
+                    )
+                    statusText = "AI 接口配置已保存。"
+                    statusWarning = false
+                }
+            ) {
+                Text("保存配置")
+            }
+            TextButton(
+                enabled = !isTestingConnection,
+                onClick = {
+                    if (apiBaseUrl.isBlank() || apiKey.isBlank() || modelName.isBlank()) {
+                        statusText = "请先填写 API 地址、API Key 和模型名称。"
+                        statusWarning = true
+                        return@TextButton
+                    }
+                    isTestingConnection = true
+                    statusText = "正在测试 AI 接口连接……"
+                    statusWarning = false
+                    aiScope.launch {
+                        val result = runCatching {
+                            withContext(Dispatchers.IO) {
+                                ShirohaAiClient.testConnection(
+                                    apiBaseUrl = apiBaseUrl,
+                                    apiKey = apiKey,
+                                    modelName = modelName,
+                                    timeoutSeconds = timeoutSeconds.toIntOrNull() ?: QuizRepository.aiTimeoutSeconds
+                                )
+                            }
+                        }
+                        result.onSuccess { message ->
+                            statusText = message.ifBlank { "AI 接口连接成功。" }
+                            statusWarning = false
+                        }.onFailure { error ->
+                            statusText = "AI 接口连接失败：${error.message ?: "请检查配置"}"
+                            statusWarning = true
+                        }
+                        isTestingConnection = false
+                    }
+                }
+            ) {
+                Text(if (isTestingConnection) "测试中" else "测试连接")
+            }
+            TextButton(
+                onClick = {
+                    QuizRepository.clearAiConfig(context)
+                    apiBaseUrl = ""
+                    apiKey = ""
+                    modelName = ""
+                    statusText = "AI 配置已清除。"
+                    statusWarning = true
+                }
+            ) {
+                Text("清除配置")
+            }
+        }
+
+        statusText?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (statusWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "AI 辅助策略",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(10.dp))
+        PreferenceSwitchRow(
+            title = "启用 AI 核对",
+            desc = "检查题型、答案、选项和解析异常。",
+            checked = QuizRepository.aiReviewEnabled,
+            onCheckedChange = { enabled -> QuizRepository.setAiReviewEnabled(context, enabled) }
+        )
+        Spacer(Modifier.height(10.dp))
+        PreferenceSwitchRow(
+            title = "启用 AI 解析",
+            desc = "优先为缺少解析或解析过短的题目生成建议。",
+            checked = QuizRepository.aiAnalysisEnabled,
+            onCheckedChange = { enabled -> QuizRepository.setAiAnalysisEnabled(context, enabled) }
+        )
+        Spacer(Modifier.height(10.dp))
+        PreferenceSwitchRow(
+            title = "仅处理异常题",
+            desc = "减少请求数量，优先处理导入异常和疑似错误。",
+            checked = QuizRepository.aiOnlyAnomaly,
+            onCheckedChange = { enabled -> QuizRepository.setAiOnlyAnomaly(context, enabled) }
+        )
+        Spacer(Modifier.height(10.dp))
+        PreferenceSwitchRow(
+            title = "结果需人工确认",
+            desc = "AI 结果只作为建议，不直接写入题库。",
+            checked = QuizRepository.aiRequireConfirm,
+            onCheckedChange = { enabled -> QuizRepository.setAiRequireConfirm(context, enabled) }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "成本与安全",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
+            OutlinedTextField(
+                value = maxQuestions,
+                onValueChange = { value -> maxQuestions = value.filter { it.isDigit() }.take(3) },
+                label = { Text("单次题数") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedTextField(
+                value = timeoutSeconds,
+                onValueChange = { value -> timeoutSeconds = value.filter { it.isDigit() }.take(3) },
+                label = { Text("超时秒数") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        TextButton(
+            onClick = {
+                QuizRepository.setAiProcessingLimits(
+                    context = context,
+                    maxQuestions = maxQuestions.toIntOrNull() ?: QuizRepository.aiMaxQuestions,
+                    timeoutSeconds = timeoutSeconds.toIntOrNull() ?: QuizRepository.aiTimeoutSeconds
+                )
+                maxQuestions = QuizRepository.aiMaxQuestions.toString()
+                timeoutSeconds = QuizRepository.aiTimeoutSeconds.toString()
+                statusText = "AI 处理限制已保存。"
+                statusWarning = false
+            }
+        ) {
+            Text("保存处理限制")
+        }
+        Spacer(Modifier.height(8.dp))
+        NoticeCard(
+            text = "AI 功能会消耗接口额度。AI 核对只生成核对提示；AI 解析会写入待核对解析，最终仍需手动保存题库。",
+            warning = false
+        )
+    }
+}
+
+@Composable
+private fun AiProviderChoiceRow(
+    selectedProvider: String,
+    onProviderChange: (String) -> Unit
+) {
+    val providers = listOf("DeepSeek", "OpenAI 兼容", "自定义接口")
+    Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(ShirohaSpacing.Sm)) {
+            providers.take(2).forEach { provider ->
+                ThemeChoiceTile(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = provider,
+                    selected = selectedProvider == provider,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onProviderChange(provider) }
+                )
+            }
+        }
+        ThemeChoiceTile(
+            icon = Icons.Rounded.Settings,
+            title = providers.last(),
+            selected = selectedProvider == providers.last(),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { onProviderChange(providers.last()) }
+        )
     }
 }
 
@@ -511,6 +791,46 @@ private fun ThemeChoiceTile(
                 fontWeight = FontWeight.SemiBold,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun PreferenceInfoRow(
+    icon: ImageVector,
+    title: String,
+    desc: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = desc,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
