@@ -95,6 +95,9 @@ data class QuestionCheckResult(
 )
 
 object QuizRepository {
+    const val PRACTICE_MODE_INSTANT = "instant_feedback"
+    const val PRACTICE_MODE_BATCH = "batch_review"
+
     private const val PREFS_NAME = "shiroha_quiz_native"
     private const val KEY_BANKS = "banks"
     private const val KEY_ACTIVE_BANK_ID = "active_bank_id"
@@ -143,6 +146,11 @@ object QuizRepository {
     var selectedAnswer by mutableStateOf<List<String>>(emptyList())
     var practiceLastResult by mutableStateOf<QuestionCheckResult?>(null)
         private set
+    var practiceMode by mutableStateOf(PRACTICE_MODE_INSTANT)
+        private set
+    var practiceBatchSubmitted by mutableStateOf(false)
+        private set
+    val practiceDraftAnswers = mutableStateMapOf<String, List<String>>()
     var practiceNextRequiresResult by mutableStateOf(false)
         private set
     var rememberPracticeSettingsEnabled by mutableStateOf(true)
@@ -442,7 +450,8 @@ object QuizRepository {
         allowedTypes: Set<QuestionType>,
         sourceQuestions: List<Question>? = null,
         sourceLabel: String = "当前题库",
-        randomize: Boolean = true
+        randomize: Boolean = true,
+        practiceMode: String = PRACTICE_MODE_INSTANT
     ): Boolean {
         val selectedTypes = allowedTypes.ifEmpty { objectiveQuestionTypes() }
         val source = (sourceQuestions ?: activeBank()?.questions.orEmpty()).filter { it.type in selectedTypes }
@@ -453,8 +462,11 @@ object QuizRepository {
         practiceIndex = 0
         selectedAnswer = emptyList()
         practiceLastResult = null
+        this.practiceMode = normalizePracticeMode(practiceMode)
+        practiceBatchSubmitted = false
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
+        practiceDraftAnswers.clear()
         practiceStartedAt = System.currentTimeMillis()
         return true
     }
@@ -482,16 +494,14 @@ object QuizRepository {
         val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
         practiceIndex = (practiceIndex + 1).coerceAtMost(questions.lastIndex)
-        selectedAnswer = emptyList()
-        practiceLastResult = null
+        restorePracticeSelectionForCurrentQuestion()
     }
 
     fun previousQuestion() {
         val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
         practiceIndex = (practiceIndex - 1).coerceAtLeast(0)
-        selectedAnswer = emptyList()
-        practiceLastResult = null
+        restorePracticeSelectionForCurrentQuestion()
     }
 
     fun openWrongQuestion(entry: WrongQuestionEntry) {
@@ -504,8 +514,11 @@ object QuizRepository {
             practiceIndex = 0
             selectedAnswer = emptyList()
             practiceLastResult = null
+            practiceMode = PRACTICE_MODE_INSTANT
+            practiceBatchSubmitted = false
             practiceSessionResults.clear()
             practiceAnswerResults.clear()
+            practiceDraftAnswers.clear()
             practiceStartedAt = System.currentTimeMillis()
         }
     }
@@ -547,10 +560,21 @@ object QuizRepository {
     }
 
     fun toggleAnswer(key: String, multiple: Boolean) {
-        selectedAnswer = if (multiple) {
+        val nextAnswer = if (multiple) {
             if (selectedAnswer.contains(key)) selectedAnswer - key else selectedAnswer + key
         } else {
             listOf(key)
+        }
+        selectedAnswer = nextAnswer
+        if (practiceMode == PRACTICE_MODE_BATCH && !practiceBatchSubmitted) {
+            val question = currentPracticeQuestion()
+            if (question != null) {
+                if (nextAnswer.isEmpty()) {
+                    practiceDraftAnswers.remove(question.id)
+                } else {
+                    practiceDraftAnswers[question.id] = nextAnswer
+                }
+            }
         }
     }
 
@@ -736,6 +760,7 @@ object QuizRepository {
     }
 
     fun submitPracticeQuestion(): QuestionCheckResult? {
+        if (practiceMode == PRACTICE_MODE_BATCH && !practiceBatchSubmitted) return null
         val question = currentPracticeQuestion() ?: return null
         val result = evaluateQuestion(question, selectedAnswer)
         practiceLastResult = result
@@ -761,6 +786,43 @@ object QuizRepository {
         persist()
         return result
     }
+
+    fun submitPracticeBatch(): Boolean {
+        if (practiceMode != PRACTICE_MODE_BATCH || practiceQuestions.isEmpty() || practiceBatchSubmitted) return false
+        val bank = activeBank()
+        practiceSessionResults.clear()
+        practiceAnswerResults.clear()
+        practiceQuestions.forEach { question ->
+            val userAnswer = practiceDraftAnswers[question.id].orEmpty()
+            val result = evaluateQuestion(question, userAnswer)
+            practiceSessionResults[question.id] = result.correct
+            practiceAnswerResults[question.id] = StudyQuestionResult(
+                question = question,
+                userAnswer = result.userAnswer,
+                correct = result.correct,
+                answerText = result.answerText
+            )
+            if (result.correct) {
+                markWrongQuestionRight(bank = bank, question = question)
+            } else {
+                addWrongQuestion(
+                    bank = bank,
+                    question = question,
+                    userAnswer = result.userAnswer,
+                    source = "练习"
+                )
+            }
+        }
+        practiceBatchSubmitted = true
+        restorePracticeSelectionForCurrentQuestion()
+        persist()
+        return true
+    }
+
+    fun practiceDraftAnsweredCount(): Int {
+        return practiceQuestions.count { question -> practiceDraftAnswers[question.id]?.isNotEmpty() == true }
+    }
+
 
     fun startExam(questionCount: Int, durationMinutes: Int): Boolean {
         return startExam(
@@ -1260,10 +1322,36 @@ object QuizRepository {
         practiceIndex = 0
         selectedAnswer = emptyList()
         practiceLastResult = null
+        practiceMode = PRACTICE_MODE_INSTANT
+        practiceBatchSubmitted = false
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
+        practiceDraftAnswers.clear()
         practiceStartedAt = null
     }
+
+    private fun restorePracticeSelectionForCurrentQuestion() {
+        val question = currentPracticeQuestion()
+        selectedAnswer = when {
+            question == null -> emptyList()
+            practiceMode == PRACTICE_MODE_BATCH && !practiceBatchSubmitted -> practiceDraftAnswers[question.id].orEmpty()
+            question != null -> practiceAnswerResults[question.id]?.userAnswer.orEmpty()
+            else -> emptyList()
+        }
+        practiceLastResult = if (question != null && practiceMode == PRACTICE_MODE_BATCH && practiceBatchSubmitted) {
+            practiceAnswerResults[question.id]?.let { result ->
+                QuestionCheckResult(
+                    question = question,
+                    userAnswer = result.userAnswer,
+                    correct = result.correct,
+                    answerText = result.answerText
+                )
+            }
+        } else {
+            null
+        }
+    }
+
 
     fun objectiveQuestionTypes(): Set<QuestionType> = setOf(
         QuestionType.SINGLE,
@@ -1463,6 +1551,14 @@ object QuizRepository {
         } while (candidate in existingNames)
         return candidate
     }
+
+    private fun normalizePracticeMode(mode: String): String {
+        return when (mode) {
+            PRACTICE_MODE_BATCH -> PRACTICE_MODE_BATCH
+            else -> PRACTICE_MODE_INSTANT
+        }
+    }
+
 
     private fun normalizePracticeCountMode(mode: String): String {
         return when (mode) {

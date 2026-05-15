@@ -156,6 +156,9 @@ fun PracticeScreen(
             }
         )
     }
+    var selectedPracticeMode by rememberSaveable(bank?.id) {
+        mutableStateOf(QuizRepository.PRACTICE_MODE_INSTANT)
+    }
 
     val selectedAvailable = remember(availableCounts, selectedTypes) {
         availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
@@ -176,7 +179,8 @@ fun PracticeScreen(
                 questionCount = count,
                 allowedTypes = safeTypes,
                 sourceLabel = "当前题库",
-                randomize = practiceOrderMode == "random"
+                randomize = practiceOrderMode == "random",
+                practiceMode = selectedPracticeMode
             )
         }
     }
@@ -252,6 +256,8 @@ fun PracticeScreen(
                 selectedQuestionCount = selectedQuestionCount.coerceAtMost(selectedAvailable.coerceAtLeast(1)),
                 selectedQuestionCountMode = selectedQuestionCountMode,
                 practiceOrderMode = practiceOrderMode,
+                selectedPracticeMode = selectedPracticeMode,
+                onSelectPracticeMode = { mode -> selectedPracticeMode = mode },
                 onSelectPracticeOrderMode = { mode ->
                     practiceOrderMode = mode
                     QuizRepository.rememberPracticeSettings(context, orderMode = mode)
@@ -307,8 +313,13 @@ fun PracticeScreen(
             )
         }
         val isSubmitted = effectiveResult != null
-        val canGoNext = !QuizRepository.practiceNextRequiresResult || isSubmitted
+        val isBatchPractice = QuizRepository.practiceMode == QuizRepository.PRACTICE_MODE_BATCH
+        val isBatchSubmitted = isBatchPractice && QuizRepository.practiceBatchSubmitted
+        val isBatchBeforeSubmit = isBatchPractice && !QuizRepository.practiceBatchSubmitted
+        val canGoNext = isBatchBeforeSubmit || !QuizRepository.practiceNextRequiresResult || isSubmitted
         val displayedSelection = effectiveResult?.userAnswer ?: QuizRepository.selectedAnswer
+        val batchDraftAnsweredCount = QuizRepository.practiceDraftAnsweredCount()
+        var showBatchSubmitConfirm by rememberSaveable(practiceQuestions.size, QuizRepository.practiceBatchSubmitted) { mutableStateOf(false) }
         val isPracticeComplete = practiceQuestions.isNotEmpty() &&
             QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
 
@@ -325,8 +336,9 @@ fun PracticeScreen(
             if (isPracticeProgressExpanded) {
                 PracticeProgressCard(
                     total = practiceQuestions.size,
-                    answered = practiceAnsweredCount,
+                    answered = if (isBatchBeforeSubmit) batchDraftAnsweredCount else practiceAnsweredCount,
                     correct = practiceCorrectCount,
+                    batchBeforeSubmit = isBatchBeforeSubmit,
                     expanded = true,
                     onToggle = { isPracticeProgressExpanded = false }
                 )
@@ -361,6 +373,7 @@ fun PracticeScreen(
                 ) {
                     CompactPracticeChip("第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题", selected = true)
                     CompactPracticeChip(typeLabel(question.type))
+                    if (isBatchPractice) CompactPracticeChip(if (isBatchSubmitted) "批量复盘" else "批量做题")
                 }
                 CompactExitPracticeButton(
                     onClick = { QuizRepository.endPracticeSession() }
@@ -395,7 +408,8 @@ fun PracticeScreen(
                             ),
                             onClick = {
                                 if (!isSubmitted) {
-                                    val shouldAutoNext = QuizRepository.practiceAutoNextEnabled &&
+                                    val shouldAutoNext = !isBatchPractice &&
+                                        QuizRepository.practiceAutoNextEnabled &&
                                         (question.type == QuestionType.SINGLE || question.type == QuestionType.JUDGE)
                                     QuizRepository.toggleAnswer(
                                         key = option.key,
@@ -430,38 +444,57 @@ fun PracticeScreen(
             }
 
             Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ActionPillButton(
-                    Icons.AutoMirrored.Rounded.TextSnippet,
-                    "查看解析",
-                    primary = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    fillWidthContent = true,
-                    onClick = {
-                        if (!isSubmitted) {
-                            QuizRepository.submitPracticeQuestion()
-                        }
-                    }
-                )
+            if (isBatchBeforeSubmit) {
                 ActionPillButton(
                     Icons.Rounded.CheckCircle,
-                    if (isSubmitted) "已提交" else "提交答案",
-                    primary = !isSubmitted,
+                    "提交本组",
+                    primary = true,
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .height(50.dp),
                     fillWidthContent = true,
                     onClick = {
-                        if (!isSubmitted) {
-                            QuizRepository.submitPracticeQuestion()
+                        if (batchDraftAnsweredCount < practiceQuestions.size) {
+                            showBatchSubmitConfirm = true
+                        } else {
+                            QuizRepository.submitPracticeBatch()
                         }
                     }
                 )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ActionPillButton(
+                        Icons.AutoMirrored.Rounded.TextSnippet,
+                        "查看解析",
+                        primary = false,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        fillWidthContent = true,
+                        onClick = {
+                            if (!isSubmitted) {
+                                QuizRepository.submitPracticeQuestion()
+                            }
+                        }
+                    )
+                    ActionPillButton(
+                        Icons.Rounded.CheckCircle,
+                        if (isSubmitted) "已提交" else "提交答案",
+                        primary = !isSubmitted,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        fillWidthContent = true,
+                        onClick = {
+                            if (!isSubmitted) {
+                                QuizRepository.submitPracticeQuestion()
+                            }
+                        }
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             Row(
@@ -512,6 +545,17 @@ fun PracticeScreen(
                     )
                 }
             }
+
+            if (showBatchSubmitConfirm) {
+                BatchSubmitConfirmDialog(
+                    unansweredCount = (practiceQuestions.size - batchDraftAnsweredCount).coerceAtLeast(0),
+                    onDismiss = { showBatchSubmitConfirm = false },
+                    onConfirm = {
+                        QuizRepository.submitPracticeBatch()
+                        showBatchSubmitConfirm = false
+                    }
+                )
+            }
         }
     }
     }
@@ -527,6 +571,8 @@ private fun PracticeSetupPanel(
     selectedQuestionCount: Int,
     selectedQuestionCountMode: String,
     practiceOrderMode: String,
+    selectedPracticeMode: String,
+    onSelectPracticeMode: (String) -> Unit,
     onSelectPracticeOrderMode: (String) -> Unit,
     onToggleType: (QuestionType) -> Unit,
     onSelectQuestionCount: (Int, String) -> Unit,
@@ -556,6 +602,43 @@ private fun PracticeSetupPanel(
         )
         Spacer(Modifier.height(12.dp))
 
+        Text("答题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(7.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ActionPillButton(
+                icon = Icons.Rounded.CheckCircle,
+                text = "即时反馈",
+                primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_INSTANT,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp),
+                fillWidthContent = true,
+                onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_INSTANT) }
+            )
+            ActionPillButton(
+                icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                text = "批量做题",
+                primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp),
+                fillWidthContent = true,
+                onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_BATCH) }
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) "先完成本组题，再统一提交并查看解析。" else "每题提交后立即查看结果和解析。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(Modifier.height(10.dp))
         Text("组题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
         Row(
@@ -963,6 +1046,7 @@ private fun PracticeProgressCard(
     total: Int,
     answered: Int,
     correct: Int,
+    batchBeforeSubmit: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
@@ -976,10 +1060,10 @@ private fun PracticeProgressCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("正确率", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(if (batchBeforeSubmit) "批量做题" else "正确率", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "已提交 $answered / $total 题 · 正确率 $accuracy%",
+                    text = if (batchBeforeSubmit) "已答 $answered / $total 题 · 提交后统一判分" else "已提交 $answered / $total 题 · 正确率 $accuracy%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1092,6 +1176,32 @@ private fun Modifier.questionSwipeNavigation(
             )
         }
 }
+
+@Composable
+private fun BatchSubmitConfirmDialog(
+    unansweredCount: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("提交本组？") },
+        text = {
+            Text(
+                text = if (unansweredCount > 0) {
+                    "还有 $unansweredCount 题未作答，提交后会按错误处理。确定仍然提交吗？"
+                } else {
+                    "提交后将统一判分，并进入解析复盘。"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("提交") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
 
 @Composable
 private fun CustomQuestionCountDialog(

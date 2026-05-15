@@ -858,6 +858,32 @@ private fun ActiveExamPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ActionPillButton(
+                Icons.AutoMirrored.Rounded.ArrowBack,
+                "上一题",
+                primary = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
+                onClick = { QuizRepository.previousExamQuestion() }
+            )
+            ActionPillButton(
+                Icons.AutoMirrored.Rounded.ArrowForward,
+                "下一题",
+                primary = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                fillWidthContent = true,
+                onClick = { QuizRepository.nextExamQuestion() }
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ActionPillButton(
                 Icons.Rounded.Timer,
                 "结束本场",
                 primary = false,
@@ -882,32 +908,6 @@ private fun ActiveExamPanel(
                         QuizRepository.submitExam()
                     }
                 }
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ActionPillButton(
-                Icons.AutoMirrored.Rounded.ArrowBack,
-                "上一题",
-                primary = false,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
-                fillWidthContent = true,
-                onClick = { QuizRepository.previousExamQuestion() }
-            )
-            ActionPillButton(
-                Icons.AutoMirrored.Rounded.ArrowForward,
-                "下一题",
-                primary = false,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
-                fillWidthContent = true,
-                onClick = { QuizRepository.nextExamQuestion() }
             )
         }
     }
