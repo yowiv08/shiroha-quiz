@@ -11,6 +11,8 @@ data class ParsedAnswerEntry(
 )
 
 object AnswerTokenParser {
+    private const val answerLabelPattern = "答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|答"
+    private const val answerSeparatorPattern = """(?:\s*[:：,，、.．;；]\s*|\s+|(?=\s*[\(（]))"""
     private val judgeTrueRegex = Regex("""^(正确|对|是|√|true|t)$""", RegexOption.IGNORE_CASE)
     private val judgeFalseRegex = Regex("""^(错误|错|否|×|x|false|f)$""", RegexOption.IGNORE_CASE)
     private val leadingChoiceRegex = Regex("""^\s*([A-Ga-g]{1,7})(?=\s*(?:[.、．:：)）;；\]\}]|[\u4e00-\u9fa5]|$))""")
@@ -65,41 +67,43 @@ object AnswerTokenParser {
 
     private fun cleanup(raw: String): String {
         return raw.trim()
-            .removePrefix("[")
-            .removeSuffix("]")
-            .removePrefix("(")
-            .removeSuffix(")")
-            .replace(Regex("""^\s*(?:答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|答)\s*[:：]?\s*"""), "")
+            .trim('[', ']', '【', '】', '(', ')', '（', '）')
+            .replace(Regex("""^\s*(?:$answerLabelPattern)(?:$answerSeparatorPattern)?"""), "")
+            .trim()
+            .trim('[', ']', '【', '】', '(', ')', '（', '）')
             .trim()
     }
 }
 
 object AnswerParser {
+    private const val answerLabelPattern = "答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|答"
+    private const val answerSeparatorPattern = """(?:\s*[:：,，、.．;；]\s*|\s+|(?=\s*[\(（]))"""
+    private const val objectiveAnswerValuePattern = """[\(（]?\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[\)）]?"""
     private val inlineEntryRegex = Regex(
-        """(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*(?:答案\s*[:：]?\s*)?([A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)(?=\s*(?:\d{1,4}\s*[.、．:：]|$|\[|【|解析|[;；]))""",
+        """(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*(?:(?:答案)$answerSeparatorPattern)?($objectiveAnswerValuePattern)(?=\s*(?:\d{1,4}\s*[.、．:：]|$|\[|【|解析|[;；]))""",
         RegexOption.IGNORE_CASE
     )
     private val answerAnalysisLineRegex = Regex(
-        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]\s*([A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[.。]?\s*(?:\[?\s*解析\s*\]?\s*[:：]?|【\s*解析\s*】\s*[:：]?)?\s*(.*)$""",
+        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*(?:(?:答案|正确答案|参考答案|标准答案)$answerSeparatorPattern)?($objectiveAnswerValuePattern)\s*[.。]?\s*(?:\[?\s*解析\s*\]?\s*[:：]?|【\s*解析\s*】\s*[:：]?)?\s*(.*)$""",
         RegexOption.IGNORE_CASE
     )
     private val rangeEntryRegex = Regex(
         """^\s*(\d{1,4})\s*[-~～至]\s*(\d{1,4})\s*[:：]\s*(.+)$"""
     )
     private val bracketAnswerLineRegex = Regex(
-        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*(?:[【\[]\s*(?:答案|正确答案|参考答案|标准答案|解析)\s*[】\]]|(?:答案|正确答案|参考答案|标准答案|解析)\s*[:：])\s*([A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[.。]?\s*(?:[【\[]?\s*解析\s*[】\]]?\s*[:：]?)?\s*(.*)$""",
+        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*(?:[【\[]\s*(?:答案|正确答案|参考答案|标准答案|解析)\s*[】\]]|(?:答案|正确答案|参考答案|标准答案|解析)$answerSeparatorPattern)\s*($objectiveAnswerValuePattern)\s*[.。]?\s*(?:[【\[]?\s*解析\s*[】\]]?\s*[:：]?)?\s*(.*)$""",
         RegexOption.IGNORE_CASE
     )
     private val simpleAnswerTailRegex = Regex(
-        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*([A-Ga-g]{1,7})(?=\s|$|[\u4e00-\u9fa5])\s*(.*)$""",
+        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：]?\s*([\(（]?\s*[A-Ga-g]{1,7}\s*[\)）]?)(?=\s|$|[\u4e00-\u9fa5])\s*(.*)$""",
         RegexOption.IGNORE_CASE
     )
     private val multipleBracketEntryRegex = Regex(
-        """(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[【\[]\s*(?:答案|正确答案|参考答案|标准答案)\s*[】\]]\s*([A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)""",
+        """(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[【\[]\s*(?:答案|正确答案|参考答案|标准答案)\s*[】\]]\s*($objectiveAnswerValuePattern)""",
         RegexOption.IGNORE_CASE
     )
     private val subjectiveAnswerLineRegex = Regex(
-        """^\s*(?:(?:第\s*)?([一二三四五六七八九十百0-9]{1,4})\s*(?:题|问)?|(?:问题|题目)\s*([一二三四五六七八九十百0-9]{1,4}))\s*[.、．:：]?\s*(?:答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|答)\s*[:：]\s*(.+)$""",
+        """^\s*(?:(?:第\s*)?([一二三四五六七八九十百0-9]{1,4})\s*(?:题|问)?|(?:问题|题目)\s*([一二三四五六七八九十百0-9]{1,4}))\s*[.、．:：]?\s*(?:$answerLabelPattern)$answerSeparatorPattern(.+)$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -117,12 +121,22 @@ object AnswerParser {
                 val number = normalizeQuestionIndex(match.groupValues[1].ifBlank { match.groupValues[2] })
                 val answerText = match.groupValues[3].trim()
                 if (number.isNotBlank() && answerText.isNotBlank()) {
-                    entries += ParsedAnswerEntry(
-                        number = number,
-                        answer = listOf(answerText),
-                        type = currentType ?: QuestionType.SHORT,
-                        sequence = sequence++
-                    )
+                    val objectiveAnswer = AnswerTokenParser.parseObjectiveAnswers(answerText)
+                    entries += if (objectiveAnswer.isNotEmpty()) {
+                        ParsedAnswerEntry(
+                            number = number,
+                            answer = objectiveAnswer,
+                            type = currentType,
+                            sequence = sequence++
+                        )
+                    } else {
+                        ParsedAnswerEntry(
+                            number = number,
+                            answer = listOf(answerText),
+                            type = currentType ?: QuestionType.SHORT,
+                            sequence = sequence++
+                        )
+                    }
                     return@forEach
                 }
             }

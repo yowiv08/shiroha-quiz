@@ -3,10 +3,10 @@ package com.yiqiu.shirohaquiz.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,7 +32,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.state.QuizRepository
-import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
@@ -59,6 +58,7 @@ fun HomeScreen(
         record.source == "练习" && isToday(record.timestamp)
     }
     val pendingReviewCount = QuizRepository.wrongBookActiveCount()
+    val homeSectionGap = ShirohaSpacing.Lg
 
     Column(
         modifier = Modifier
@@ -71,7 +71,7 @@ fun HomeScreen(
             subtitle = ""
         )
 
-        Spacer(Modifier.height(ShirohaSpacing.Lg))
+        Spacer(Modifier.height(homeSectionGap))
 
         IllustrationHeroCard(
             title = "欢迎回来",
@@ -81,7 +81,7 @@ fun HomeScreen(
             imageSize = ShirohaDimens.HeroImageSize
         )
 
-        Spacer(Modifier.height(ShirohaSpacing.Lg))
+        Spacer(Modifier.height(homeSectionGap))
 
         TodayStatusCard(
             bankName = bankName,
@@ -91,56 +91,22 @@ fun HomeScreen(
             onGoExam = onGoExam
         )
 
-        Box(
+        Spacer(Modifier.height(homeSectionGap))
+
+        HomeShortcutGrid(
+            bankCount = bankCount,
+            questionCount = questionCount,
+            wrongCount = QuizRepository.wrongBook.size,
+            recordCount = QuizRepository.studyRecords.size,
+            onOpenBankList = onOpenBankList,
+            onOpenBankDetail = { activeBank?.let { onOpenBankDetail(it.id) } },
+            onOpenWrongBook = onOpenWrongBook,
+            onOpenRecords = onOpenRecords,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeShortcutCard(
-                        icon = Icons.Rounded.AutoStories,
-                        label = "题库数量",
-                        value = bankCount.toString(),
-                        desc = "进入题库管理",
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenBankList
-                    )
-                    HomeShortcutCard(
-                        icon = Icons.Rounded.Description,
-                        label = "当前题量",
-                        value = questionCount.toString(),
-                        desc = "查看当前题库详情",
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            activeBank?.let { onOpenBankDetail(it.id) }
-                        }
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeShortcutCard(
-                        icon = Icons.Rounded.Warning,
-                        label = "错题本",
-                        value = QuizRepository.wrongBook.size.toString(),
-                        desc = "打开错题本",
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenWrongBook
-                    )
-                    HomeShortcutCard(
-                        icon = Icons.Rounded.Timer,
-                        label = "学习记录",
-                        value = QuizRepository.studyRecords.size.toString(),
-                        desc = "查看学习记录",
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenRecords
-                    )
-                }
-            }
-        }
+                .weight(1f)
+                .padding(bottom = homeSectionGap)
+        )
     }
 }
 
@@ -152,9 +118,9 @@ private fun TodayStatusCard(
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit
 ) {
-    val currentBankHeight = 56.dp
-    val metricCardHeight = 52.dp
-    val actionButtonHeight = 44.dp
+    val currentBankHeight = 60.dp
+    val metricCardHeight = 56.dp
+    val actionButtonHeight = 46.dp
 
     GlassCard(contentPadding = ShirohaSpacing.Lg) {
         Text(
@@ -164,7 +130,7 @@ private fun TodayStatusCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         MiniStatusCard(
             title = "当前题库",
             value = bankName,
@@ -172,7 +138,7 @@ private fun TodayStatusCard(
                 .fillMaxWidth()
                 .height(currentBankHeight)
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniStatusCard(
                 title = "今日练习",
@@ -189,27 +155,60 @@ private fun TodayStatusCard(
                     .height(metricCardHeight)
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionPillButton(
+            CompactHomeActionButton(
                 icon = Icons.Rounded.PlayArrow,
                 text = "继续练习",
-                primary = false,
-                fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
                     .height(actionButtonHeight),
                 onClick = onGoPractice
             )
-            ActionPillButton(
+            CompactHomeActionButton(
                 icon = Icons.Rounded.Timer,
                 text = "模拟考试",
-                primary = false,
-                fillWidthContent = true,
                 modifier = Modifier
                     .weight(1f)
                     .height(actionButtonHeight),
                 onClick = onGoExam
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactHomeActionButton(
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = ShirohaColors.CardWhite86,
+        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 0.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 6.dp)
             )
         }
     }
@@ -251,6 +250,79 @@ private fun MiniStatusCard(
 }
 
 @Composable
+private fun HomeShortcutGrid(
+    bankCount: Int,
+    questionCount: Int,
+    wrongCount: Int,
+    recordCount: Int,
+    onOpenBankList: () -> Unit,
+    onOpenBankDetail: () -> Unit,
+    onOpenWrongBook: () -> Unit,
+    onOpenRecords: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HomeShortcutCard(
+                icon = Icons.Rounded.AutoStories,
+                label = "题库数量",
+                value = bankCount.toString(),
+                desc = "进入题库管理",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                onClick = onOpenBankList
+            )
+            HomeShortcutCard(
+                icon = Icons.Rounded.Description,
+                label = "当前题量",
+                value = questionCount.toString(),
+                desc = "查看当前题库详情",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                onClick = onOpenBankDetail
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HomeShortcutCard(
+                icon = Icons.Rounded.Warning,
+                label = "错题本",
+                value = wrongCount.toString(),
+                desc = "打开错题本",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                onClick = onOpenWrongBook
+            )
+            HomeShortcutCard(
+                icon = Icons.Rounded.Timer,
+                label = "学习记录",
+                value = recordCount.toString(),
+                desc = "查看学习记录",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                onClick = onOpenRecords
+            )
+        }
+    }
+}
+
+@Composable
 private fun HomeShortcutCard(
     icon: ImageVector,
     label: String,
@@ -261,7 +333,6 @@ private fun HomeShortcutCard(
 ) {
     Surface(
         modifier = modifier
-            .height(112.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(26.dp),
         color = ShirohaColors.CardWhite72,
