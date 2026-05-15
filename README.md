@@ -223,7 +223,8 @@ Shiroha Quiz 的题库和记录主要保存在本地浏览器或 App WebView 的
 
 ```text
 docx（推荐）
-txt / json / 文字层 pdf
+txt / csv / json / 文字层 pdf
+粘贴纯文本
 题目文件 + 答案文件双文件导入
 ```
 
@@ -243,6 +244,7 @@ txt / json / 文字层 pdf
 
 详细说明：
 
+- [所有支持的题库导入格式](docs/Shiroha_Quiz_题库导入格式支持说明.md)
 - [题库导入策略与使用指南](docs/Shiroha%20Quiz%20题库导入策略与使用指南.md)
 - [题目导入解析方法说明](docs/Shiroha%20Quiz%20题目导入解析方法说明.md)
 - 标准题库格式示例：[Markdown](docs/标准题库格式示例.md) / [Word](docs/标准题库格式示例.docx) / [PDF](docs/标准题库格式示例.pdf)
