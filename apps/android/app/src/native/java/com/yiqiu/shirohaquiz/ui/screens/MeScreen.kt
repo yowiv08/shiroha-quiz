@@ -540,6 +540,13 @@ fun PersonalPreferenceScreen(
                 onCheckedChange = { enabled -> QuizRepository.setPracticeAutoNextEnabled(context, enabled) }
             )
             Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "练习页显示答题设置",
+                desc = "开启后可在练习页临时调整答题方式和每组题数；关闭后只使用这里的默认设置。",
+                checked = QuizRepository.practiceInlineAnswerSettingsEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setPracticeInlineAnswerSettingsEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = "默认答题方式",
                 style = MaterialTheme.typography.titleSmall,
@@ -618,7 +625,7 @@ fun PersonalPreferenceScreen(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "批量做题默认每组 ${QuizRepository.preferredPracticeBatchGroupSize()} 题，练习页可临时调整。",
+                text = "批量做题默认每组 ${QuizRepository.preferredPracticeBatchGroupSize()} 题；开启练习页显示答题设置后可临时调整。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

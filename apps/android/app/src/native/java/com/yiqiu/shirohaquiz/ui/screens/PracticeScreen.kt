@@ -53,6 +53,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,7 +65,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -205,15 +205,22 @@ fun PracticeScreen(
         }
     }
 
-    val isPracticeRunning = practiceQuestions.isNotEmpty()
+    val isPracticeRunning = QuizRepository.practiceQuestions.isNotEmpty()
     var isPracticeProgressExpanded by rememberSaveable(practiceQuestions.size) { mutableStateOf(true) }
     val practiceAnsweredCount = QuizRepository.practiceAnsweredCount()
     val practiceCorrectCount = QuizRepository.practiceCorrectCount()
     val practiceAccuracy = if (practiceAnsweredCount == 0) 0 else practiceCorrectCount * 100 / practiceAnsweredCount
 
+    val screenScrollState = rememberScrollState()
+    LaunchedEffect(isPracticeRunning, bank?.id) {
+        if (!isPracticeRunning) {
+            screenScrollState.scrollTo(0)
+        }
+    }
+
     Column(
         modifier = Modifier
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(screenScrollState)
             .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
@@ -279,6 +286,7 @@ fun PracticeScreen(
                 selectedPracticeMode = selectedPracticeMode,
                 selectedBatchGroupSize = selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1)),
                 selectedBatchGroupSizeMode = selectedBatchGroupSizeMode,
+                showInlineAnswerSettings = QuizRepository.practiceInlineAnswerSettingsEnabled,
                 onSelectPracticeMode = { mode ->
                     selectedPracticeMode = mode
                     QuizRepository.rememberPracticeSettings(context, practiceMode = mode)
@@ -750,6 +758,7 @@ private fun PracticeSetupPanel(
     selectedPracticeMode: String,
     selectedBatchGroupSize: Int,
     selectedBatchGroupSizeMode: String,
+    showInlineAnswerSettings: Boolean,
     onSelectPracticeMode: (String) -> Unit,
     onSelectPracticeOrderMode: (String) -> Unit,
     onToggleType: (QuestionType) -> Unit,
@@ -800,86 +809,88 @@ private fun PracticeSetupPanel(
         }
         Spacer(Modifier.height(12.dp))
 
-        Text("答题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(7.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ActionPillButton(
-                icon = Icons.Rounded.CheckCircle,
-                text = "即时反馈",
-                primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_INSTANT,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                fillWidthContent = true,
-                onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_INSTANT) }
-            )
-            ActionPillButton(
-                icon = Icons.AutoMirrored.Rounded.TextSnippet,
-                text = "批量做题",
-                primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                fillWidthContent = true,
-                onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_BATCH) }
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) "按每组题数连续做题，提交本组后统一看解析。" else "每题提交后立即查看结果和解析。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) {
-            Spacer(Modifier.height(10.dp))
-            Text("每组题数", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (showInlineAnswerSettings) {
+            Text("答题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(7.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                val safeMaxGroupSize = selectedQuestionCount.coerceAtLeast(1)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 ActionPillButton(
-                    icon = Icons.Rounded.PlayArrow,
-                    text = "10题",
-                    primary = selectedBatchGroupSizeMode == "10",
-                    modifier = Modifier.height(44.dp),
-                    enabled = safeMaxGroupSize >= 10,
-                    onClick = { onSelectBatchGroupSize(10.coerceAtMost(safeMaxGroupSize), "10") }
+                    icon = Icons.Rounded.CheckCircle,
+                    text = "即时反馈",
+                    primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_INSTANT,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    fillWidthContent = true,
+                    onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_INSTANT) }
                 )
                 ActionPillButton(
-                    icon = Icons.Rounded.PlayArrow,
-                    text = "20题",
-                    primary = selectedBatchGroupSizeMode == "20",
-                    modifier = Modifier.height(44.dp),
-                    enabled = safeMaxGroupSize >= 20,
-                    onClick = { onSelectBatchGroupSize(20.coerceAtMost(safeMaxGroupSize), "20") }
-                )
-                ActionPillButton(
-                    icon = Icons.Rounded.PlayArrow,
-                    text = "自定义",
-                    primary = selectedBatchGroupSizeMode == "custom",
-                    modifier = Modifier.height(44.dp),
-                    onClick = {
-                        customBatchGroupText = selectedBatchGroupSize.coerceIn(1, safeMaxGroupSize).toString()
-                        showCustomBatchGroupDialog = true
-                    }
+                    icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                    text = "批量做题",
+                    primary = selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    fillWidthContent = true,
+                    onClick = { onSelectPracticeMode(QuizRepository.PRACTICE_MODE_BATCH) }
                 )
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "当前每组 ${selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1))} 题，提交本组后再进入下一组。",
+                text = if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) "按每组题数连续做题，提交本组后统一看解析。" else "每题提交后立即查看结果和解析。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
 
-        Spacer(Modifier.height(10.dp))
+            if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) {
+                Spacer(Modifier.height(10.dp))
+                Text("每组题数", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(7.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    val safeMaxGroupSize = selectedQuestionCount.coerceAtLeast(1)
+                    ActionPillButton(
+                        icon = Icons.Rounded.PlayArrow,
+                        text = "10题",
+                        primary = selectedBatchGroupSizeMode == "10",
+                        modifier = Modifier.height(44.dp),
+                        enabled = safeMaxGroupSize >= 10,
+                        onClick = { onSelectBatchGroupSize(10.coerceAtMost(safeMaxGroupSize), "10") }
+                    )
+                    ActionPillButton(
+                        icon = Icons.Rounded.PlayArrow,
+                        text = "20题",
+                        primary = selectedBatchGroupSizeMode == "20",
+                        modifier = Modifier.height(44.dp),
+                        enabled = safeMaxGroupSize >= 20,
+                        onClick = { onSelectBatchGroupSize(20.coerceAtMost(safeMaxGroupSize), "20") }
+                    )
+                    ActionPillButton(
+                        icon = Icons.Rounded.PlayArrow,
+                        text = "自定义",
+                        primary = selectedBatchGroupSizeMode == "custom",
+                        modifier = Modifier.height(44.dp),
+                        onClick = {
+                            customBatchGroupText = selectedBatchGroupSize.coerceIn(1, safeMaxGroupSize).toString()
+                            showCustomBatchGroupDialog = true
+                        }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "当前每组 ${selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1))} 题，提交本组后再进入下一组。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+        }
         Text("组题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
         Row(

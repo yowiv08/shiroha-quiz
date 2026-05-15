@@ -107,6 +107,7 @@ object QuizRepository {
     private const val KEY_REMEMBER_PRACTICE_SETTINGS = "remember_practice_settings"
     private const val KEY_SWIPE_NAVIGATION_ENABLED = "swipe_navigation_enabled"
     private const val KEY_PRACTICE_AUTO_NEXT_ENABLED = "practice_auto_next_enabled"
+    private const val KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED = "practice_inline_answer_settings_enabled"
     private const val KEY_PRACTICE_PREFERRED_COUNT_MODE = "practice_preferred_count_mode"
     private const val KEY_PRACTICE_PREFERRED_CUSTOM_COUNT = "practice_preferred_custom_count"
     private const val KEY_PRACTICE_PREFERRED_ORDER_MODE = "practice_preferred_order_mode"
@@ -165,6 +166,8 @@ object QuizRepository {
     var swipeNavigationEnabled by mutableStateOf(true)
         private set
     var practiceAutoNextEnabled by mutableStateOf(false)
+        private set
+    var practiceInlineAnswerSettingsEnabled by mutableStateOf(false)
         private set
     var preferredPracticeQuestionCountMode by mutableStateOf("custom")
         private set
@@ -272,6 +275,7 @@ object QuizRepository {
         rememberPracticeSettingsEnabled = prefs.getBoolean(KEY_REMEMBER_PRACTICE_SETTINGS, true)
         swipeNavigationEnabled = prefs.getBoolean(KEY_SWIPE_NAVIGATION_ENABLED, true)
         practiceAutoNextEnabled = prefs.getBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, false)
+        practiceInlineAnswerSettingsEnabled = prefs.getBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, false)
         preferredPracticeQuestionCountMode = normalizePracticeCountMode(
             prefs.getString(KEY_PRACTICE_PREFERRED_COUNT_MODE, "custom") ?: "custom"
         )
@@ -634,6 +638,12 @@ object QuizRepository {
     fun setPracticeAutoNextEnabled(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         practiceAutoNextEnabled = enabled
+        persist()
+    }
+
+    fun setPracticeInlineAnswerSettingsEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        practiceInlineAnswerSettingsEnabled = enabled
         persist()
     }
 
@@ -1772,6 +1782,7 @@ object QuizRepository {
             .putBoolean(KEY_REMEMBER_PRACTICE_SETTINGS, rememberPracticeSettingsEnabled)
             .putBoolean(KEY_SWIPE_NAVIGATION_ENABLED, swipeNavigationEnabled)
             .putBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, practiceAutoNextEnabled)
+            .putBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, practiceInlineAnswerSettingsEnabled)
             .putString(KEY_PRACTICE_PREFERRED_COUNT_MODE, preferredPracticeQuestionCountMode)
             .putInt(KEY_PRACTICE_PREFERRED_CUSTOM_COUNT, preferredPracticeCustomQuestionCount)
             .putString(KEY_PRACTICE_PREFERRED_ORDER_MODE, preferredPracticeOrderMode)
