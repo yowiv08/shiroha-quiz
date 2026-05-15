@@ -111,6 +111,9 @@ object QuizRepository {
     private const val KEY_PRACTICE_PREFERRED_CUSTOM_COUNT = "practice_preferred_custom_count"
     private const val KEY_PRACTICE_PREFERRED_ORDER_MODE = "practice_preferred_order_mode"
     private const val KEY_PRACTICE_PREFERRED_TYPE_NAMES = "practice_preferred_type_names"
+    private const val KEY_PRACTICE_PREFERRED_MODE = "practice_preferred_mode"
+    private const val KEY_PRACTICE_PREFERRED_BATCH_SIZE_MODE = "practice_preferred_batch_size_mode"
+    private const val KEY_PRACTICE_PREFERRED_BATCH_CUSTOM_SIZE = "practice_preferred_batch_custom_size"
     private const val KEY_REMEMBER_EXAM_SETTINGS = "remember_exam_settings"
     private const val KEY_EXAM_PREFERRED_COUNT_MODE = "exam_preferred_count_mode"
     private const val KEY_EXAM_PREFERRED_CUSTOM_COUNT = "exam_preferred_custom_count"
@@ -150,6 +153,10 @@ object QuizRepository {
         private set
     var practiceBatchSubmitted by mutableStateOf(false)
         private set
+    var practiceBatchGroupSize by mutableStateOf(10)
+        private set
+    var practiceBatchGroupStartIndex by mutableStateOf(0)
+        private set
     val practiceDraftAnswers = mutableStateMapOf<String, List<String>>()
     var practiceNextRequiresResult by mutableStateOf(false)
         private set
@@ -166,6 +173,12 @@ object QuizRepository {
     var preferredPracticeOrderMode by mutableStateOf("random")
         private set
     private var preferredPracticeTypeNames by mutableStateOf("")
+    var preferredPracticeMode by mutableStateOf(PRACTICE_MODE_INSTANT)
+        private set
+    var preferredPracticeBatchSizeMode by mutableStateOf("10")
+        private set
+    var preferredPracticeBatchCustomSize by mutableStateOf(10)
+        private set
     var rememberExamSettingsEnabled by mutableStateOf(true)
         private set
     var preferredExamQuestionCountMode by mutableStateOf("100")
@@ -267,6 +280,13 @@ object QuizRepository {
             prefs.getString(KEY_PRACTICE_PREFERRED_ORDER_MODE, "random") ?: "random"
         )
         preferredPracticeTypeNames = prefs.getString(KEY_PRACTICE_PREFERRED_TYPE_NAMES, "") ?: ""
+        preferredPracticeMode = normalizePracticeMode(
+            prefs.getString(KEY_PRACTICE_PREFERRED_MODE, PRACTICE_MODE_INSTANT) ?: PRACTICE_MODE_INSTANT
+        )
+        preferredPracticeBatchSizeMode = normalizePracticeBatchSizeMode(
+            prefs.getString(KEY_PRACTICE_PREFERRED_BATCH_SIZE_MODE, "10") ?: "10"
+        )
+        preferredPracticeBatchCustomSize = prefs.getInt(KEY_PRACTICE_PREFERRED_BATCH_CUSTOM_SIZE, 10).coerceAtLeast(1)
         rememberExamSettingsEnabled = prefs.getBoolean(KEY_REMEMBER_EXAM_SETTINGS, true)
         preferredExamQuestionCountMode = normalizeExamCountMode(
             prefs.getString(KEY_EXAM_PREFERRED_COUNT_MODE, "100") ?: "100"
@@ -436,7 +456,9 @@ object QuizRepository {
     fun currentPracticeQuestion(): Question? {
         val questions = activePracticeQuestions()
         if (questions.isEmpty()) return null
-        val safeIndex = practiceIndex.coerceIn(0, questions.lastIndex)
+        val minIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchStartIndex() else 0
+        val maxIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchEndIndex() else questions.lastIndex
+        val safeIndex = practiceIndex.coerceIn(minIndex, maxIndex)
         if (safeIndex != practiceIndex) practiceIndex = safeIndex
         return questions[safeIndex]
     }
@@ -451,7 +473,8 @@ object QuizRepository {
         sourceQuestions: List<Question>? = null,
         sourceLabel: String = "当前题库",
         randomize: Boolean = true,
-        practiceMode: String = PRACTICE_MODE_INSTANT
+        practiceMode: String = PRACTICE_MODE_INSTANT,
+        batchGroupSize: Int = preferredPracticeBatchGroupSize()
     ): Boolean {
         val selectedTypes = allowedTypes.ifEmpty { objectiveQuestionTypes() }
         val source = (sourceQuestions ?: activeBank()?.questions.orEmpty()).filter { it.type in selectedTypes }
@@ -464,6 +487,8 @@ object QuizRepository {
         practiceLastResult = null
         this.practiceMode = normalizePracticeMode(practiceMode)
         practiceBatchSubmitted = false
+        practiceBatchGroupSize = batchGroupSize.coerceIn(1, count)
+        practiceBatchGroupStartIndex = 0
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
         practiceDraftAnswers.clear()
@@ -493,14 +518,16 @@ object QuizRepository {
     fun nextQuestion() {
         val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
-        practiceIndex = (practiceIndex + 1).coerceAtMost(questions.lastIndex)
+        val maxIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchEndIndex() else questions.lastIndex
+        practiceIndex = (practiceIndex + 1).coerceAtMost(maxIndex)
         restorePracticeSelectionForCurrentQuestion()
     }
 
     fun previousQuestion() {
         val questions = activePracticeQuestions()
         if (questions.isEmpty()) return
-        practiceIndex = (practiceIndex - 1).coerceAtLeast(0)
+        val minIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchStartIndex() else 0
+        practiceIndex = (practiceIndex - 1).coerceAtLeast(minIndex)
         restorePracticeSelectionForCurrentQuestion()
     }
 
@@ -516,6 +543,8 @@ object QuizRepository {
             practiceLastResult = null
             practiceMode = PRACTICE_MODE_INSTANT
             practiceBatchSubmitted = false
+            practiceBatchGroupSize = 10
+            practiceBatchGroupStartIndex = 0
             practiceSessionResults.clear()
             practiceAnswerResults.clear()
             practiceDraftAnswers.clear()
@@ -608,6 +637,19 @@ object QuizRepository {
         persist()
     }
 
+    fun setPreferredPracticeMode(context: Context, mode: String) {
+        appContext = context.applicationContext
+        preferredPracticeMode = normalizePracticeMode(mode)
+        persist()
+    }
+
+    fun setPreferredPracticeBatchSize(context: Context, mode: String, customSize: Int? = null) {
+        appContext = context.applicationContext
+        preferredPracticeBatchSizeMode = normalizePracticeBatchSizeMode(mode)
+        customSize?.let { preferredPracticeBatchCustomSize = it.coerceAtLeast(1) }
+        persist()
+    }
+
     fun preferredPracticeTypes(): Set<QuestionType> {
         if (preferredPracticeTypeNames.isBlank()) return emptySet()
         return preferredPracticeTypeNames
@@ -621,13 +663,19 @@ object QuizRepository {
         questionCountMode: String? = null,
         customQuestionCount: Int? = null,
         orderMode: String? = null,
-        types: Set<QuestionType>? = null
+        types: Set<QuestionType>? = null,
+        practiceMode: String? = null,
+        batchSizeMode: String? = null,
+        customBatchSize: Int? = null
     ) {
         if (!rememberPracticeSettingsEnabled) return
         appContext = context.applicationContext
         questionCountMode?.let { preferredPracticeQuestionCountMode = normalizePracticeCountMode(it) }
         customQuestionCount?.let { preferredPracticeCustomQuestionCount = it.coerceAtLeast(1) }
         orderMode?.let { preferredPracticeOrderMode = normalizePracticeOrderMode(it) }
+        practiceMode?.let { preferredPracticeMode = normalizePracticeMode(it) }
+        batchSizeMode?.let { preferredPracticeBatchSizeMode = normalizePracticeBatchSizeMode(it) }
+        customBatchSize?.let { preferredPracticeBatchCustomSize = it.coerceAtLeast(1) }
         types?.let { selectedTypes ->
             preferredPracticeTypeNames = selectedTypes
                 .map { it.name }
@@ -790,9 +838,7 @@ object QuizRepository {
     fun submitPracticeBatch(): Boolean {
         if (practiceMode != PRACTICE_MODE_BATCH || practiceQuestions.isEmpty() || practiceBatchSubmitted) return false
         val bank = activeBank()
-        practiceSessionResults.clear()
-        practiceAnswerResults.clear()
-        practiceQuestions.forEach { question ->
+        practiceCurrentBatchQuestions().forEach { question ->
             val userAnswer = practiceDraftAnswers[question.id].orEmpty()
             val result = evaluateQuestion(question, userAnswer)
             practiceSessionResults[question.id] = result.correct
@@ -814,13 +860,108 @@ object QuizRepository {
             }
         }
         practiceBatchSubmitted = true
+        practiceIndex = practiceCurrentBatchStartIndex()
         restorePracticeSelectionForCurrentQuestion()
         persist()
         return true
     }
 
     fun practiceDraftAnsweredCount(): Int {
-        return practiceQuestions.count { question -> practiceDraftAnswers[question.id]?.isNotEmpty() == true }
+        val questions = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchQuestions() else practiceQuestions
+        return questions.count { question -> practiceDraftAnswers[question.id]?.isNotEmpty() == true }
+    }
+
+    fun practiceCurrentBatchSubmittedCount(): Int {
+        return practiceCurrentBatchQuestions().count { question -> practiceAnswerResults.containsKey(question.id) }
+    }
+
+    fun practiceCurrentBatchCorrectCount(): Int {
+        return practiceCurrentBatchQuestions().count { question -> practiceAnswerResults[question.id]?.correct == true }
+    }
+
+    fun practiceWrongQuestionIndexes(): List<Int> {
+        val indexes = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchIndexes() else practiceQuestions.indices.toList()
+        return indexes.mapNotNull { index ->
+            val question = practiceQuestions.getOrNull(index) ?: return@mapNotNull null
+            if (practiceAnswerResults[question.id]?.correct == false) index else null
+        }
+    }
+
+    fun goToPracticeQuestion(index: Int) {
+        val questions = activePracticeQuestions()
+        if (questions.isEmpty()) return
+        val minIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchStartIndex() else 0
+        val maxIndex = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchEndIndex() else questions.lastIndex
+        practiceIndex = index.coerceIn(minIndex, maxIndex)
+        restorePracticeSelectionForCurrentQuestion()
+    }
+
+    fun preferredPracticeBatchGroupSize(): Int {
+        return resolvePracticeBatchGroupSize(preferredPracticeBatchSizeMode, preferredPracticeBatchCustomSize)
+    }
+
+    fun resolvePracticeBatchGroupSize(mode: String, customSize: Int): Int {
+        return when (normalizePracticeBatchSizeMode(mode)) {
+            "20" -> 20
+            "custom" -> customSize.coerceAtLeast(1)
+            else -> 10
+        }
+    }
+
+    fun practiceCurrentBatchStartIndex(): Int {
+        if (practiceQuestions.isEmpty()) return 0
+        return practiceBatchGroupStartIndex.coerceIn(0, practiceQuestions.lastIndex)
+    }
+
+    fun practiceCurrentBatchEndIndex(): Int {
+        if (practiceQuestions.isEmpty()) return 0
+        val start = practiceCurrentBatchStartIndex()
+        return (start + practiceBatchGroupSize - 1).coerceAtMost(practiceQuestions.lastIndex)
+    }
+
+    fun practiceCurrentBatchIndexes(): List<Int> {
+        if (practiceQuestions.isEmpty()) return emptyList()
+        return (practiceCurrentBatchStartIndex()..practiceCurrentBatchEndIndex()).toList()
+    }
+
+    fun practiceCurrentBatchQuestions(): List<Question> {
+        return practiceCurrentBatchIndexes().mapNotNull { index -> practiceQuestions.getOrNull(index) }
+    }
+
+    fun practiceCurrentBatchTotal(): Int = practiceCurrentBatchQuestions().size
+
+    fun practiceBatchGroupNumber(): Int {
+        if (practiceQuestions.isEmpty()) return 0
+        return practiceCurrentBatchStartIndex() / practiceBatchGroupSize + 1
+    }
+
+    fun practiceBatchGroupCount(): Int {
+        if (practiceQuestions.isEmpty()) return 0
+        return (practiceQuestions.size + practiceBatchGroupSize - 1) / practiceBatchGroupSize
+    }
+
+    fun canStartNextPracticeBatchGroup(): Boolean {
+        return practiceMode == PRACTICE_MODE_BATCH &&
+            practiceBatchSubmitted &&
+            practiceCurrentBatchEndIndex() < practiceQuestions.lastIndex
+    }
+
+    fun startNextPracticeBatchGroup(): Boolean {
+        if (!canStartNextPracticeBatchGroup()) return false
+        practiceBatchGroupStartIndex = practiceCurrentBatchEndIndex() + 1
+        practiceIndex = practiceBatchGroupStartIndex
+        selectedAnswer = emptyList()
+        practiceLastResult = null
+        practiceBatchSubmitted = false
+        restorePracticeSelectionForCurrentQuestion()
+        return true
+    }
+
+    fun isAllPracticeBatchGroupsSubmitted(): Boolean {
+        return practiceMode == PRACTICE_MODE_BATCH &&
+            practiceBatchSubmitted &&
+            practiceCurrentBatchEndIndex() >= practiceQuestions.lastIndex &&
+            practiceQuestions.all { question -> practiceAnswerResults.containsKey(question.id) }
     }
 
 
@@ -1324,6 +1465,8 @@ object QuizRepository {
         practiceLastResult = null
         practiceMode = PRACTICE_MODE_INSTANT
         practiceBatchSubmitted = false
+        practiceBatchGroupSize = 10
+        practiceBatchGroupStartIndex = 0
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
         practiceDraftAnswers.clear()
@@ -1559,6 +1702,13 @@ object QuizRepository {
         }
     }
 
+    private fun normalizePracticeBatchSizeMode(mode: String): String {
+        return when (mode) {
+            "20", "custom" -> mode
+            else -> "10"
+        }
+    }
+
 
     private fun normalizePracticeCountMode(mode: String): String {
         return when (mode) {
@@ -1626,6 +1776,9 @@ object QuizRepository {
             .putInt(KEY_PRACTICE_PREFERRED_CUSTOM_COUNT, preferredPracticeCustomQuestionCount)
             .putString(KEY_PRACTICE_PREFERRED_ORDER_MODE, preferredPracticeOrderMode)
             .putString(KEY_PRACTICE_PREFERRED_TYPE_NAMES, preferredPracticeTypeNames)
+            .putString(KEY_PRACTICE_PREFERRED_MODE, preferredPracticeMode)
+            .putString(KEY_PRACTICE_PREFERRED_BATCH_SIZE_MODE, preferredPracticeBatchSizeMode)
+            .putInt(KEY_PRACTICE_PREFERRED_BATCH_CUSTOM_SIZE, preferredPracticeBatchCustomSize)
             .putBoolean(KEY_REMEMBER_EXAM_SETTINGS, rememberExamSettingsEnabled)
             .putString(KEY_EXAM_PREFERRED_COUNT_MODE, preferredExamQuestionCountMode)
             .putInt(KEY_EXAM_PREFERRED_CUSTOM_COUNT, preferredExamCustomQuestionCount)

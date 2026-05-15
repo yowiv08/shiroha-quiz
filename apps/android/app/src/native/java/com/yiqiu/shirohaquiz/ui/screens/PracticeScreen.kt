@@ -156,8 +156,19 @@ fun PracticeScreen(
             }
         )
     }
-    var selectedPracticeMode by rememberSaveable(bank?.id) {
-        mutableStateOf(QuizRepository.PRACTICE_MODE_INSTANT)
+    var selectedPracticeMode by rememberSaveable(bank?.id, QuizRepository.preferredPracticeMode) {
+        mutableStateOf(QuizRepository.preferredPracticeMode)
+    }
+    var selectedBatchGroupSizeMode by rememberSaveable(bank?.id, QuizRepository.preferredPracticeBatchSizeMode) {
+        mutableStateOf(QuizRepository.preferredPracticeBatchSizeMode)
+    }
+    var selectedBatchGroupSize by remember(bank?.id, selectedBatchGroupSizeMode, selectedQuestionCount) {
+        mutableIntStateOf(
+            QuizRepository.resolvePracticeBatchGroupSize(
+                mode = selectedBatchGroupSizeMode,
+                customSize = QuizRepository.preferredPracticeBatchCustomSize
+            ).coerceIn(1, selectedQuestionCount.coerceAtLeast(1))
+        )
     }
 
     val selectedAvailable = remember(availableCounts, selectedTypes) {
@@ -173,14 +184,18 @@ fun PracticeScreen(
                 questionCountMode = selectedQuestionCountMode,
                 customQuestionCount = if (selectedQuestionCountMode == "custom") count else null,
                 orderMode = practiceOrderMode,
-                types = safeTypes
+                types = safeTypes,
+                practiceMode = selectedPracticeMode,
+                batchSizeMode = selectedBatchGroupSizeMode,
+                customBatchSize = if (selectedBatchGroupSizeMode == "custom") selectedBatchGroupSize.coerceIn(1, count) else null
             )
             QuizRepository.startPracticeSession(
                 questionCount = count,
                 allowedTypes = safeTypes,
                 sourceLabel = "当前题库",
                 randomize = practiceOrderMode == "random",
-                practiceMode = selectedPracticeMode
+                practiceMode = selectedPracticeMode,
+                batchGroupSize = selectedBatchGroupSize.coerceIn(1, count)
             )
         }
     }
@@ -257,7 +272,12 @@ fun PracticeScreen(
                 selectedQuestionCountMode = selectedQuestionCountMode,
                 practiceOrderMode = practiceOrderMode,
                 selectedPracticeMode = selectedPracticeMode,
-                onSelectPracticeMode = { mode -> selectedPracticeMode = mode },
+                selectedBatchGroupSize = selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1)),
+                selectedBatchGroupSizeMode = selectedBatchGroupSizeMode,
+                onSelectPracticeMode = { mode ->
+                    selectedPracticeMode = mode
+                    QuizRepository.rememberPracticeSettings(context, practiceMode = mode)
+                },
                 onSelectPracticeOrderMode = { mode ->
                     practiceOrderMode = mode
                     QuizRepository.rememberPracticeSettings(context, orderMode = mode)
@@ -287,10 +307,25 @@ fun PracticeScreen(
                 onSelectQuestionCount = { count, mode ->
                     selectedQuestionCount = count
                     selectedQuestionCountMode = mode
+                    if (selectedBatchGroupSize > count) {
+                        selectedBatchGroupSize = count.coerceAtLeast(1)
+                        selectedBatchGroupSizeMode = "custom"
+                    }
                     QuizRepository.rememberPracticeSettings(
                         context = context,
                         questionCountMode = mode,
-                        customQuestionCount = if (mode == "custom") count else null
+                        customQuestionCount = if (mode == "custom") count else null,
+                        batchSizeMode = selectedBatchGroupSizeMode,
+                        customBatchSize = if (selectedBatchGroupSizeMode == "custom") selectedBatchGroupSize else null
+                    )
+                },
+                onSelectBatchGroupSize = { count, mode ->
+                    selectedBatchGroupSize = count.coerceIn(1, selectedQuestionCount.coerceAtLeast(1))
+                    selectedBatchGroupSizeMode = mode
+                    QuizRepository.rememberPracticeSettings(
+                        context = context,
+                        batchSizeMode = mode,
+                        customBatchSize = if (mode == "custom") selectedBatchGroupSize else null
                     )
                 },
                 onStartPractice = startPracticeWithSettings
@@ -316,17 +351,53 @@ fun PracticeScreen(
         val isBatchPractice = QuizRepository.practiceMode == QuizRepository.PRACTICE_MODE_BATCH
         val isBatchSubmitted = isBatchPractice && QuizRepository.practiceBatchSubmitted
         val isBatchBeforeSubmit = isBatchPractice && !QuizRepository.practiceBatchSubmitted
-        val canGoNext = isBatchBeforeSubmit || !QuizRepository.practiceNextRequiresResult || isSubmitted
+        val batchGroupStart = if (isBatchPractice) QuizRepository.practiceCurrentBatchStartIndex() else 0
+        val batchGroupEnd = if (isBatchPractice) QuizRepository.practiceCurrentBatchEndIndex() else practiceQuestions.lastIndex
+        val batchGroupIndexes = if (isBatchPractice) QuizRepository.practiceCurrentBatchIndexes() else practiceQuestions.indices.toList()
+        val batchGroupTotal = if (isBatchPractice) QuizRepository.practiceCurrentBatchTotal() else practiceQuestions.size
+        val batchGroupNumber = if (isBatchPractice) QuizRepository.practiceBatchGroupNumber() else 0
+        val batchGroupCount = if (isBatchPractice) QuizRepository.practiceBatchGroupCount() else 0
+        val canGoNext = if (isBatchPractice) QuizRepository.practiceIndex < batchGroupEnd else isBatchBeforeSubmit || !QuizRepository.practiceNextRequiresResult || isSubmitted
         val displayedSelection = effectiveResult?.userAnswer ?: QuizRepository.selectedAnswer
         val batchDraftAnsweredCount = QuizRepository.practiceDraftAnsweredCount()
-        var showBatchSubmitConfirm by rememberSaveable(practiceQuestions.size, QuizRepository.practiceBatchSubmitted) { mutableStateOf(false) }
+        var showBatchSubmitConfirm by rememberSaveable(practiceQuestions.size, QuizRepository.practiceBatchSubmitted, batchGroupStart) { mutableStateOf(false) }
+        var showBatchAnswerSheet by rememberSaveable(practiceQuestions.size, QuizRepository.practiceBatchSubmitted, batchGroupStart) { mutableStateOf(false) }
+        var batchReviewWrongOnly by rememberSaveable(practiceQuestions.size, QuizRepository.practiceBatchSubmitted, batchGroupStart) { mutableStateOf(false) }
+        val batchWrongIndexes = if (isBatchSubmitted) QuizRepository.practiceWrongQuestionIndexes() else emptyList()
+        if (!isBatchSubmitted && batchReviewWrongOnly) batchReviewWrongOnly = false
+        if (batchReviewWrongOnly && batchWrongIndexes.isEmpty()) batchReviewWrongOnly = false
+        val batchReviewIndexes = if (isBatchSubmitted && batchReviewWrongOnly) batchWrongIndexes else if (isBatchPractice) batchGroupIndexes else practiceQuestions.indices.toList()
+        val currentReviewPosition = batchReviewIndexes.indexOf(QuizRepository.practiceIndex)
+        val goPreviousPractice = {
+            if (isBatchSubmitted && batchReviewWrongOnly) {
+                if (currentReviewPosition > 0) QuizRepository.goToPracticeQuestion(batchReviewIndexes[currentReviewPosition - 1])
+            } else {
+                QuizRepository.previousQuestion()
+            }
+        }
+        val goNextPractice = {
+            if (isBatchSubmitted && batchReviewWrongOnly) {
+                if (currentReviewPosition >= 0 && currentReviewPosition < batchReviewIndexes.lastIndex) {
+                    QuizRepository.goToPracticeQuestion(batchReviewIndexes[currentReviewPosition + 1])
+                }
+            } else {
+                QuizRepository.nextQuestion()
+            }
+        }
+        val canGoPreviousPractice = if (isBatchSubmitted && batchReviewWrongOnly) currentReviewPosition > 0 else if (isBatchPractice) QuizRepository.practiceIndex > batchGroupStart else QuizRepository.practiceIndex > 0
+        val canGoNextPractice = if (isBatchSubmitted && batchReviewWrongOnly) {
+            currentReviewPosition >= 0 && currentReviewPosition < batchReviewIndexes.lastIndex
+        } else {
+            canGoNext
+        }
+        val canStartNextBatchGroup = isBatchSubmitted && QuizRepository.canStartNextPracticeBatchGroup()
         val isPracticeComplete = practiceQuestions.isNotEmpty() &&
-            QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
+            if (isBatchPractice) QuizRepository.isAllPracticeBatchGroupsSubmitted() else QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
 
         val questionCardModifier = if (QuizRepository.swipeNavigationEnabled) {
             Modifier.questionSwipeNavigation(
-                onSwipeLeft = { if (canGoNext) QuizRepository.nextQuestion() },
-                onSwipeRight = { QuizRepository.previousQuestion() }
+                onSwipeLeft = { if (canGoNextPractice) goNextPractice() },
+                onSwipeRight = { if (canGoPreviousPractice) goPreviousPractice() }
             )
         } else {
             Modifier
@@ -335,11 +406,29 @@ fun PracticeScreen(
         Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)) {
             if (isPracticeProgressExpanded) {
                 PracticeProgressCard(
-                    total = practiceQuestions.size,
-                    answered = if (isBatchBeforeSubmit) batchDraftAnsweredCount else practiceAnsweredCount,
-                    correct = practiceCorrectCount,
+                    total = if (isBatchPractice) batchGroupTotal else practiceQuestions.size,
+                    answered = if (isBatchBeforeSubmit) batchDraftAnsweredCount else if (isBatchSubmitted) QuizRepository.practiceCurrentBatchSubmittedCount() else practiceAnsweredCount,
+                    correct = if (isBatchSubmitted) QuizRepository.practiceCurrentBatchCorrectCount() else practiceCorrectCount,
                     batchBeforeSubmit = isBatchBeforeSubmit,
+                    batchSubmitted = isBatchSubmitted,
+                    batchGroupNumber = batchGroupNumber,
+                    batchGroupCount = batchGroupCount,
+                    wrongCount = batchWrongIndexes.size,
+                    wrongOnly = batchReviewWrongOnly,
                     expanded = true,
+                    onOpenAnswerSheet = if (isBatchPractice) { { showBatchAnswerSheet = true } } else null,
+                    onToggleWrongOnly = if (isBatchSubmitted) {
+                        {
+                            if (batchReviewWrongOnly) {
+                                batchReviewWrongOnly = false
+                            } else if (batchWrongIndexes.isNotEmpty()) {
+                                batchReviewWrongOnly = true
+                                if (QuizRepository.practiceIndex !in batchWrongIndexes) {
+                                    QuizRepository.goToPracticeQuestion(batchWrongIndexes.first())
+                                }
+                            }
+                        }
+                    } else null,
                     onToggle = { isPracticeProgressExpanded = false }
                 )
             }
@@ -362,22 +451,17 @@ fun PracticeScreen(
             }
 
             GlassCard(modifier = questionCardModifier) {
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                FlowRow(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    CompactPracticeChip("第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题", selected = true)
-                    CompactPracticeChip(typeLabel(question.type))
-                    if (isBatchPractice) CompactPracticeChip(if (isBatchSubmitted) "批量复盘" else "批量做题")
-                }
-                CompactExitPracticeButton(
-                    onClick = { QuizRepository.endPracticeSession() }
+                CompactPracticeChip(
+                    if (isBatchPractice) "第 $batchGroupNumber 组 · ${QuizRepository.practiceIndex - batchGroupStart + 1} / $batchGroupTotal 题" else "第 ${QuizRepository.practiceIndex + 1} / ${practiceQuestions.size} 题",
+                    selected = true
                 )
+                CompactPracticeChip(typeLabel(question.type))
+                if (isBatchSubmitted && batchReviewWrongOnly) CompactPracticeChip("只看错题", selected = true)
             }
             Spacer(Modifier.height(12.dp))
             Text(
@@ -408,14 +492,18 @@ fun PracticeScreen(
                             ),
                             onClick = {
                                 if (!isSubmitted) {
-                                    val shouldAutoNext = !isBatchPractice &&
+                                    val isFastAutoQuestion = question.type == QuestionType.SINGLE || question.type == QuestionType.JUDGE
+                                    val shouldAutoNextInstant = !isBatchPractice &&
                                         QuizRepository.practiceAutoNextEnabled &&
-                                        (question.type == QuestionType.SINGLE || question.type == QuestionType.JUDGE)
+                                        isFastAutoQuestion
+                                    val shouldAutoNextBatch = isBatchBeforeSubmit &&
+                                        QuizRepository.practiceAutoNextEnabled &&
+                                        isFastAutoQuestion
                                     QuizRepository.toggleAnswer(
                                         key = option.key,
                                         multiple = question.type == QuestionType.MULTIPLE
                                     )
-                                    if (shouldAutoNext) {
+                                    if (shouldAutoNextInstant) {
                                         val autoNextQuestionId = question.id
                                         val autoNextIndex = QuizRepository.practiceIndex
                                         val submitted = QuizRepository.submitPracticeQuestion()
@@ -427,6 +515,17 @@ fun PracticeScreen(
                                                 ) {
                                                     QuizRepository.nextQuestion()
                                                 }
+                                            }
+                                        }
+                                    } else if (shouldAutoNextBatch && QuizRepository.practiceIndex < batchGroupEnd) {
+                                        val autoNextQuestionId = question.id
+                                        val autoNextIndex = QuizRepository.practiceIndex
+                                        autoNextScope.launch {
+                                            delay(180)
+                                            if (QuizRepository.practiceIndex == autoNextIndex &&
+                                                QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
+                                            ) {
+                                                QuizRepository.nextQuestion()
                                             }
                                         }
                                     }
@@ -454,7 +553,7 @@ fun PracticeScreen(
                         .height(50.dp),
                     fillWidthContent = true,
                     onClick = {
-                        if (batchDraftAnsweredCount < practiceQuestions.size) {
+                        if (batchDraftAnsweredCount < batchGroupTotal) {
                             showBatchSubmitConfirm = true
                         } else {
                             QuizRepository.submitPracticeBatch()
@@ -509,7 +608,8 @@ fun PracticeScreen(
                         .weight(1f)
                         .height(50.dp),
                     fillWidthContent = true,
-                    onClick = { QuizRepository.previousQuestion() }
+                    enabled = canGoPreviousPractice,
+                    onClick = { goPreviousPractice() }
                 )
                 ActionPillButton(
                     Icons.AutoMirrored.Rounded.ArrowForward,
@@ -519,8 +619,49 @@ fun PracticeScreen(
                         .weight(1f)
                         .height(50.dp),
                     fillWidthContent = true,
-                    enabled = canGoNext,
-                    onClick = { QuizRepository.nextQuestion() }
+                    enabled = canGoNextPractice,
+                    onClick = { goNextPractice() }
+                )
+            }
+
+            if (isBatchSubmitted) {
+                Spacer(Modifier.height(10.dp))
+                ActionPillButton(
+                    Icons.Rounded.PlayArrow,
+                    if (canStartNextBatchGroup) "进入下一组" else "完成练习",
+                    primary = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    onClick = {
+                        if (canStartNextBatchGroup) {
+                            QuizRepository.startNextPracticeBatchGroup()
+                            batchReviewWrongOnly = false
+                            isPracticeProgressExpanded = true
+                        } else {
+                            QuizRepository.endPracticeSession()
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(Modifier.weight(1f))
+                ActionPillButton(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    "退出练习",
+                    primary = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.endPracticeSession() }
                 )
             }
 
@@ -548,12 +689,29 @@ fun PracticeScreen(
 
             if (showBatchSubmitConfirm) {
                 BatchSubmitConfirmDialog(
-                    unansweredCount = (practiceQuestions.size - batchDraftAnsweredCount).coerceAtLeast(0),
+                    unansweredCount = (batchGroupTotal - batchDraftAnsweredCount).coerceAtLeast(0),
                     onDismiss = { showBatchSubmitConfirm = false },
                     onConfirm = {
                         QuizRepository.submitPracticeBatch()
                         showBatchSubmitConfirm = false
                     }
+                )
+            }
+
+            if (showBatchAnswerSheet) {
+                BatchPracticeAnswerSheetDialog(
+                    groupNumber = batchGroupNumber,
+                    groupCount = batchGroupCount,
+                    indexes = batchGroupIndexes,
+                    currentIndex = QuizRepository.practiceIndex,
+                    submitted = isBatchSubmitted,
+                    isAnswered = { index -> QuizRepository.practiceDraftAnswers[practiceQuestions[index].id]?.isNotEmpty() == true },
+                    isCorrect = { index -> QuizRepository.practiceAnswerResults[practiceQuestions[index].id]?.correct },
+                    onJump = { index ->
+                        QuizRepository.goToPracticeQuestion(index)
+                        showBatchAnswerSheet = false
+                    },
+                    onDismiss = { showBatchAnswerSheet = false }
                 )
             }
         }
@@ -572,10 +730,13 @@ private fun PracticeSetupPanel(
     selectedQuestionCountMode: String,
     practiceOrderMode: String,
     selectedPracticeMode: String,
+    selectedBatchGroupSize: Int,
+    selectedBatchGroupSizeMode: String,
     onSelectPracticeMode: (String) -> Unit,
     onSelectPracticeOrderMode: (String) -> Unit,
     onToggleType: (QuestionType) -> Unit,
     onSelectQuestionCount: (Int, String) -> Unit,
+    onSelectBatchGroupSize: (Int, String) -> Unit,
     onStartPractice: () -> Unit
 ) {
     val selectedAvailable = availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
@@ -583,23 +744,42 @@ private fun PracticeSetupPanel(
     var customQuestionCountText by remember(selectedAvailable) {
         mutableStateOf(selectedQuestionCount.coerceIn(1, selectedAvailable.coerceAtLeast(1)).toString())
     }
+    var showCustomBatchGroupDialog by remember { mutableStateOf(false) }
+    var customBatchGroupText by remember(selectedQuestionCount) {
+        mutableStateOf(selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1)).toString())
+    }
 
     GlassCard {
-        Text(
-            text = bankName,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = "共 $totalQuestions 题 · 选范围后开始",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = bankName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "共 $totalQuestions 题 · 选范围后开始",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            ActionPillButton(
+                icon = Icons.Rounded.PlayArrow,
+                text = "开始练习",
+                primary = selectedAvailable > 0,
+                modifier = Modifier.height(46.dp),
+                onClick = { if (selectedAvailable > 0) onStartPractice() }
+            )
+        }
         Spacer(Modifier.height(12.dp))
 
         Text("答题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -631,12 +811,55 @@ private fun PracticeSetupPanel(
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            text = if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) "先完成本组题，再统一提交并查看解析。" else "每题提交后立即查看结果和解析。",
+            text = if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) "按每组题数连续做题，提交本组后统一看解析。" else "每题提交后立即查看结果和解析。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+
+        if (selectedPracticeMode == QuizRepository.PRACTICE_MODE_BATCH) {
+            Spacer(Modifier.height(10.dp))
+            Text("每组题数", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(7.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                val safeMaxGroupSize = selectedQuestionCount.coerceAtLeast(1)
+                ActionPillButton(
+                    icon = Icons.Rounded.PlayArrow,
+                    text = "10题",
+                    primary = selectedBatchGroupSizeMode == "10",
+                    modifier = Modifier.height(44.dp),
+                    enabled = safeMaxGroupSize >= 10,
+                    onClick = { onSelectBatchGroupSize(10.coerceAtMost(safeMaxGroupSize), "10") }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.PlayArrow,
+                    text = "20题",
+                    primary = selectedBatchGroupSizeMode == "20",
+                    modifier = Modifier.height(44.dp),
+                    enabled = safeMaxGroupSize >= 20,
+                    onClick = { onSelectBatchGroupSize(20.coerceAtMost(safeMaxGroupSize), "20") }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.PlayArrow,
+                    text = "自定义",
+                    primary = selectedBatchGroupSizeMode == "custom",
+                    modifier = Modifier.height(44.dp),
+                    onClick = {
+                        customBatchGroupText = selectedBatchGroupSize.coerceIn(1, safeMaxGroupSize).toString()
+                        showCustomBatchGroupDialog = true
+                    }
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "当前每组 ${selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1))} 题，提交本组后再进入下一组。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
         Spacer(Modifier.height(10.dp))
         Text("组题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -741,17 +964,6 @@ private fun PracticeSetupPanel(
             Spacer(Modifier.height(10.dp))
             NoticeCard("当前筛选没有可练习题目，请至少选择一种有题目的题型。", warning = true)
         }
-        Spacer(Modifier.height(12.dp))
-        ActionPillButton(
-            icon = Icons.Rounded.PlayArrow,
-            text = "开始练习",
-            primary = selectedAvailable > 0,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            fillWidthContent = true,
-            onClick = { if (selectedAvailable > 0) onStartPractice() }
-        )
     }
 
     if (showCustomCountDialog) {
@@ -764,6 +976,19 @@ private fun PracticeSetupPanel(
             onConfirm = { count ->
                 onSelectQuestionCount(count, "custom")
                 showCustomCountDialog = false
+            }
+        )
+    }
+    if (showCustomBatchGroupDialog) {
+        CustomQuestionCountDialog(
+            title = "自定义每组题数",
+            value = customBatchGroupText,
+            maxCount = selectedQuestionCount.coerceAtLeast(1),
+            onValueChange = { customBatchGroupText = it },
+            onDismiss = { showCustomBatchGroupDialog = false },
+            onConfirm = { count ->
+                onSelectBatchGroupSize(count, "custom")
+                showCustomBatchGroupDialog = false
             }
         )
     }
@@ -870,6 +1095,31 @@ private fun CompactPracticeChip(
             text = text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
             color = if (selected) MaterialTheme.colorScheme.primary else ShirohaColors.TextSecondary,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun CompactPracticeActionChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .defaultMinSize(minHeight = 32.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = ShirohaColors.CardWhite86,
+        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
@@ -1047,7 +1297,14 @@ private fun PracticeProgressCard(
     answered: Int,
     correct: Int,
     batchBeforeSubmit: Boolean,
+    batchSubmitted: Boolean,
+    batchGroupNumber: Int,
+    batchGroupCount: Int,
+    wrongCount: Int,
+    wrongOnly: Boolean,
     expanded: Boolean,
+    onOpenAnswerSheet: (() -> Unit)?,
+    onToggleWrongOnly: (() -> Unit)?,
     onToggle: () -> Unit
 ) {
     val accuracy = if (answered == 0) 0 else correct * 100 / answered
@@ -1060,20 +1317,43 @@ private fun PracticeProgressCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(if (batchBeforeSubmit) "批量做题" else "正确率", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (batchBeforeSubmit) "批量做题 · 第 $batchGroupNumber / $batchGroupCount 组" else if (batchSubmitted) "批量复盘 · 第 $batchGroupNumber / $batchGroupCount 组" else "正确率",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = if (batchBeforeSubmit) "已答 $answered / $total 题 · 提交后统一判分" else "已提交 $answered / $total 题 · 正确率 $accuracy%",
+                    text = when {
+                        batchBeforeSubmit -> "本组已答 $answered / $total 题 · 提交后统一判分"
+                        batchSubmitted -> "本组已提交 $answered / $total 题 · 正确率 $accuracy% · 错题 $wrongCount 题"
+                        else -> "已提交 $answered / $total 题 · 正确率 $accuracy%"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            PracticePanelCapsule(
-                text = "收起",
-                onClick = onToggle
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onOpenAnswerSheet != null) {
+                    PracticePanelCapsule(text = "答题卡", onClick = onOpenAnswerSheet)
+                }
+                if (onToggleWrongOnly != null) {
+                    PracticePanelCapsule(
+                        text = if (wrongOnly) "看全部" else "只看错题",
+                        enabled = wrongCount > 0,
+                        onClick = onToggleWrongOnly
+                    )
+                }
+                PracticePanelCapsule(
+                    text = "收起",
+                    onClick = onToggle
+                )
+            }
         }
     }
 }
@@ -1081,21 +1361,23 @@ private fun PracticeProgressCard(
 @Composable
 private fun PracticePanelCapsule(
     text: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .defaultMinSize(minHeight = 32.dp)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(ShirohaRadius.Pill),
-        color = ShirohaColors.CardWhite86,
-        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+        color = if (enabled) ShirohaColors.CardWhite86 else ShirohaColors.CardMuted,
+        border = BorderStroke(ShirohaDimens.Hairline, if (enabled) ShirohaColors.LineStrong else ShirohaColors.LineSoft)
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else ShirohaColors.TextSecondary,
             maxLines = 1
         )
     }
@@ -1175,6 +1457,157 @@ private fun Modifier.questionSwipeNavigation(
                 }
             )
         }
+}
+
+@Composable
+private fun BatchPracticeAnswerSheetDialog(
+    groupNumber: Int,
+    groupCount: Int,
+    indexes: List<Int>,
+    currentIndex: Int,
+    submitted: Boolean,
+    isAnswered: (Int) -> Boolean,
+    isCorrect: (Int) -> Boolean?,
+    onJump: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (submitted) "第 $groupNumber / $groupCount 组复盘答题卡" else "第 $groupNumber / $groupCount 组答题卡") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BatchLegendChip("当前", selected = true)
+                    if (submitted) {
+                        BatchLegendChip("正确", correct = true)
+                        BatchLegendChip("错误", correct = false)
+                    } else {
+                        BatchLegendChip("已答")
+                        BatchLegendChip("未答", muted = true)
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    indexes.chunked(5).forEach { rowIndexes ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            rowIndexes.forEach { index ->
+                                val current = index == currentIndex
+                                val correct = if (submitted) isCorrect(index) else null
+                                val answered = isAnswered(index)
+                                BatchAnswerNumberChip(
+                                    number = index - indexes.first() + 1,
+                                    current = current,
+                                    answered = answered,
+                                    submitted = submitted,
+                                    correct = correct,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onJump(index) }
+                                )
+                            }
+                            repeat(5 - rowIndexes.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+@Composable
+private fun BatchLegendChip(
+    text: String,
+    selected: Boolean = false,
+    correct: Boolean? = null,
+    muted: Boolean = false
+) {
+    val background = when {
+        selected -> ShirohaColors.BrandPrimarySoft
+        correct == true -> ShirohaColors.StateSuccessSoft
+        correct == false -> ShirohaColors.StateDangerSoft
+        muted -> ShirohaColors.CardMuted
+        else -> ShirohaColors.CardWhite86
+    }
+    val borderColor = when {
+        selected -> ShirohaColors.LineSelected
+        correct == true -> ShirohaColors.StateSuccess
+        correct == false -> ShirohaColors.StateDanger
+        else -> ShirohaColors.LineSoft
+    }
+    val textColor = when {
+        selected -> MaterialTheme.colorScheme.primary
+        correct == true -> ShirohaColors.StateSuccess
+        correct == false -> ShirohaColors.StateDanger
+        else -> ShirohaColors.TextSecondary
+    }
+    Surface(
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = background,
+        border = BorderStroke(ShirohaDimens.Hairline, borderColor)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = textColor,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun BatchAnswerNumberChip(
+    number: Int,
+    current: Boolean,
+    answered: Boolean,
+    submitted: Boolean,
+    correct: Boolean?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val background = when {
+        current -> ShirohaColors.BrandPrimarySoft
+        submitted && correct == true -> ShirohaColors.StateSuccessSoft
+        submitted && correct == false -> ShirohaColors.StateDangerSoft
+        answered -> ShirohaColors.CardWhite86
+        else -> ShirohaColors.CardMuted
+    }
+    val borderColor = when {
+        current -> ShirohaColors.LineSelected
+        submitted && correct == true -> ShirohaColors.StateSuccess
+        submitted && correct == false -> ShirohaColors.StateDanger
+        answered -> ShirohaColors.LineStrong
+        else -> ShirohaColors.LineSoft
+    }
+    val textColor = when {
+        current -> MaterialTheme.colorScheme.primary
+        submitted && correct == true -> ShirohaColors.StateSuccess
+        submitted && correct == false -> ShirohaColors.StateDanger
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Surface(
+        modifier = modifier
+            .height(36.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = background,
+        border = BorderStroke(ShirohaDimens.Hairline, borderColor)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = number.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @Composable

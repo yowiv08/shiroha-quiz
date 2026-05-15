@@ -190,22 +190,18 @@ fun ExamScreen(
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelLarge
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-            ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "考试模式",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.BottomStart)
+                    modifier = Modifier.align(Alignment.CenterStart)
                 )
                 if (isActiveExamRunning && examStatusExpanded) {
                     ExamCollapseTextPill(
                         text = "收起",
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
+                            .align(Alignment.Center)
                             .width(64.dp)
                             .height(28.dp),
                         onClick = { examStatusExpanded = false }
@@ -216,7 +212,7 @@ fun ExamScreen(
                     text = "切换练习",
                     primary = false,
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
+                        .align(Alignment.CenterEnd)
                         .height(44.dp),
                     onClick = onGoPractice
                 )

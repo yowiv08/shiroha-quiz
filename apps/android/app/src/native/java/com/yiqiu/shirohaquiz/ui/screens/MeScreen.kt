@@ -454,6 +454,10 @@ fun PersonalPreferenceScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    var showDefaultBatchSizeDialog by remember { mutableStateOf(false) }
+    var defaultBatchSizeText by remember(QuizRepository.preferredPracticeBatchCustomSize) {
+        mutableStateOf(QuizRepository.preferredPracticeBatchCustomSize.coerceAtLeast(1).toString())
+    }
 
     Column(
         modifier = Modifier
@@ -510,7 +514,7 @@ fun PersonalPreferenceScreen(
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
                 title = "记住上次练习设置",
-                desc = "进入练习页时恢复上次题量、题型和组题方式。",
+                desc = "进入练习页时恢复上次题量、题型、组题方式和答题方式。",
                 checked = QuizRepository.rememberPracticeSettingsEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setRememberPracticeSettingsEnabled(context, enabled) }
             )
@@ -531,9 +535,94 @@ fun PersonalPreferenceScreen(
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
                 title = "单选 / 判断自动下一题",
-                desc = "选择单选题或判断题选项后，自动提交并进入下一题。",
+                desc = "即时反馈会自动提交进入下一题；批量做题只自动切到下一题。",
                 checked = QuizRepository.practiceAutoNextEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setPracticeAutoNextEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "默认答题方式",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ActionPillButton(
+                    icon = Icons.Rounded.AutoStories,
+                    text = "即时反馈",
+                    primary = QuizRepository.preferredPracticeMode == QuizRepository.PRACTICE_MODE_INSTANT,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.setPreferredPracticeMode(context, QuizRepository.PRACTICE_MODE_INSTANT) }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Description,
+                    text = "批量做题",
+                    primary = QuizRepository.preferredPracticeMode == QuizRepository.PRACTICE_MODE_BATCH,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.setPreferredPracticeMode(context, QuizRepository.PRACTICE_MODE_BATCH) }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "默认每组题数",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ActionPillButton(
+                    icon = Icons.Rounded.AutoStories,
+                    text = "10题",
+                    primary = QuizRepository.preferredPracticeBatchSizeMode == "10",
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.setPreferredPracticeBatchSize(context, "10") }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Description,
+                    text = "20题",
+                    primary = QuizRepository.preferredPracticeBatchSizeMode == "20",
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = { QuizRepository.setPreferredPracticeBatchSize(context, "20") }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.Settings,
+                    text = "自定义",
+                    primary = QuizRepository.preferredPracticeBatchSizeMode == "custom",
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    fillWidthContent = true,
+                    onClick = {
+                        defaultBatchSizeText = QuizRepository.preferredPracticeBatchCustomSize.coerceAtLeast(1).toString()
+                        showDefaultBatchSizeDialog = true
+                    }
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "批量做题默认每组 ${QuizRepository.preferredPracticeBatchGroupSize()} 题，练习页可临时调整。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
@@ -545,6 +634,38 @@ fun PersonalPreferenceScreen(
         }
 
         BackToSettingsButton(onBack = onBack)
+    }
+
+    if (showDefaultBatchSizeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDefaultBatchSizeDialog = false },
+            title = { Text("自定义默认每组题数") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "请输入批量做题默认每组题数。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = defaultBatchSizeText,
+                        onValueChange = { value -> defaultBatchSizeText = value.filter { it.isDigit() }.take(3) },
+                        singleLine = true,
+                        label = { Text("每组题数") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val count = defaultBatchSizeText.toIntOrNull()?.coerceAtLeast(1) ?: 10
+                        QuizRepository.setPreferredPracticeBatchSize(context, "custom", count)
+                        showDefaultBatchSizeDialog = false
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { showDefaultBatchSizeDialog = false }) { Text("取消") } }
+        )
     }
 }
 
