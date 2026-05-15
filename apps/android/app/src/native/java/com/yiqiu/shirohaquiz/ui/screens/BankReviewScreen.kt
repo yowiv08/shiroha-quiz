@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.RemoveCircle
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -162,7 +163,7 @@ fun BankReviewScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("搜索题干 / 选项 / 答案") },
-                leadingIcon = { androidx.compose.material3.Icon(Icons.Rounded.Search, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 singleLine = true
             )
             if (visibleIndices.isEmpty()) {
@@ -173,7 +174,7 @@ fun BankReviewScreen(
 
         if (editableQuestions.isEmpty()) {
             GlassCard {
-                NoticeCard("当前题库已经没有题目。保存后这份题库会变为空题库。", warning = true)
+                NoticeCard("当前题库已经没有题目。保存后这份题库会变成空题库。", warning = true)
                 Spacer(Modifier.height(12.dp))
                 ActionPillButton(
                     icon = Icons.Rounded.Done,
@@ -505,7 +506,7 @@ fun BankReviewScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "如果解析器把说明文字、页眉页脚或废片段识别成题目，可以删除本题。删除后需点击保存返回才会写入题库。",
+                    text = "如果解析器把说明文字、页眉页脚或碎片段识别成题目，可以删除本题。删除后需要点击保存返回才会真正写入题库。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -655,7 +656,7 @@ private fun ReviewFilteredJumpList(
             Spacer(Modifier.height(8.dp))
         }
         if (indices.size > 12) {
-            NoticeCard("当前筛选共有 ${indices.size} 题，这里先显示前 12 题；可用“上一条 / 下一条”继续核对。", warning = false)
+            NoticeCard("当前筛选共 ${indices.size} 题，这里先显示前 12 题；可以用“上一条 / 下一条”继续核对。", warning = false)
         }
     }
 }
@@ -703,7 +704,7 @@ private fun ReviewCompactButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = icon,
                 contentDescription = text,
                 modifier = Modifier.size(15.dp),
@@ -729,8 +730,10 @@ private fun normalizeAfterTypeChange(question: Question, type: QuestionType): Qu
             options = if (question.options.isEmpty()) defaultJudgeOptions() else question.options,
             answer = normalizeJudgeAnswer(question.answer)
         )
+
         QuestionType.SINGLE,
         QuestionType.MULTIPLE -> question.copy(type = type)
+
         QuestionType.BLANK,
         QuestionType.SHORT -> question.copy(type = type)
     }
@@ -740,8 +743,8 @@ private fun normalizeJudgeAnswer(answer: List<String>): List<String> {
     if (answer.isEmpty()) return emptyList()
     return answer.mapNotNull { value ->
         when (value.trim().uppercase()) {
-            "A", "正确", "对", "是", "TRUE", "T", "√", "✓", "✔", "✅", "☑" -> "A"
-            "B", "错误", "错", "否", "FALSE", "F", "×", "X", "✘", "✖", "❌", "❎" -> "B"
+            "A", "正确", "对", "是", "TRUE", "T", "√", "✔", "✅", "☑" -> "A"
+            "B", "错误", "错", "否", "FALSE", "F", "×", "X", "✖", "❌" -> "B"
             else -> value.trim().takeIf { it.isNotBlank() }
         }
     }
@@ -765,7 +768,7 @@ private fun parseReviewAnswer(text: String, type: QuestionType): List<String> {
         normalizeJudgeAnswer(listOf(clean)).takeIf { it.isNotEmpty() }?.let { return it }
     }
 
-    val compactLetters = clean.uppercase().replace(Regex("[\\s,，、/／;；]+"), "")
+    val compactLetters = clean.uppercase().replace(Regex("[\\s,，、;；/]+"), "")
     if (compactLetters.matches(Regex("^[A-H]{1,8}$"))) {
         return compactLetters.map { it.toString() }.distinct()
     }
@@ -774,7 +777,6 @@ private fun parseReviewAnswer(text: String, type: QuestionType): List<String> {
         .replace("，", ",")
         .replace("、", ",")
         .replace("/", ",")
-        .replace("／", ",")
         .replace("；", ",")
         .replace(";", ",")
         .split(Regex("[\\s,]+"))
@@ -793,8 +795,8 @@ private fun parseReviewAnswer(text: String, type: QuestionType): List<String> {
 private fun answerInputText(question: Question): String {
     if (question.type == QuestionType.JUDGE && question.answer.size == 1) {
         return when (question.answer.first().trim().uppercase()) {
-            "A", "正确", "对", "是", "TRUE", "T", "√", "✓", "✔", "✅", "☑" -> "正确"
-            "B", "错误", "错", "否", "FALSE", "F", "×", "X", "✘", "✖", "❌", "❎" -> "错误"
+            "A", "正确", "对", "是", "TRUE", "T", "√", "✔", "✅", "☑" -> "正确"
+            "B", "错误", "错", "否", "FALSE", "F", "×", "X", "✖", "❌" -> "错误"
             else -> question.answer.first()
         }
     }

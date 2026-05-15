@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,10 +38,9 @@ fun StandardImportFormatScreen(
             subtitle = "按这个格式整理题库，识别会更稳定。"
         )
 
-
         FormatSection(
             title = "一、单文件标准格式",
-            body = "每道题建议包含题号、题干、选项、答案和解析。题号可以用 1.、1、【1】 等形式，但同一份题库尽量统一。",
+            body = "每道题建议包含题号、题干、选项、答案和解析。题号可以用 1.、1、（1） 等形式，但同一份题库尽量统一。",
             sample = """
 1. 下列哪一项是良好学习习惯？
 A. 课前预习
@@ -109,9 +107,8 @@ C. 选项三
             title = "六、复杂格式可先用 AI 清洗",
             body = "如果来源材料包含复制错行、答案集中、解析混排、扫描文本或整卷说明，建议先发给常见 AI / LLM 清洗成标准格式，再导入 App。",
             sample = """
-请把下面的待整理文本清洗为适合题库导入的标准格式。
-要求如下：
-1. 保留所有题目，不要漏题、不要编造题目。
+请把下面的待整理文本清洗为适合题库导入的标准格式。要求如下：
+1. 保留所有题目，不要漏题，不要编造题目。
 2. 按原始顺序整理，每道题单独成段。
 3. 每道题尽量整理为：题号、题干、选项、答案、解析。
 4. 单选题答案格式统一为：答案：A
@@ -121,7 +118,6 @@ C. 选项三
 8. 解析如果原文没有，就不要编造；可以留空或写“解析：”。
 9. 遇到无法确认的题干、选项或答案，请标记【待确认】。
 10. 最终只输出清洗后的题库正文，不要输出额外解释。
-
 下面是原始文本：
 【把需要清洗的题库粘贴到这里】
             """.trimIndent()
