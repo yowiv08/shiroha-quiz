@@ -26,6 +26,7 @@ object StandardQuestionParser {
     private data class OptionMarker(val key: String, val markerStart: Int, val contentStart: Int)
     private data class LineAnswerExtraction(val cleanLine: String, val answerText: String? = null, val analysisText: String? = null)
     private data class EmbeddedStemAnswer(val cleanStem: String, val answerText: String)
+    private data class PreparedQuestionLine(val line: String, val forcedType: QuestionType? = null)
 
     fun parse(
         text: String,
@@ -49,11 +50,19 @@ object StandardQuestionParser {
         val analysisLines = mutableListOf<String>()
         val subjectiveAnswerLines = mutableListOf<String>()
         var answerText = ""
+        var forcedType = block.forcedType
         var inAnalysis = false
         var inSubjectiveAnswer = false
 
         block.lines.forEach { rawLine ->
-            val extracted = extractInlineAnswer(rawLine.trim())
+            val preparedLine = prepareQuestionLine(
+                rawLine = rawLine,
+                canStripTypeLabel = stemLines.isEmpty() && options.isEmpty() && answerText.isBlank() && subjectiveAnswerLines.isEmpty()
+            )
+            if (preparedLine.forcedType != null) {
+                forcedType = preparedLine.forcedType
+            }
+            val extracted = extractInlineAnswer(preparedLine.line.trim())
             val line = extracted.cleanLine.trim()
             if (extracted.answerText?.isNotBlank() == true && answerText.isBlank()) {
                 answerText = extracted.answerText.trim()
@@ -108,7 +117,7 @@ object StandardQuestionParser {
             stem = stem,
             options = options,
             answerText = answerText,
-            forcedType = block.forcedType
+            forcedType = forcedType
         )
         val normalizedOptions = normalizeOptionsForType(options, type)
         val answer = normalizeAnswer(answerText, type)
@@ -124,6 +133,16 @@ object StandardQuestionParser {
         )
     }
 
+
+    private fun prepareQuestionLine(rawLine: String, canStripTypeLabel: Boolean): PreparedQuestionLine {
+        val line = rawLine.trim()
+        if (!canStripTypeLabel) return PreparedQuestionLine(line)
+        val typed = QuestionTypeLabelParser.extractLeading(line) ?: return PreparedQuestionLine(line)
+        return PreparedQuestionLine(
+            line = typed.remainder,
+            forcedType = typed.type
+        )
+    }
 
     private fun extractEmbeddedAnswerFromStem(
         stem: String,

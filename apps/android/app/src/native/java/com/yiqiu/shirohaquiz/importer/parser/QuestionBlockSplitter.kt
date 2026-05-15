@@ -11,6 +11,12 @@ data class QuestionBlock(
 )
 
 object QuestionBlockSplitter {
+    private data class ParsedQuestionStart(
+        val number: String,
+        val remainder: String,
+        val forcedType: QuestionType? = null
+    )
+
     private val strictQuestionStartRegex = Regex(
         """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：)）]\s*(.*)$"""
     )
@@ -30,7 +36,7 @@ object QuestionBlockSplitter {
     private val answerLineRegex = Regex("""^\s*(?:[\[【]\s*)?(?:答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|答)(?:\s*[\]】])?\s*[:：]?""")
     private val analysisLineRegex = Regex("""^\s*(?:[\[【]\s*)?(?:解析|答案解析|说明|解题思路)(?:\s*[\]】])?\s*[:：]?""")
     private val embeddedAnswerRegex = Regex("""[\[【]\s*(?:答案|正确答案|参考答案|标准答案|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答)\s*(?:[:：]|[\]】])""")
-    private val subjectiveQuestionTypeRegex = Regex("""(?:【\s*)?(?:简答题|问答题|面试题|结构化面试题|公考面试题|公务员面试题|材料分析题|案例分析题|论述题|综合题)(?:\s*】)?""")
+    private val subjectiveQuestionTypeRegex = Regex("""(?:[【\[（(〔〖《]\s*)?(?:简答题|问答题|面试题|结构化面试题|公考面试题|公务员面试题|材料分析题|案例分析题|名词解释|论述题|综合题)(?:\s*[】\]）)〕〗》])?""")
     private val subjectiveContinuationMarkerRegex = Regex("""^\s*(?:参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答)\s*[:：]""")
     private val globalAnswerSectionRegex = Regex("""(?:集中答案|集中解析|参考答案|标准答案|正确答案|答案解析|答案区|解析区|答案部分|答案(?:与|及)解析)""")
 
@@ -43,6 +49,7 @@ object QuestionBlockSplitter {
         val blocks = mutableListOf<QuestionBlock>()
         var currentNumber: String? = null
         var currentLines = mutableListOf<String>()
+        var currentForcedType = forcedType
         var syntheticNumber = 0
         var sequence = 0
         var skippingGlobalAnswerSection = false
@@ -56,12 +63,13 @@ object QuestionBlockSplitter {
                     number = number,
                     lines = cleanLines,
                     category = category,
-                    forcedType = forcedType,
+                    forcedType = currentForcedType,
                     sequence = sequence++
                 )
             }
             currentNumber = null
             currentLines = mutableListOf()
+            currentForcedType = forcedType
         }
 
         text.lineSequence().forEach { rawLine ->
@@ -97,9 +105,10 @@ object QuestionBlockSplitter {
             if (explicitStart != null) {
                 flush()
                 skippingMaterialIntro = false
-                currentNumber = explicitStart.first
+                currentNumber = explicitStart.number
+                currentForcedType = explicitStart.forcedType ?: forcedType
                 currentLines = mutableListOf<String>().apply {
-                    val remainder = explicitStart.second.trim()
+                    val remainder = explicitStart.remainder.trim()
                     if (remainder.isNotBlank()) add(remainder)
                 }
                 return@forEach
@@ -110,7 +119,9 @@ object QuestionBlockSplitter {
                 if (allowUnnumbered && (isLikelyUnnumberedQuestionLine(line) || isLikelyTypedQuestionLine(line, forcedType))) {
                     syntheticNumber += 1
                     currentNumber = syntheticNumber.toString()
-                    currentLines += line
+                    val typed = QuestionTypeLabelParser.extractLeading(line)
+                    currentForcedType = typed?.type ?: forcedType
+                    currentLines += typed?.remainder?.takeIf { it.isNotBlank() } ?: line
                 }
                 return@forEach
             }
@@ -119,7 +130,9 @@ object QuestionBlockSplitter {
                 flush()
                 syntheticNumber += 1
                 currentNumber = syntheticNumber.toString()
-                currentLines += line
+                val typed = QuestionTypeLabelParser.extractLeading(line)
+                currentForcedType = typed?.type ?: forcedType
+                currentLines += typed?.remainder?.takeIf { it.isNotBlank() } ?: line
             } else {
                 currentLines += line
             }
@@ -129,9 +142,14 @@ object QuestionBlockSplitter {
         return blocks
     }
 
-    private fun parseQuestionStart(line: String): Pair<String, String>? {
+    private fun parseQuestionStart(line: String): ParsedQuestionStart? {
         bracketQuestionStartRegex.find(line)?.let { match ->
-            return match.groupValues[1] to match.groupValues[2]
+            val typed = QuestionTypeLabelParser.extractLeading(match.groupValues[2])
+            return ParsedQuestionStart(
+                number = match.groupValues[1],
+                remainder = typed?.remainder ?: match.groupValues[2],
+                forcedType = typed?.type
+            )
         }
 
         interviewQuestionStartRegex.find(line)?.let { match ->
@@ -142,19 +160,34 @@ object QuestionBlockSplitter {
             val rest = match.groupValues[4].trim()
             val isChineseOrdinalOnly = match.groupValues[3].isNotBlank()
             if (number.isNotBlank() && (!isChineseOrdinalOnly || looksLikeInterviewQuestionRemainder(rest))) {
-                return number to rest
+                val typed = QuestionTypeLabelParser.extractLeading(rest)
+                return ParsedQuestionStart(
+                    number = number,
+                    remainder = typed?.remainder ?: rest,
+                    forcedType = typed?.type
+                )
             }
         }
 
         strictQuestionStartRegex.find(line)?.let { match ->
-            return match.groupValues[1] to match.groupValues[2]
+            val typed = QuestionTypeLabelParser.extractLeading(match.groupValues[2])
+            return ParsedQuestionStart(
+                number = match.groupValues[1],
+                remainder = typed?.remainder ?: match.groupValues[2],
+                forcedType = typed?.type
+            )
         }
 
         spacedQuestionStartRegex.find(line)?.let { match ->
             val number = match.groupValues[1]
             val rest = match.groupValues[2]
             if (number.length <= 3 && !looksLikeYearPrefix(number, rest)) {
-                return number to rest
+                val typed = QuestionTypeLabelParser.extractLeading(rest)
+                return ParsedQuestionStart(
+                    number = number,
+                    remainder = typed?.remainder ?: rest,
+                    forcedType = typed?.type
+                )
             }
         }
 
@@ -162,7 +195,12 @@ object QuestionBlockSplitter {
             val number = match.groupValues[1]
             val rest = match.groupValues[2]
             if (number.length <= 2 && rest.isNotBlank()) {
-                return number to rest
+                val typed = QuestionTypeLabelParser.extractLeading(rest)
+                return ParsedQuestionStart(
+                    number = number,
+                    remainder = typed?.remainder ?: rest,
+                    forcedType = typed?.type
+                )
             }
         }
 
@@ -225,7 +263,7 @@ object QuestionBlockSplitter {
     }
 
     private fun looksLikeTypedQuestionStart(line: String): Boolean {
-        return Regex("""^\s*\d{1,4}\s*[.、．:：)）]\s*(?:[\[【]\s*)?(?:单选题|单项选择题|多选题|多项选择题|判断题|填空题|简答题|问答题|面试题|材料分析题)(?:\s*[\]】])?""").containsMatchIn(line)
+        return parseQuestionStart(line)?.forcedType != null
     }
 
     private fun looksLikeInterviewQuestionRemainder(rest: String): Boolean {
@@ -260,6 +298,9 @@ object QuestionBlockSplitter {
         if (optionStartRegex.containsMatchIn(line)) return false
         if (answerLineRegex.containsMatchIn(line) || analysisLineRegex.containsMatchIn(line)) return false
         if (SectionTitleParser.isSectionHeading(line)) return false
+        QuestionTypeLabelParser.extractLeading(line)?.let { typed ->
+            if (typed.remainder.isNotBlank()) return true
+        }
         if (embeddedAnswerRegex.containsMatchIn(line)) return true
         if (Regex("""[（(]\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[)）]""", RegexOption.IGNORE_CASE).containsMatchIn(line)) return true
         if (Regex("""[（(]\s*[)）]""").containsMatchIn(line)) return true
