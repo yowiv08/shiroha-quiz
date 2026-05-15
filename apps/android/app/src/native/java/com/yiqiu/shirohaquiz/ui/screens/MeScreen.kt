@@ -484,7 +484,7 @@ fun PersonalPreferenceScreen(
 
         GlassCard {
             Text(
-                text = "启动与练习",
+                text = "启动设置",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -496,6 +496,37 @@ fun PersonalPreferenceScreen(
                 desc = "下次启动时显示学习主题开屏图。",
                 checked = QuizRepository.startupSplashEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setStartupSplashEnabled(context, enabled) }
+            )
+        }
+
+        GlassCard {
+            Text(
+                text = "刷题体验",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "记住上次练习设置",
+                desc = "进入练习页时恢复上次题量、题型和组题方式。",
+                checked = QuizRepository.rememberPracticeSettingsEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setRememberPracticeSettingsEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "启用滑动切题",
+                desc = "在练习页和考试页左滑下一题、右滑上一题。",
+                checked = QuizRepository.swipeNavigationEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setSwipeNavigationEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "单选 / 判断自动下一题",
+                desc = "选择单选题或判断题选项后，自动提交并进入下一题。",
+                checked = QuizRepository.practiceAutoNextEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setPracticeAutoNextEnabled(context, enabled) }
             )
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(

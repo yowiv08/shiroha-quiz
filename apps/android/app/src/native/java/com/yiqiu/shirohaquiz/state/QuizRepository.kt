@@ -101,6 +101,13 @@ object QuizRepository {
     private const val KEY_WRONG_BOOK = "wrong_book"
     private const val KEY_STUDY_RECORDS = "study_records"
     private const val KEY_PRACTICE_NEXT_REQUIRES_RESULT = "practice_next_requires_result"
+    private const val KEY_REMEMBER_PRACTICE_SETTINGS = "remember_practice_settings"
+    private const val KEY_SWIPE_NAVIGATION_ENABLED = "swipe_navigation_enabled"
+    private const val KEY_PRACTICE_AUTO_NEXT_ENABLED = "practice_auto_next_enabled"
+    private const val KEY_PRACTICE_PREFERRED_COUNT_MODE = "practice_preferred_count_mode"
+    private const val KEY_PRACTICE_PREFERRED_CUSTOM_COUNT = "practice_preferred_custom_count"
+    private const val KEY_PRACTICE_PREFERRED_ORDER_MODE = "practice_preferred_order_mode"
+    private const val KEY_PRACTICE_PREFERRED_TYPE_NAMES = "practice_preferred_type_names"
     private const val KEY_STARTUP_SPLASH_ENABLED = "startup_splash_enabled"
     private const val KEY_DARK_THEME_ENABLED = "dark_theme_enabled"
     private const val KEY_AI_PROVIDER = "ai_provider"
@@ -131,6 +138,19 @@ object QuizRepository {
         private set
     var practiceNextRequiresResult by mutableStateOf(false)
         private set
+    var rememberPracticeSettingsEnabled by mutableStateOf(true)
+        private set
+    var swipeNavigationEnabled by mutableStateOf(true)
+        private set
+    var practiceAutoNextEnabled by mutableStateOf(false)
+        private set
+    var preferredPracticeQuestionCountMode by mutableStateOf("custom")
+        private set
+    var preferredPracticeCustomQuestionCount by mutableStateOf(20)
+        private set
+    var preferredPracticeOrderMode by mutableStateOf("random")
+        private set
+    private var preferredPracticeTypeNames by mutableStateOf("")
     var startupSplashEnabled by mutableStateOf(true)
         private set
     var darkThemeEnabled by mutableStateOf(false)
@@ -209,6 +229,17 @@ object QuizRepository {
             ?.takeIf { id -> sanitizedRestoredBanks.any { it.id == id } }
             ?: sanitizedRestoredBanks.firstOrNull()?.id
         practiceNextRequiresResult = prefs.getBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, false)
+        rememberPracticeSettingsEnabled = prefs.getBoolean(KEY_REMEMBER_PRACTICE_SETTINGS, true)
+        swipeNavigationEnabled = prefs.getBoolean(KEY_SWIPE_NAVIGATION_ENABLED, true)
+        practiceAutoNextEnabled = prefs.getBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, false)
+        preferredPracticeQuestionCountMode = normalizePracticeCountMode(
+            prefs.getString(KEY_PRACTICE_PREFERRED_COUNT_MODE, "custom") ?: "custom"
+        )
+        preferredPracticeCustomQuestionCount = prefs.getInt(KEY_PRACTICE_PREFERRED_CUSTOM_COUNT, 20).coerceAtLeast(1)
+        preferredPracticeOrderMode = normalizePracticeOrderMode(
+            prefs.getString(KEY_PRACTICE_PREFERRED_ORDER_MODE, "random") ?: "random"
+        )
+        preferredPracticeTypeNames = prefs.getString(KEY_PRACTICE_PREFERRED_TYPE_NAMES, "") ?: ""
         startupSplashEnabled = prefs.getBoolean(KEY_STARTUP_SPLASH_ENABLED, true)
         darkThemeEnabled = prefs.getBoolean(KEY_DARK_THEME_ENABLED, false)
         aiProvider = prefs.getString(KEY_AI_PROVIDER, "DeepSeek") ?: "DeepSeek"
@@ -496,6 +527,53 @@ object QuizRepository {
     fun setPracticeNextRequiresResult(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         practiceNextRequiresResult = enabled
+        persist()
+    }
+
+    fun setRememberPracticeSettingsEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        rememberPracticeSettingsEnabled = enabled
+        persist()
+    }
+
+    fun setSwipeNavigationEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        swipeNavigationEnabled = enabled
+        persist()
+    }
+
+    fun setPracticeAutoNextEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        practiceAutoNextEnabled = enabled
+        persist()
+    }
+
+    fun preferredPracticeTypes(): Set<QuestionType> {
+        if (preferredPracticeTypeNames.isBlank()) return emptySet()
+        return preferredPracticeTypeNames
+            .split(',')
+            .mapNotNull { raw -> runCatching { QuestionType.valueOf(raw.trim()) }.getOrNull() }
+            .toSet()
+    }
+
+    fun rememberPracticeSettings(
+        context: Context,
+        questionCountMode: String? = null,
+        customQuestionCount: Int? = null,
+        orderMode: String? = null,
+        types: Set<QuestionType>? = null
+    ) {
+        if (!rememberPracticeSettingsEnabled) return
+        appContext = context.applicationContext
+        questionCountMode?.let { preferredPracticeQuestionCountMode = normalizePracticeCountMode(it) }
+        customQuestionCount?.let { preferredPracticeCustomQuestionCount = it.coerceAtLeast(1) }
+        orderMode?.let { preferredPracticeOrderMode = normalizePracticeOrderMode(it) }
+        types?.let { selectedTypes ->
+            preferredPracticeTypeNames = selectedTypes
+                .map { it.name }
+                .sorted()
+                .joinToString(",")
+        }
         persist()
     }
 
@@ -1313,6 +1391,20 @@ object QuizRepository {
         return candidate
     }
 
+    private fun normalizePracticeCountMode(mode: String): String {
+        return when (mode) {
+            "50", "100", "half", "all" -> mode
+            else -> "custom"
+        }
+    }
+
+    private fun normalizePracticeOrderMode(mode: String): String {
+        return when (mode) {
+            "ordered" -> "ordered"
+            else -> "random"
+        }
+    }
+
     private fun persist() {
         val context = appContext ?: return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -1322,6 +1414,13 @@ object QuizRepository {
             .putString(KEY_WRONG_BOOK, wrongBookToJson(wrongBook))
             .putString(KEY_STUDY_RECORDS, studyRecordsToJson(studyRecords))
             .putBoolean(KEY_PRACTICE_NEXT_REQUIRES_RESULT, practiceNextRequiresResult)
+            .putBoolean(KEY_REMEMBER_PRACTICE_SETTINGS, rememberPracticeSettingsEnabled)
+            .putBoolean(KEY_SWIPE_NAVIGATION_ENABLED, swipeNavigationEnabled)
+            .putBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, practiceAutoNextEnabled)
+            .putString(KEY_PRACTICE_PREFERRED_COUNT_MODE, preferredPracticeQuestionCountMode)
+            .putInt(KEY_PRACTICE_PREFERRED_CUSTOM_COUNT, preferredPracticeCustomQuestionCount)
+            .putString(KEY_PRACTICE_PREFERRED_ORDER_MODE, preferredPracticeOrderMode)
+            .putString(KEY_PRACTICE_PREFERRED_TYPE_NAMES, preferredPracticeTypeNames)
             .putBoolean(KEY_STARTUP_SPLASH_ENABLED, startupSplashEnabled)
             .putBoolean(KEY_DARK_THEME_ENABLED, darkThemeEnabled)
             .putString(KEY_AI_PROVIDER, aiProvider)

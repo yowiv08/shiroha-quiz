@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -40,22 +42,30 @@ import androidx.compose.material.icons.automirrored.rounded.TextSnippet
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiqiu.shirohaquiz.R
@@ -70,6 +80,8 @@ import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -77,7 +89,9 @@ fun PracticeScreen(
     onGoExam: () -> Unit = {},
     onOpenRecords: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val bank = QuizRepository.activeBank()
+    val autoNextScope = rememberCoroutineScope()
     val practiceQuestions = QuizRepository.activePracticeQuestions()
     val question = QuizRepository.currentPracticeQuestion()
     val result = QuizRepository.practiceLastResult
@@ -85,19 +99,60 @@ fun PracticeScreen(
         QuizRepository.questionTypeCounts(bank?.questions.orEmpty())
     }
     val availableTypes = practiceTypeOrder.filter { (availableCounts[it] ?: 0) > 0 }
-    var selectedQuestionCount by remember(bank?.id) {
-        mutableIntStateOf(bank?.questions?.size?.coerceAtMost(20) ?: 20)
+    val defaultPracticeTypes = remember(availableTypes) {
+        availableTypes
+            .filter { it in QuizRepository.objectiveQuestionTypes() }
+            .toSet()
+            .ifEmpty { availableTypes.toSet() }
+            .ifEmpty { QuizRepository.objectiveQuestionTypes() }
     }
-    var selectedTypes by remember(bank?.id) {
-        mutableStateOf(
-            availableTypes
-                .filter { it in QuizRepository.objectiveQuestionTypes() }
-                .toSet()
-                .ifEmpty { availableTypes.toSet() }
-                .ifEmpty { QuizRepository.objectiveQuestionTypes() }
+    val rememberedPracticeTypes = remember(
+        bank?.id,
+        availableTypes,
+        QuizRepository.rememberPracticeSettingsEnabled
+    ) {
+        if (QuizRepository.rememberPracticeSettingsEnabled) {
+            QuizRepository.preferredPracticeTypes().filter { it in availableTypes }.toSet()
+        } else {
+            emptySet()
+        }
+    }
+    val initialPracticeTypes = rememberedPracticeTypes.ifEmpty { defaultPracticeTypes }
+    val initialAvailableCount = remember(bank?.id, bank?.questions?.size, initialPracticeTypes) {
+        bank?.questions?.count { it.type in initialPracticeTypes } ?: 0
+    }
+    val initialQuestionCountMode = remember(
+        bank?.id,
+        initialAvailableCount,
+        QuizRepository.rememberPracticeSettingsEnabled,
+        QuizRepository.preferredPracticeQuestionCountMode
+    ) {
+        if (QuizRepository.rememberPracticeSettingsEnabled) {
+            normalizeVisiblePracticeCountMode(QuizRepository.preferredPracticeQuestionCountMode, initialAvailableCount)
+        } else {
+            "custom"
+        }
+    }
+    var selectedQuestionCount by remember(bank?.id, initialAvailableCount, initialQuestionCountMode) {
+        mutableIntStateOf(
+            resolvePracticeQuestionCount(
+                mode = initialQuestionCountMode,
+                customCount = QuizRepository.preferredPracticeCustomQuestionCount,
+                availableCount = initialAvailableCount
+            )
         )
     }
-    var practiceOrderMode by rememberSaveable(bank?.id) { mutableStateOf("random") }
+    var selectedQuestionCountMode by remember(bank?.id, initialQuestionCountMode) { mutableStateOf(initialQuestionCountMode) }
+    var selectedTypes by remember(bank?.id, initialPracticeTypes) { mutableStateOf(initialPracticeTypes) }
+    var practiceOrderMode by rememberSaveable(bank?.id) {
+        mutableStateOf(
+            if (QuizRepository.rememberPracticeSettingsEnabled) {
+                QuizRepository.preferredPracticeOrderMode
+            } else {
+                "random"
+            }
+        )
+    }
 
     val selectedAvailable = remember(availableCounts, selectedTypes) {
         availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
@@ -107,6 +162,13 @@ fun PracticeScreen(
         val available = bank?.questions?.count { it.type in safeTypes } ?: 0
         if (available > 0) {
             val count = selectedQuestionCount.coerceIn(1, available)
+            QuizRepository.rememberPracticeSettings(
+                context = context,
+                questionCountMode = selectedQuestionCountMode,
+                customQuestionCount = if (selectedQuestionCountMode == "custom") count else null,
+                orderMode = practiceOrderMode,
+                types = safeTypes
+            )
             QuizRepository.startPracticeSession(
                 questionCount = count,
                 allowedTypes = safeTypes,
@@ -168,17 +230,43 @@ fun PracticeScreen(
                 availableCounts = availableCounts,
                 selectedTypes = selectedTypes,
                 selectedQuestionCount = selectedQuestionCount.coerceAtMost(selectedAvailable.coerceAtLeast(1)),
+                selectedQuestionCountMode = selectedQuestionCountMode,
                 practiceOrderMode = practiceOrderMode,
-                onSelectPracticeOrderMode = { practiceOrderMode = it },
+                onSelectPracticeOrderMode = { mode ->
+                    practiceOrderMode = mode
+                    QuizRepository.rememberPracticeSettings(context, orderMode = mode)
+                },
                 onToggleType = { type ->
                     val updated = if (selectedTypes.contains(type)) selectedTypes - type else selectedTypes + type
                     selectedTypes = updated
                     val newAvailable = availableCounts.entries.sumOf { (itemType, count) -> if (itemType in updated) count else 0 }
+                    var savedCountMode = selectedQuestionCountMode
+                    var savedCustomCount: Int? = null
                     if (newAvailable > 0) {
-                        selectedQuestionCount = selectedQuestionCount.coerceAtMost(newAvailable)
+                        val boundedCount = selectedQuestionCount.coerceAtMost(newAvailable)
+                        if (boundedCount != selectedQuestionCount) {
+                            selectedQuestionCount = boundedCount
+                            selectedQuestionCountMode = "custom"
+                            savedCountMode = "custom"
+                            savedCustomCount = boundedCount
+                        }
                     }
+                    QuizRepository.rememberPracticeSettings(
+                        context = context,
+                        questionCountMode = savedCountMode,
+                        customQuestionCount = savedCustomCount,
+                        types = updated
+                    )
                 },
-                onSelectQuestionCount = { selectedQuestionCount = it },
+                onSelectQuestionCount = { count, mode ->
+                    selectedQuestionCount = count
+                    selectedQuestionCountMode = mode
+                    QuizRepository.rememberPracticeSettings(
+                        context = context,
+                        questionCountMode = mode,
+                        customQuestionCount = if (mode == "custom") count else null
+                    )
+                },
                 onStartPractice = startPracticeWithSettings
             )
             return
@@ -204,31 +292,44 @@ fun PracticeScreen(
         val isPracticeComplete = practiceQuestions.isNotEmpty() &&
             QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
 
-        PracticeProgressCard(
-            currentIndex = QuizRepository.practiceIndex + 1,
-            total = practiceQuestions.size,
-            answered = QuizRepository.practiceAnsweredCount(),
-            correct = QuizRepository.practiceCorrectCount()
-        )
+        var isPracticeProgressExpanded by rememberSaveable(practiceQuestions.size) { mutableStateOf(true) }
 
-        if (isPracticeComplete) {
-            PracticeCompletionCard(
+        val questionCardModifier = if (QuizRepository.swipeNavigationEnabled) {
+            Modifier.questionSwipeNavigation(
+                onSwipeLeft = { if (canGoNext) QuizRepository.nextQuestion() },
+                onSwipeRight = { QuizRepository.previousQuestion() }
+            )
+        } else {
+            Modifier
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(if (isPracticeProgressExpanded) ShirohaSpacing.Lg else 6.dp)) {
+            PracticeProgressCard(
                 total = practiceQuestions.size,
                 answered = QuizRepository.practiceAnsweredCount(),
                 correct = QuizRepository.practiceCorrectCount(),
-                onRestart = {
-                    QuizRepository.endPracticeSession()
-                    startPracticeWithSettings()
-                },
-                onOpenRecords = {
-                    QuizRepository.endPracticeSession()
-                    onOpenRecords()
-                },
-                onExit = { QuizRepository.endPracticeSession() }
+                expanded = isPracticeProgressExpanded,
+                onToggle = { isPracticeProgressExpanded = !isPracticeProgressExpanded }
             )
-        }
 
-        GlassCard {
+            if (isPracticeComplete) {
+                PracticeCompletionCard(
+                    total = practiceQuestions.size,
+                    answered = QuizRepository.practiceAnsweredCount(),
+                    correct = QuizRepository.practiceCorrectCount(),
+                    onRestart = {
+                        QuizRepository.endPracticeSession()
+                        startPracticeWithSettings()
+                    },
+                    onOpenRecords = {
+                        QuizRepository.endPracticeSession()
+                        onOpenRecords()
+                    },
+                    onExit = { QuizRepository.endPracticeSession() }
+                )
+            }
+
+            GlassCard(modifier = questionCardModifier) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -248,8 +349,8 @@ fun PracticeScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = question.question,
-                style = MaterialTheme.typography.headlineSmall,
-                lineHeight = 34.sp,
+                style = MaterialTheme.typography.titleLarge,
+                lineHeight = 29.sp,
                 fontWeight = FontWeight.SemiBold
             )
             if (question.images.isNotEmpty()) {
@@ -269,10 +370,27 @@ fun PracticeScreen(
                             selected = displayedSelection.contains(option.key),
                             onClick = {
                                 if (!isSubmitted) {
+                                    val shouldAutoNext = QuizRepository.practiceAutoNextEnabled &&
+                                        (question.type == QuestionType.SINGLE || question.type == QuestionType.JUDGE)
                                     QuizRepository.toggleAnswer(
                                         key = option.key,
                                         multiple = question.type == QuestionType.MULTIPLE
                                     )
+                                    if (shouldAutoNext) {
+                                        val autoNextQuestionId = question.id
+                                        val autoNextIndex = QuizRepository.practiceIndex
+                                        val submitted = QuizRepository.submitPracticeQuestion()
+                                        if (submitted != null && autoNextIndex < practiceQuestions.lastIndex) {
+                                            autoNextScope.launch {
+                                                delay(220)
+                                                if (QuizRepository.practiceIndex == autoNextIndex &&
+                                                    QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
+                                                ) {
+                                                    QuizRepository.nextQuestion()
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         )
@@ -359,13 +477,21 @@ fun PracticeScreen(
                 if (question.analysis.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "解析：${question.analysis}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "解析",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = formatAnalysisForDisplay(question.analysis),
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 23.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+    }
     }
 }
 
@@ -377,13 +503,19 @@ private fun PracticeSetupPanel(
     availableCounts: Map<QuestionType, Int>,
     selectedTypes: Set<QuestionType>,
     selectedQuestionCount: Int,
+    selectedQuestionCountMode: String,
     practiceOrderMode: String,
     onSelectPracticeOrderMode: (String) -> Unit,
     onToggleType: (QuestionType) -> Unit,
-    onSelectQuestionCount: (Int) -> Unit,
+    onSelectQuestionCount: (Int, String) -> Unit,
     onStartPractice: () -> Unit
 ) {
     val selectedAvailable = availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
+    var showCustomCountDialog by remember { mutableStateOf(false) }
+    var customQuestionCountText by remember(selectedAvailable) {
+        mutableStateOf(selectedQuestionCount.coerceIn(1, selectedAvailable.coerceAtLeast(1)).toString())
+    }
+
     GlassCard {
         Text(
             text = bankName,
@@ -473,21 +605,30 @@ private fun PracticeSetupPanel(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             val safeAvailable = selectedAvailable.coerceAtLeast(1)
             val halfCount = (safeAvailable / 2).coerceAtLeast(1)
+            ActionPillButton(
+                icon = Icons.Rounded.PlayArrow,
+                text = "自定义",
+                primary = selectedQuestionCountMode == "custom",
+                modifier = Modifier.height(44.dp),
+                onClick = {
+                    customQuestionCountText = selectedQuestionCount.coerceIn(1, safeAvailable).toString()
+                    showCustomCountDialog = true
+                }
+            )
             buildList {
-                if (safeAvailable >= 20) add(20 to "20 题")
-                if (safeAvailable >= 50) add(50 to "50 题")
-                if (safeAvailable >= 100) add(100 to "100 题")
-                add(halfCount to "一半 $halfCount 题")
-                add(safeAvailable to "全部 $safeAvailable 题")
+                if (safeAvailable >= 50) add(Triple(50, "50 题", "50"))
+                if (safeAvailable >= 100) add(Triple(100, "100 题", "100"))
+                add(Triple(halfCount, "一半 $halfCount 题", "half"))
+                add(Triple(safeAvailable, "全部 $safeAvailable 题", "all"))
             }
                 .distinctBy { it.first }
-                .forEach { (count, label) ->
+                .forEach { (count, label, mode) ->
                     ActionPillButton(
                         icon = Icons.Rounded.PlayArrow,
                         text = label,
-                        primary = selectedQuestionCount == count,
+                        primary = selectedQuestionCountMode == mode,
                         modifier = Modifier.height(44.dp),
-                        onClick = { onSelectQuestionCount(count) }
+                        onClick = { onSelectQuestionCount(count, mode) }
                     )
                 }
         }
@@ -505,6 +646,20 @@ private fun PracticeSetupPanel(
                 .height(50.dp),
             fillWidthContent = true,
             onClick = { if (selectedAvailable > 0) onStartPractice() }
+        )
+    }
+
+    if (showCustomCountDialog) {
+        CustomQuestionCountDialog(
+            title = "自定义练习题量",
+            value = customQuestionCountText,
+            maxCount = selectedAvailable.coerceAtLeast(1),
+            onValueChange = { customQuestionCountText = it },
+            onDismiss = { showCustomCountDialog = false },
+            onConfirm = { count ->
+                onSelectQuestionCount(count, "custom")
+                showCustomCountDialog = false
+            }
         )
     }
 }
@@ -725,27 +880,183 @@ private fun PracticeCompletionCard(
 
 @Composable
 private fun PracticeProgressCard(
-    currentIndex: Int,
     total: Int,
     answered: Int,
-    correct: Int
+    correct: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit
 ) {
     val accuracy = if (answered == 0) 0 else correct * 100 / answered
+    if (!expanded) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PracticeAccuracyCapsule(
+                text = "正确率 $accuracy%",
+                onClick = onToggle
+            )
+        }
+        return
+    }
+
     GlassCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("刷题进度", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text("$currentIndex / $total", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.weight(1f)) {
+                Text("正确率", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "已提交 $answered / $total 题 · 正确率 $accuracy%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(onClick = onToggle) {
+                Text("收起")
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "已提交 $answered 题 · 正确 $correct 题 · 正确率 $accuracy%",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+@Composable
+private fun PracticeAccuracyCapsule(
+    text: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .defaultMinSize(minHeight = 34.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = ShirohaColors.CardWhite86,
+        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CheckCircle,
+                contentDescription = "展开正确率",
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun Modifier.questionSwipeNavigation(
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
+): Modifier {
+    val thresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
+    var dragAmount by remember { mutableStateOf(0f) }
+    return pointerInput(onSwipeLeft, onSwipeRight, thresholdPx) {
+        detectHorizontalDragGestures(
+            onDragStart = { dragAmount = 0f },
+            onHorizontalDrag = { _, dragDelta -> dragAmount += dragDelta },
+            onDragCancel = { dragAmount = 0f },
+            onDragEnd = {
+                when {
+                    dragAmount <= -thresholdPx -> onSwipeLeft()
+                    dragAmount >= thresholdPx -> onSwipeRight()
+                }
+                dragAmount = 0f
+            }
         )
     }
+}
+
+@Composable
+private fun CustomQuestionCountDialog(
+    title: String,
+    value: String,
+    maxCount: Int,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "请输入 1～$maxCount 之间的题数。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { onValueChange(it.filter { ch -> ch.isDigit() }.take(4)) },
+                    singleLine = true,
+                    label = { Text("题量") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val count = value.toIntOrNull()?.coerceIn(1, maxCount) ?: 1
+                    onConfirm(count)
+                }
+            ) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+private fun normalizeVisiblePracticeCountMode(mode: String, availableCount: Int): String {
+    return when {
+        mode == "50" && availableCount >= 50 -> "50"
+        mode == "100" && availableCount >= 100 -> "100"
+        mode == "half" -> "half"
+        mode == "all" -> "all"
+        else -> "custom"
+    }
+}
+
+private fun resolvePracticeQuestionCount(
+    mode: String,
+    customCount: Int,
+    availableCount: Int
+): Int {
+    val safeAvailable = availableCount.coerceAtLeast(1)
+    return when (mode) {
+        "50" -> 50.coerceAtMost(safeAvailable)
+        "100" -> 100.coerceAtMost(safeAvailable)
+        "half" -> (safeAvailable / 2).coerceAtLeast(1)
+        "all" -> safeAvailable
+        else -> customCount.coerceIn(1, safeAvailable)
+    }
+}
+
+private fun formatAnalysisForDisplay(analysis: String): String {
+    return analysis.trim()
+        .replace(Regex("\\s*(?=([A-GＡ-Ｇ])项[，,：:])"), "\n")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
 }
 
 private val practiceTypeOrder = listOf(

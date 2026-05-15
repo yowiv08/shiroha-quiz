@@ -1,6 +1,8 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -35,6 +37,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -78,6 +82,9 @@ fun ExamScreen(
     val availableExamCount = typeAvailableCounts.values.sum()
     var selectedQuestionCount by remember(activeBank?.id) {
         mutableIntStateOf(availableExamCount.coerceAtMost(100).coerceAtLeast(1))
+    }
+    var selectedQuestionCountMode by remember(activeBank?.id) {
+        mutableStateOf(if (availableExamCount >= 100) "100" else "custom")
     }
     var selectedDurationMinutes by remember { mutableIntStateOf(30) }
     var groupMode by remember(activeBank?.id) { mutableStateOf(ExamGroupMode.RANDOM) }
@@ -153,7 +160,11 @@ fun ExamScreen(
                 availableExamCount = availableExamCount,
                 typeAvailableCounts = typeAvailableCounts,
                 selectedQuestionCount = selectedQuestionCount.coerceAtMost(availableExamCount),
-                onSelectQuestionCount = { selectedQuestionCount = it },
+                selectedQuestionCountMode = selectedQuestionCountMode,
+                onSelectQuestionCount = { count, mode ->
+                    selectedQuestionCount = count
+                    selectedQuestionCountMode = mode
+                },
                 selectedDurationMinutes = selectedDurationMinutes,
                 onSelectDuration = { selectedDurationMinutes = it },
                 groupMode = groupMode,
@@ -231,7 +242,8 @@ private fun ExamSetupPanel(
     availableExamCount: Int,
     typeAvailableCounts: Map<QuestionType, Int>,
     selectedQuestionCount: Int,
-    onSelectQuestionCount: (Int) -> Unit,
+    selectedQuestionCountMode: String,
+    onSelectQuestionCount: (Int, String) -> Unit,
     selectedDurationMinutes: Int,
     onSelectDuration: (Int) -> Unit,
     groupMode: ExamGroupMode,
@@ -247,6 +259,10 @@ private fun ExamSetupPanel(
 ) {
     var customDurationText by remember(selectedDurationMinutes) {
         mutableStateOf(selectedDurationMinutes.toString())
+    }
+    var showCustomCountDialog by remember { mutableStateOf(false) }
+    var customQuestionCountText by remember(availableExamCount) {
+        mutableStateOf(selectedQuestionCount.coerceIn(1, availableExamCount.coerceAtLeast(1)).toString())
     }
     val bankNameSize = when {
         bankName.length > 24 -> 14.sp
@@ -307,16 +323,28 @@ private fun ExamSetupPanel(
         Text("题量", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(50, 100, availableExamCount)
-                .filter { it > 0 }
-                .map { it.coerceAtMost(availableExamCount) }
-                .distinct()
-                .forEach { count ->
+            val safeAvailable = availableExamCount.coerceAtLeast(1)
+            ActionPillButton(
+                icon = Icons.Rounded.PlayArrow,
+                text = "自定义",
+                primary = selectedQuestionCountMode == "custom",
+                onClick = {
+                    customQuestionCountText = selectedQuestionCount.coerceIn(1, safeAvailable).toString()
+                    showCustomCountDialog = true
+                }
+            )
+            buildList {
+                if (safeAvailable >= 50) add(Triple(50, "50 题", "50"))
+                if (safeAvailable >= 100) add(Triple(100, "100 题", "100"))
+                add(Triple(safeAvailable, "全部 $safeAvailable 题", "all"))
+            }
+                .distinctBy { it.first }
+                .forEach { (count, label, mode) ->
                     ActionPillButton(
                         icon = Icons.Rounded.PlayArrow,
-                        text = if (count == availableExamCount) "全部 $count 题" else "$count 题",
-                        primary = selectedQuestionCount == count,
-                        onClick = { onSelectQuestionCount(count) }
+                        text = label,
+                        primary = selectedQuestionCountMode == mode,
+                        onClick = { onSelectQuestionCount(count, mode) }
                     )
                 }
         }
@@ -408,6 +436,20 @@ private fun ExamSetupPanel(
         }
     }
 
+    if (showCustomCountDialog) {
+        CustomQuestionCountDialog(
+            title = "自定义考试题量",
+            value = customQuestionCountText,
+            maxCount = availableExamCount.coerceAtLeast(1),
+            onValueChange = { customQuestionCountText = it },
+            onDismiss = { showCustomCountDialog = false },
+            onConfirm = { count ->
+                onSelectQuestionCount(count, "custom")
+                showCustomCountDialog = false
+            }
+        )
+    }
+
     if (showGroupSettings) {
         AlertDialog(
             onDismissRequest = onCloseGroupSettings,
@@ -493,45 +535,103 @@ private fun ActiveExamPanel() {
     val questionType = examQuestion.type
     var showAnswerCard by remember { mutableStateOf(false) }
     var showSubmitConfirm by remember { mutableStateOf(false) }
-    val unansweredCount = QuizRepository.examQuestions.size - QuizRepository.examAnsweredCount()
+    var examStatusExpanded by remember { mutableStateOf(true) }
+    val answeredCount = QuizRepository.examAnsweredCount()
+    val unansweredCount = QuizRepository.examQuestions.size - answeredCount
 
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ExamMetricCard(
-            title = "剩余时间",
-            value = formatExamSeconds(QuizRepository.examRemainingSeconds),
-            modifier = Modifier
-                .weight(1f)
-                .height(128.dp)
-        )
-        GlassCard(
-            modifier = Modifier
-                .weight(1f)
-                .height(128.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text("已答题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(QuizRepository.examAnsweredCount().toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(8.dp))
-            ActionPillButton(
-                icon = Icons.AutoMirrored.Rounded.ListAlt,
-                text = "答题卡",
-                primary = false,
+    Column(verticalArrangement = Arrangement.spacedBy(if (examStatusExpanded) ShirohaSpacing.Lg else 6.dp)) {
+    if (examStatusExpanded) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GlassCard(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(108.dp)
-                    .height(38.dp),
-                fillWidthContent = true,
-                onClick = { showAnswerCard = true }
-            )
+                    .weight(1f)
+                    .height(128.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            formatExamSeconds(QuizRepository.examRemainingSeconds),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text("剩余时间", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    TextButton(onClick = { examStatusExpanded = false }) { Text("收起") }
+                }
+            }
+            GlassCard(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(128.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text("已答题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(answeredCount.toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(8.dp))
+                ActionPillButton(
+                    icon = Icons.AutoMirrored.Rounded.ListAlt,
+                    text = "答题卡",
+                    primary = false,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(108.dp)
+                        .height(38.dp),
+                    fillWidthContent = true,
+                    onClick = { showAnswerCard = true }
+                )
+            }
+        }
+    } else {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ActionPillButton(
+                    icon = Icons.Rounded.Timer,
+                    text = formatExamSeconds(QuizRepository.examRemainingSeconds),
+                    primary = false,
+                    modifier = Modifier
+                        .width(112.dp)
+                        .height(34.dp),
+                    fillWidthContent = true,
+                    onClick = { examStatusExpanded = true }
+                )
+                ActionPillButton(
+                    icon = Icons.AutoMirrored.Rounded.ListAlt,
+                    text = "答题卡",
+                    primary = false,
+                    modifier = Modifier
+                        .width(92.dp)
+                        .height(34.dp),
+                    fillWidthContent = true,
+                    onClick = { showAnswerCard = true }
+                )
+            }
         }
     }
 
-    GlassCard {
+    val questionCardModifier = if (QuizRepository.swipeNavigationEnabled) {
+        Modifier.questionSwipeNavigation(
+            onSwipeLeft = { QuizRepository.nextExamQuestion() },
+            onSwipeRight = { QuizRepository.previousExamQuestion() }
+        )
+    } else {
+        Modifier
+    }
+
+    GlassCard(modifier = questionCardModifier) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip("第 ${QuizRepository.examIndex + 1} / ${QuizRepository.examQuestions.size} 题", selected = true)
             StatusChip(typeLabel(questionType))
@@ -540,9 +640,9 @@ private fun ActiveExamPanel() {
         Spacer(Modifier.height(18.dp))
         Text(
             text = examQuestion.question,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
-            lineHeight = 34.sp
+            lineHeight = 29.sp
         )
         if (examQuestion.images.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
@@ -598,6 +698,7 @@ private fun ActiveExamPanel() {
             )
             ActionPillButton(Icons.Rounded.Timer, "结束本场", primary = false, onClick = { QuizRepository.resetExam() })
         }
+    }
     }
 
     if (showAnswerCard) {
@@ -775,6 +876,72 @@ private fun FinishedExamPanel(
             ActionPillButton(Icons.Rounded.Timer, "返回首页", primary = false, onClick = onBackHome)
         }
     }
+}
+
+@Composable
+private fun Modifier.questionSwipeNavigation(
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
+): Modifier {
+    val thresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
+    var dragAmount by remember { mutableStateOf(0f) }
+    return pointerInput(onSwipeLeft, onSwipeRight, thresholdPx) {
+        detectHorizontalDragGestures(
+            onDragStart = { dragAmount = 0f },
+            onHorizontalDrag = { _, dragDelta -> dragAmount += dragDelta },
+            onDragCancel = { dragAmount = 0f },
+            onDragEnd = {
+                when {
+                    dragAmount <= -thresholdPx -> onSwipeLeft()
+                    dragAmount >= thresholdPx -> onSwipeRight()
+                }
+                dragAmount = 0f
+            }
+        )
+    }
+}
+
+@Composable
+private fun CustomQuestionCountDialog(
+    title: String,
+    value: String,
+    maxCount: Int,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "请输入 1～$maxCount 之间的题数。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { onValueChange(it.filter { ch -> ch.isDigit() }.take(4)) },
+                    singleLine = true,
+                    label = { Text("题量") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val count = value.toIntOrNull()?.coerceIn(1, maxCount) ?: 1
+                    onConfirm(count)
+                }
+            ) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 private val examTypeOrder = listOf(

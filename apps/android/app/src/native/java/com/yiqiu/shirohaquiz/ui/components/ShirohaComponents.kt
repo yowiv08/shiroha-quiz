@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yiqiu.shirohaquiz.R
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
@@ -303,7 +304,7 @@ fun QuizOptionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = ShirohaDimens.OptionCardHorizontalPadding, vertical = ShirohaDimens.OptionCardVerticalPadding),
+                .padding(horizontal = ShirohaDimens.OptionCardHorizontalPadding, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
@@ -322,7 +323,7 @@ fun QuizOptionCard(
             Spacer(Modifier.width(ShirohaDimens.OptionLabelTextGap))
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
