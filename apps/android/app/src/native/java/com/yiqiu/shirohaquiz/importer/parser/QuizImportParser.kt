@@ -14,6 +14,11 @@ object QuizImportParser {
         val normalized = QuestionTextNormalizer.normalize(raw)
         val candidates = mutableListOf<Candidate>()
 
+        val tableQuestions = ExcelQuestionTableParser.parse(normalized)
+        if (tableQuestions.isNotEmpty()) {
+            candidates += buildCandidate("Excel/CSV 表格题库解析", tableQuestions)
+        }
+
         val standardQuestions = QuestionParser.parseStandard(normalized)
         val standardCandidate = buildCandidate("标准优先解析", standardQuestions)
         candidates += standardCandidate

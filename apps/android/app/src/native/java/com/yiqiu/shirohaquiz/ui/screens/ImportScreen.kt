@@ -219,7 +219,7 @@ fun ImportScreen(
             isImportBusy = false
             val content = result.getOrNull()
             if (content == null || content.text.isBlank()) {
-                statusText = "当前导入还不能稳定读取这个文件。建议优先使用 docx / txt / json。"
+                statusText = "当前导入还不能稳定读取这个文件。建议优先使用 docx / txt / json / xlsx / csv；旧版 xls 请另存为 xlsx 后导入。"
                 isStatusWarn = true
             } else {
                 rawText = content.text
@@ -251,7 +251,7 @@ fun ImportScreen(
             isImportBusy = false
             val text = result.getOrNull()
             if (text.isNullOrBlank()) {
-                statusText = "答案文件暂时还不能稳定读取，请优先使用 txt 或可复制文本的文档。"
+                statusText = "答案文件暂时还不能稳定读取，请优先使用 txt / docx / xlsx / csv 或可复制文本的文档。"
                 isStatusWarn = true
             } else {
                 answerText = text
@@ -438,7 +438,7 @@ fun ImportScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "支持 docx / txt / json 等文本型题库。",
+                            text = "支持 docx / txt / json / xlsx / csv",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2517,7 +2517,7 @@ private fun duplicateQuestionNumberWarnings(questions: List<Question>): List<Imp
         ImportWarning(
             level = WarningLevel.WARNING,
             questionNumber = question.number,
-            message = "题号重复：当前题号与其他题目重复，建议人工确认。AI 核对建议已按题目ID处理，避免误挂到同题号题目。"
+            message = "题号重复：当前题号与其他题目重复，建议人工确认。导入预览已按内部题目ID区分，避免仅按题号混淆。"
         )
     }
 }

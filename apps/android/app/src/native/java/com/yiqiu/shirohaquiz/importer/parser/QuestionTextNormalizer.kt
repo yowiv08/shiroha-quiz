@@ -9,7 +9,6 @@ object QuestionTextNormalizer {
             .replace("\r\n", "\n")
             .replace('\r', '\n')
             .replace('\u3000', ' ')
-            .replace('\t', ' ')
             .let(::normalizeFullWidthAscii)
             .replace("（", "(")
             .replace("）", ")")
@@ -32,7 +31,7 @@ object QuestionTextNormalizer {
             .map { it.trimEnd() }
             .filterNot { isNoiseLine(it.trim()) }
             .joinToString("\n")
-            .replace(Regex("""[ \t]{2,}"""), " ")
+            .replace(Regex(""" {2,}"""), " ")
             .replace(Regex("""\n{3,}"""), "\n\n")
             .trim()
     }

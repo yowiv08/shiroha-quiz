@@ -143,26 +143,7 @@ object QuestionImportAssetExtractor {
     }
 
     private fun extractTextFromParagraph(xml: String): String {
-        val withBreaks = xml
-            .replace("</w:tc>", " ")
-            .replace("<w:tab/>", "\t")
-            .replace("<w:br/>", "\n")
-
-        return Regex("""<w:t[^>]*>([\s\S]*?)</w:t>""")
-            .replace(withBreaks) { match ->
-                decodeXmlEntities(match.groupValues[1])
-            }
-            .replace(Regex("""<[^>]+>"""), "")
-            .replace(Regex("""[ \t]{2,}"""), " ")
-    }
-
-    private fun decodeXmlEntities(text: String): String {
-        return text
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&apos;", "'")
-            .replace("&amp;", "&")
+        return TextImportDecoder.extractTextFromWordParagraphXml(xml)
     }
 
     private fun saveQuestionImage(
