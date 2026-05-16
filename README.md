@@ -4,9 +4,9 @@
 
 <br>
 
-<img src="assets/shiroha_quiz_ui_assets_v2_cutout/illus_home_welcome.png" width="160" align="right" alt="看板娘" />
-
 # Shiroha Quiz
+
+<img src="assets/shiroha_quiz_ui_assets_v2_cutout/illus_home_welcome.png" width="160" align="right" alt="看板娘" />
 
 Shiroha Quiz 是一个轻量、开源的通用刷题工具，支持自导入题库、练习、考试、错题复习与多端使用。
 
@@ -20,7 +20,7 @@ Shiroha Quiz 解决一个很实际的问题：
 - **Android WebView 壳版**：Web 资源打包进 APK，离线加载，适合日常手机刷题。
 - **Android 原生 Compose 版**：Kotlin + Compose 原生实现，暗夜模式、AI 解析、表格导入等均已落地，启动快、体积小。
 
-<br clear="both">
+<br style="clear:both">
 
 ---
 
