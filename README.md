@@ -20,6 +20,8 @@ Shiroha Quiz 解决一个很实际的问题：
 - **Android WebView 壳版**：Web 资源打包进 APK，离线加载，适合日常手机刷题。
 - **Android 原生 Compose 版**：Kotlin + Compose 原生实现，暗夜模式、AI 解析、表格导入等均已落地，启动快、体积小。
 
+<br clear="both">
+
 ---
 
 ### 快速导览
