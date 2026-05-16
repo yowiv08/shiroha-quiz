@@ -6964,3 +6964,123 @@ body.exam-rail-collapsed-v34 #exam-answer-card-v30 .rail-show-btn-v34:hover{
   }
 }
 /* SHIROHA_WEB_V45_FOCUS_NAV_AND_BANK_EDITOR_END */
+
+/* v51: import text find / replace */
+.import-actions-v51{
+  align-items:center;
+}
+.import-actions-v51 .import-actions-spacer-v51{
+  flex:1 1 auto;
+  min-width:24px;
+}
+.import-find-replace-trigger-v51{
+  margin-left:auto;
+}
+.import-find-replace-panel-v51.hidden{
+  display:none;
+}
+.import-find-replace-panel-v51{
+  position:fixed;
+  inset:0;
+  z-index:2200;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding:96px 20px 20px;
+  background:rgba(15,23,42,.18);
+  backdrop-filter:blur(6px);
+}
+.import-find-replace-card-v51{
+  width:min(760px, calc(100vw - 40px));
+  border:1px solid rgba(47,111,237,.14);
+  border-radius:24px;
+  background:rgba(255,255,255,.97);
+  box-shadow:0 24px 70px rgba(37,99,235,.18), inset 0 1px 0 rgba(255,255,255,.94);
+  padding:20px;
+}
+.import-find-replace-head-v51{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.import-find-replace-head-v51 strong{
+  font-size:20px;
+  color:#0f2544;
+}
+.import-find-close-v51{
+  width:36px;
+  height:36px;
+  padding:0 !important;
+  border-radius:999px !important;
+  min-height:36px !important;
+}
+.import-find-replace-grid-v51{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.import-find-replace-options-v51{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px 18px;
+  margin:14px 0 8px;
+  color:#52657f;
+  font-weight:800;
+}
+.import-find-replace-options-v51 label{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.import-find-replace-options-v51 input{
+  width:auto;
+  min-height:0 !important;
+}
+.import-find-replace-actions-v51{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:12px;
+}
+.import-find-replace-tip-v51{
+  margin:12px 0 10px;
+}
+.import-find-status-v51{
+  margin-top:8px;
+}
+.import-find-status-v51.ok{
+  border-color:#bfdbfe;
+  background:#eff6ff;
+  color:#1d4ed8;
+}
+.import-find-status-v51.danger{
+  border-color:#fecaca;
+  background:#fff7f7;
+  color:#dc2626;
+}
+@media (max-width: 760px){
+  .import-actions-v51 .import-actions-spacer-v51{
+    display:none;
+  }
+  .import-find-replace-trigger-v51{
+    margin-left:0;
+  }
+  .import-find-replace-panel-v51{
+    align-items:flex-end;
+    padding:16px;
+  }
+  .import-find-replace-card-v51{
+    width:100%;
+    max-height:calc(100vh - 32px);
+    overflow:auto;
+    border-radius:22px;
+  }
+  .import-find-replace-grid-v51{
+    grid-template-columns:1fr;
+  }
+  .import-find-replace-actions-v51 button{
+    flex:1 1 100%;
+  }
+}

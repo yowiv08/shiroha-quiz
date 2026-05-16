@@ -145,7 +145,7 @@
             <label>上传文件<input id="import-file" type="file" accept=".txt,.json,.csv,.xlsx,.docx,.doc,.pdf" /></label>
           </div>
           <textarea id="import-text" placeholder="把题库文本粘贴到这里，或上传 .docx / .xlsx / .csv / .txt / .json / 文字型 PDF 后导入。支持：A、选项(正确答案)、答案：D、答案：A/B/C、解析：……"></textarea>
-          <div class="actions"><button id="parse-import-btn" class="primary">开始识别</button><button id="confirm-import-btn" class="primary" disabled>确认导入</button><button id="clear-import-btn" class="ghost">清空</button></div>
+          <div class="actions import-actions-v51"><button id="parse-import-btn" class="primary">开始识别</button><button id="confirm-import-btn" class="primary" disabled>确认导入</button><button id="clear-import-btn" class="ghost">清空</button><span class="import-actions-spacer-v51" aria-hidden="true"></span><button id="find-replace-import-btn" class="ghost import-find-replace-trigger-v51" type="button">查找替换</button></div>
         </div>
         <div class="card">
           <div class="section-head"><div><p class="kicker">Dual File Import</p><h2>双文件导入：题目文件 + 答案文件</h2></div><button id="dual-load-sample-btn" class="ghost">填入双文件示例</button></div>
