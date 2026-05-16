@@ -351,7 +351,7 @@ apps/android/app/build/outputs/
 最新版本请以 [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases) 为准。当前仓库文档记录的主要版本线为：
 
 - WebView 壳版：`v0.4.4-alpha`
-- 原生 Compose 版：`v0.3.6-native`
+- 原生 Compose 版：`v0.3.7-native`
 - 统一测试发布：`v1.0.0-beta`
 
 每次发布包含 Android APK 及相关说明文档。
