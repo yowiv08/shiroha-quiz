@@ -97,7 +97,8 @@ Shiroha Quiz 解决一个很实际的问题：
 - 支持批量编辑和删除异常题目
 
 **备份恢复**
-- 全部数据一键导出为 JSON 备份文件
+- 全部数据一键导出为 JSON 备份文件，Web 端与原生端导出格式互通，可相互导入
+- 原生端导出 ZIP 含图片素材，Web 端同样可直接导入并自动转换
 - 支持批量导出单个题库 JSON
 - 恢复时可选合并或覆盖现有数据
 
@@ -110,7 +111,7 @@ Shiroha Quiz 解决一个很实际的问题：
 ### 视觉与体验（原生版）
 
 - 暗夜模式 / 浅色模式切换
-- 自定义开屏图
+- Shiroha 模式：统一管控开屏图、页面插画和应用图标，可以在更通用的场景下使用（二次元ssw了）
 - 统一的 Design Token 间距与颜色系统
 
 ---
@@ -211,8 +212,9 @@ Shiroha Quiz 的题库和记录保存在本地存储中（Web 端使用浏览器
 建议：
 
 - **重要题库导入后，及时导出全部数据备份。**
-- **换设备、清理缓存、卸载 App 前，务必先导出备份 JSON。**
-- 从 Shiroha Quiz 导出的备份 JSON，应在 **设置/导出 → 导入配置 / 备份 JSON** 中导入。
+- **换设备、清理缓存、卸载 App 前，务必先导出备份 JSON 或 ZIP。**
+- 从 Shiroha Quiz 导出的备份 JSON/ZIP，应在 **设置/导出 → 导入配置 / 备份 JSON/ZIP** 中导入。
+- Web 端导出的 JSON 可直接导入原生端；原生端导出的 ZIP 也可导入 Web 端，含图片题库完全互通。
 - **备份 JSON、批量题库 JSON 不要放进普通题库导入区解析。**
 
 ---
@@ -329,9 +331,8 @@ apps/android/app/build/outputs/
 
 最新版本请以 [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases) 为准。当前仓库文档记录的主要版本线为：
 
-- WebView 壳版：`v0.4.4-alpha`
-- 原生 Compose 版：`v0.3.7-native`
-- 统一测试发布：`v1.0.0-beta`
+- Web 版：`v0.4.5-alpha`
+- 原生 Compose 版：`v0.3.9-native`
 
 每次发布包含 Android APK 及相关说明文档。
 
