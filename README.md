@@ -17,8 +17,8 @@ Shiroha Quiz 解决一个很实际的问题：
 当前项目包含三条线：
 
 - **Web 版**：功能完整稳定，题库导入、刷题考试、错题复习均已就绪。
-- **Android WebView 壳版**：Web 资源打包进 APK，离线加载，适合日常手机刷题。
-- **Android 原生 Compose 版**：Kotlin + Compose 原生实现，暗夜模式、AI 解析、表格导入等均已落地，启动快、体积小。
+- **Android WebView 壳版**：Web 资源打包进 APK，离线加载，UI较一般，逻辑同web一致。
+- **Android 原生 Compose 版**：Kotlin + Compose 原生实现，暗夜模式、AI 解析等均已落地，画面精致、使用流畅。
 
 <br style="clear:both">
 
