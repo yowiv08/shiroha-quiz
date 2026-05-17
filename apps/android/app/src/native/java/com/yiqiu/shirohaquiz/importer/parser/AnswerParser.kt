@@ -108,6 +108,10 @@ object AnswerParser {
         """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：)）]?\s*(?:(?:本题)?(?:答案|正确答案|参考答案|标准答案|正确选项)\s*(?:为|是)|(?:本题)?(?:应选|故选))\s*($objectiveAnswerValuePattern)\s*[.。,:：，、;；]?\s*(?:[【\[]?\s*(?:$analysisLabelPattern)\s*[】\]]?\s*[:：]?)?\s*(.*)$""",
         RegexOption.IGNORE_CASE
     )
+    private val labeledAnswerLineRegex = Regex(
+        """^\s*(?:第\s*)?(\d{1,4})\s*(?:题)?\s*[.、．:：)）]?\s*(?:(?:本题)?(?:答案|正确答案|参考答案|标准答案|正确选项)$answerSeparatorPattern)\s*($objectiveAnswerValuePattern)\s*[.。,:：，、;；]?\s*(?:[【\[]?\s*(?:$analysisLabelPattern)\s*[】\]]?\s*[:：]?)?\s*(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
     private val subjectiveAnswerLineRegex = Regex(
         """^\s*(?:(?:第\s*)?([一二三四五六七八九十百0-9]{1,4})\s*(?:题|问)?|(?:问题|题目)\s*([一二三四五六七八九十百0-9]{1,4}))\s*[.、．:：]?\s*(?:本题)?(?:$answerLabelPattern)$answerSeparatorPattern(.+)$""",
         RegexOption.IGNORE_CASE
@@ -139,6 +143,22 @@ object AnswerParser {
                 sequence += tableEntries.size
                 index += 2
                 continue
+            }
+
+            val labeledAnswerMatch = labeledAnswerLineRegex.find(line)
+            if (labeledAnswerMatch != null) {
+                val answer = AnswerTokenParser.parseObjectiveAnswers(labeledAnswerMatch.groupValues[2])
+                if (answer.isNotEmpty()) {
+                    entries += ParsedAnswerEntry(
+                        number = labeledAnswerMatch.groupValues[1],
+                        answer = answer,
+                        analysis = labeledAnswerMatch.groupValues[3].trim(),
+                        type = currentType,
+                        sequence = sequence++
+                    )
+                    index += 1
+                    continue
+                }
             }
 
             val expressionMatch = expressionAnswerLineRegex.find(line)

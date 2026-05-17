@@ -6,6 +6,8 @@ import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.importer.model.WarningLevel
 
 object ImportValidator {
+    private val imageMarkerRegex = Regex("""\[\[SHIROHA_IMAGE:img_\d{4}]]""")
+
     fun validate(questions: List<Question>): List<ImportWarning> {
         val warnings = mutableListOf<ImportWarning>()
 
@@ -16,14 +18,14 @@ object ImportValidator {
 
             when (question.type) {
                 QuestionType.SINGLE -> {
-                    if (question.options.size < 2) warnings += ImportWarning(WarningLevel.ERROR, question.number, "单选题缺少足够选项")
+                    if (question.options.size < 2 && !isImageChoiceQuestion(question)) warnings += ImportWarning(WarningLevel.ERROR, question.number, "单选题缺少足够选项")
                     if (question.answer.isEmpty()) warnings += ImportWarning(WarningLevel.WARNING, question.number, "单选题未识别到答案")
                     if (question.answer.size > 1) warnings += ImportWarning(WarningLevel.ERROR, question.number, "单选题出现多个答案")
                     validateChoiceAnswer(question, warnings)
                 }
 
                 QuestionType.MULTIPLE -> {
-                    if (question.options.size < 2) warnings += ImportWarning(WarningLevel.ERROR, question.number, "多选题缺少足够选项")
+                    if (question.options.size < 2 && !isImageChoiceQuestion(question)) warnings += ImportWarning(WarningLevel.ERROR, question.number, "多选题缺少足够选项")
                     if (question.answer.isEmpty()) warnings += ImportWarning(WarningLevel.WARNING, question.number, "多选题未识别到答案")
                     validateChoiceAnswer(question, warnings)
                 }
@@ -41,6 +43,13 @@ object ImportValidator {
         }
 
         return warnings
+    }
+
+    private fun isImageChoiceQuestion(question: Question): Boolean {
+        if (question.images.isNotEmpty()) return true
+        if (imageMarkerRegex.containsMatchIn(question.question)) return true
+        if (imageMarkerRegex.containsMatchIn(question.analysis)) return true
+        return question.options.any { imageMarkerRegex.containsMatchIn(it.text) }
     }
 
     private fun validateChoiceAnswer(question: Question, warnings: MutableList<ImportWarning>) {

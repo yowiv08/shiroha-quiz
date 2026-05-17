@@ -39,6 +39,9 @@ object QuestionBlockSplitter {
     private val subjectiveQuestionTypeRegex = Regex("""(?:[【\[（(〔〖《]\s*)?(?:简答题|问答题|面试题|结构化面试题|公考面试题|公务员面试题|材料分析题|案例分析题|名词解释|论述题|综合题)(?:\s*[】\]）)〕〗》])?""")
     private val subjectiveContinuationMarkerRegex = Regex("""^\s*(?:参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答)\s*[:：]""")
     private val globalAnswerSectionRegex = Regex("""(?:集中答案|集中解析|参考答案|标准答案|正确答案|答案解析|答案区|解析区|答案部分|答案(?:与|及)解析)""")
+    private val materialIntroLineRegex = Regex(
+        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d{1,4}\s*[~～\-—至到]\s*\d{1,4}\s*题"""
+    )
 
     fun split(
         text: String,
@@ -49,6 +52,8 @@ object QuestionBlockSplitter {
         val blocks = mutableListOf<QuestionBlock>()
         var currentNumber: String? = null
         var currentLines = mutableListOf<String>()
+        var currentCategory = category
+        var currentSectionForcedType = forcedType
         var currentForcedType = forcedType
         var syntheticNumber = 0
         var sequence = 0
@@ -62,14 +67,14 @@ object QuestionBlockSplitter {
                 blocks += QuestionBlock(
                     number = number,
                     lines = cleanLines,
-                    category = category,
+                    category = currentCategory,
                     forcedType = currentForcedType,
                     sequence = sequence++
                 )
             }
             currentNumber = null
             currentLines = mutableListOf()
-            currentForcedType = forcedType
+            currentForcedType = currentSectionForcedType
         }
 
         text.lineSequence().forEach { rawLine ->
@@ -83,6 +88,9 @@ object QuestionBlockSplitter {
             SectionTitleParser.parse(line)?.let { section ->
                 if (!section.isAnswerSection) {
                     flush()
+                    currentCategory = section.title.ifBlank { category }
+                    currentSectionForcedType = section.forcedType ?: forcedType
+                    currentForcedType = currentSectionForcedType
                     skippingGlobalAnswerSection = false
                     skippingMaterialIntro = false
                     return@forEach
@@ -106,7 +114,7 @@ object QuestionBlockSplitter {
                 flush()
                 skippingMaterialIntro = false
                 currentNumber = explicitStart.number
-                currentForcedType = explicitStart.forcedType ?: forcedType
+                currentForcedType = explicitStart.forcedType ?: currentSectionForcedType
                 currentLines = mutableListOf<String>().apply {
                     val remainder = explicitStart.remainder.trim()
                     if (remainder.isNotBlank()) add(remainder)
@@ -120,18 +128,19 @@ object QuestionBlockSplitter {
                     syntheticNumber += 1
                     currentNumber = syntheticNumber.toString()
                     val typed = QuestionTypeLabelParser.extractLeading(line)
-                    currentForcedType = typed?.type ?: forcedType
+                    currentForcedType = typed?.type ?: currentSectionForcedType
                     currentLines += typed?.remainder?.takeIf { it.isNotBlank() } ?: line
                 }
                 return@forEach
             }
 
             if (allowUnnumbered && shouldStartNextSyntheticBlock(currentLines, line)) {
+                val parentNumber = currentNumber
                 flush()
                 syntheticNumber += 1
-                currentNumber = syntheticNumber.toString()
+                currentNumber = syntheticQuestionNumber(parentNumber, syntheticNumber)
                 val typed = QuestionTypeLabelParser.extractLeading(line)
-                currentForcedType = typed?.type ?: forcedType
+                currentForcedType = typed?.type ?: currentSectionForcedType
                 currentLines += typed?.remainder?.takeIf { it.isNotBlank() } ?: line
             } else {
                 currentLines += line
@@ -140,6 +149,11 @@ object QuestionBlockSplitter {
 
         flush()
         return blocks
+    }
+
+    private fun syntheticQuestionNumber(parentNumber: String?, syntheticIndex: Int): String {
+        val base = parentNumber?.trim().orEmpty()
+        return if (base.isNotBlank()) "$base-$syntheticIndex" else syntheticIndex.toString()
     }
 
     private fun parseQuestionStart(line: String): ParsedQuestionStart? {
@@ -239,7 +253,8 @@ object QuestionBlockSplitter {
     }
 
     private fun isMaterialIntroLine(line: String): Boolean {
-        return Regex("""^\s*材料[一二三四五六七八九十0-9]+\s*[:：]""").containsMatchIn(line)
+        return Regex("""^\s*材料[一二三四五六七八九十0-9]+\s*[:：]""").containsMatchIn(line) ||
+            materialIntroLineRegex.containsMatchIn(line)
     }
 
     private fun isGlobalAnswerSectionHeading(line: String): Boolean {
@@ -295,6 +310,7 @@ object QuestionBlockSplitter {
     private fun isLikelyUnnumberedQuestionLine(line: String): Boolean {
         if (line.length < 4) return false
         if (Regex("""^(?:用途|说明|备注|注意|提示)\s*[:：]""").containsMatchIn(line)) return false
+        if (Regex("""^\s*[\[【]\s*(?:待确认|备注|提示|说明|注|注意)""").containsMatchIn(line)) return false
         if (optionStartRegex.containsMatchIn(line)) return false
         if (answerLineRegex.containsMatchIn(line) || analysisLineRegex.containsMatchIn(line)) return false
         if (SectionTitleParser.isSectionHeading(line)) return false

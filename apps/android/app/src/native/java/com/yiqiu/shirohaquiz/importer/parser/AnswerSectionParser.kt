@@ -2,7 +2,7 @@ package com.yiqiu.shirohaquiz.importer.parser
 
 object AnswerSectionParser {
     private val answerEntryWithAnalysisRegex = Regex(
-        """^\s*(?:第\s*)?\d{1,4}\s*(?:题)?\s*[.、．:：]\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)\s*[.。]?\s*(?:\[?\s*解析\s*\]?|【\s*解析\s*】|解析)?""",
+        """^\s*(?:第\s*)?\d{1,4}\s*(?:题)?\s*(?:[.、．:：]?\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False)|[.、．:：]?\s*(?:[【\[]\s*(?:答案|正确答案|参考答案|标准答案|解析)\s*[】\]]|(?:答案|正确答案|参考答案|标准答案|解析)\s*[:：])\s*(?:[A-Ga-g]{1,7}|对|错|正确|错误|√|×|True|False))\s*[.。]?\s*(?:\[?\s*解析\s*\]?|【\s*解析\s*】|解析)?""",
         RegexOption.IGNORE_CASE
     )
 

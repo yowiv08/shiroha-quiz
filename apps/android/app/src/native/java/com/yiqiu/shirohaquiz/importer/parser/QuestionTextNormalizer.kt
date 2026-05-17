@@ -28,12 +28,17 @@ object QuestionTextNormalizer {
             .replace("√", "√")
             .replace("×", "×")
             .lineSequence()
-            .map { it.trimEnd() }
+            .map { stripProfileHeaderBeforeQuestion(it.trimEnd()) }
             .filterNot { isNoiseLine(it.trim()) }
             .joinToString("\n")
             .replace(Regex(""" {2,}"""), " ")
             .replace(Regex("""\n{3,}"""), "\n\n")
             .trim()
+    }
+
+    private fun stripProfileHeaderBeforeQuestion(line: String): String {
+        val marker = Regex("""^.*?(?:姓名|单位|岗位|班级|部门)\s*[:：]\s*(?=(?:第\s*)?\d{1,4}\s*(?:题)?\s*[.、．:：)）])""")
+        return marker.replace(line, "").trimStart()
     }
 
     private fun normalizeFullWidthAscii(text: String): String {

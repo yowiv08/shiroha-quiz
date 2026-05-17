@@ -218,19 +218,20 @@ object StandardQuestionParser {
         options: MutableList<Option>,
         stemLines: MutableList<String>
     ): Boolean {
-        val markers = findOptionMarkers(line)
+        val optionLine = stripLeadingOptionLabel(line)
+        val markers = findOptionMarkers(optionLine)
         if (markers.isEmpty()) return false
         if (markers.size == 1 && markers.first().markerStart > 0 && options.isNotEmpty()) return false
 
         val firstMarker = markers.first()
         if (firstMarker.markerStart > 0) {
-            val prefix = line.substring(0, firstMarker.markerStart).trim()
+            val prefix = optionLine.substring(0, firstMarker.markerStart).trim()
             if (prefix.isNotBlank()) stemLines += prefix
         }
 
         markers.forEachIndexed { index, marker ->
-            val end = markers.getOrNull(index + 1)?.markerStart ?: line.length
-            val text = line.substring(marker.contentStart, end)
+            val end = markers.getOrNull(index + 1)?.markerStart ?: optionLine.length
+            val text = optionLine.substring(marker.contentStart, end)
                 .trim()
                 .trim(';', '；')
                 .trim()
@@ -252,6 +253,10 @@ object StandardQuestionParser {
             }
         }
         return true
+    }
+
+    private fun stripLeadingOptionLabel(line: String): String {
+        return line.replace(Regex("""^\s*(?:选项|备选项|选项内容|候选项)\s*[:：]\s*"""), "")
     }
 
     private fun findOptionMarkers(line: String): List<OptionMarker> {

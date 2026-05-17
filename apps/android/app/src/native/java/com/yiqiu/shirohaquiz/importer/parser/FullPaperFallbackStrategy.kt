@@ -48,7 +48,10 @@ object FullPaperFallbackStrategy {
     )
 
     private val materialIntroRegex = Regex(
-        """(根据(?:以下|下列|上述)?(?:资料|材料|图表|统计资料).*回答\s*\d+\s*[~～\-—至到]\s*\d+\s*题)"""
+        """(根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d+\s*[~～\-—至到]\s*\d+\s*题)"""
+    )
+    private val materialIntroLineRegex = Regex(
+        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d{1,4}\s*[~～\-—至到]\s*\d{1,4}\s*题"""
     )
     private val questionLikeRegex = Regex(
         """(问|哪|何|多少|几个|几|下列|以下|选择|选出|正确|错误|最|能够|能由|意在|主要|填入|划线|划横线|\?|？|\(\s*\)|（\s*）)"""
@@ -204,7 +207,7 @@ object FullPaperFallbackStrategy {
         return text.lineSequence()
             .filterNot { line ->
                 val trimmed = line.trim()
-                paperFrontMatterRegex.containsMatchIn(trimmed) || answerHeadingRegex.matches(trimmed)
+                paperFrontMatterRegex.containsMatchIn(trimmed) || answerHeadingRegex.matches(trimmed) || materialIntroLineRegex.containsMatchIn(trimmed)
             }
             .flatMap { line -> repairDenseQuestionLine(line).lineSequence() }
             .joinToString("\n")
@@ -274,7 +277,8 @@ object FullPaperFallbackStrategy {
     }
 
     private fun normalizeFullPaperQuestions(questions: List<Question>): List<Question> {
-        return questions.map { question ->
+        val scopedQuestions = assignImplicitSectionCategoriesForFullPaper(questions)
+        return scopedQuestions.map { question ->
             val objectiveAnswer = question.answer.filter { Regex("""^[A-G]$""").matches(it) }
             val normalizedType = when {
                 objectiveAnswer.size > 1 -> QuestionType.MULTIPLE
@@ -289,6 +293,37 @@ object FullPaperFallbackStrategy {
             val category = enrichMaterialHint(question.category, question.question)
             question.copy(type = normalizedType, options = options, category = category)
         }
+    }
+
+    private fun assignImplicitSectionCategoriesForFullPaper(questions: List<Question>): List<Question> {
+        if (questions.isEmpty()) return questions
+        var lastNumericNumber: Int? = null
+        var sectionIndex = 1
+        return questions.map { question ->
+            val numericNumber = question.number.trim().toIntOrNull()
+            if (numericNumber == 1 && lastNumericNumber != null && (lastNumericNumber ?: 0) >= 2) {
+                sectionIndex += 1
+            }
+            if (numericNumber != null) {
+                lastNumericNumber = numericNumber
+            }
+            if (question.category.isNotBlank()) {
+                question
+            } else {
+                question.copy(category = implicitFullPaperSectionTitle(question.type, sectionIndex))
+            }
+        }
+    }
+
+    private fun implicitFullPaperSectionTitle(type: QuestionType, sectionIndex: Int): String {
+        val label = when (type) {
+            QuestionType.SINGLE -> "单选题"
+            QuestionType.MULTIPLE -> "多选题"
+            QuestionType.JUDGE -> "判断题"
+            QuestionType.BLANK -> "填空题"
+            QuestionType.SHORT -> "简答题"
+        }
+        return "第${sectionIndex}组/$label"
     }
 
     private fun enrichMaterialHint(category: String, stem: String): String {
