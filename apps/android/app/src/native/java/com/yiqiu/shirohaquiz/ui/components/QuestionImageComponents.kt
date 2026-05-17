@@ -3,7 +3,6 @@ package com.yiqiu.shirohaquiz.ui.components
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,7 +110,7 @@ private fun QuestionImagePreview(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = maxPreviewHeight)
-                        .clickable { expanded = true },
+                        .shirohaNoRippleClickable { expanded = true },
                     contentScale = ContentScale.Fit
                 )
             }
@@ -138,7 +137,7 @@ private fun QuestionImagePreview(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.92f))
-                        .clickable { expanded = false }
+                        .shirohaNoRippleClickable { expanded = false }
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {

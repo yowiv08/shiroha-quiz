@@ -1,7 +1,7 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -118,7 +118,7 @@ fun BankListScreen(
             val subjectiveCount = bank.questions.count { it.type == QuestionType.BLANK || it.type == QuestionType.SHORT }
 
             GlassCard(
-                modifier = Modifier.clickable { onOpenBankDetail(bank.id) }
+                modifier = Modifier.shirohaNoRippleClickable { onOpenBankDetail(bank.id) }
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -207,7 +207,7 @@ private fun CompactBankStateChip(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.shirohaNoRippleClickable(onClick = onClick),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(ShirohaRadius.Pill),
         color = if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.84f),
         border = if (selected) null else BorderStroke(1.dp, ShirohaColors.LineStrong)

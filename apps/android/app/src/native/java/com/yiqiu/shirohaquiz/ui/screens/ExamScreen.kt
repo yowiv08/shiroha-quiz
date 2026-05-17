@@ -3,7 +3,7 @@ package com.yiqiu.shirohaquiz.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -646,7 +646,7 @@ private fun ExamCollapseTextPill(
 ) {
     Surface(
         modifier = modifier
-            .clickable(onClick = onClick),
+            .shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(ShirohaRadius.Pill),
         color = ShirohaColors.CardWhite62,
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineSoft)
@@ -678,7 +678,7 @@ private fun ExamCollapsedStatusPill(
 ) {
     Surface(
         modifier = modifier
-            .clickable(onClick = onClick),
+            .shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(ShirohaRadius.Pill),
         color = ShirohaColors.CardWhite86,
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
@@ -965,7 +965,7 @@ private fun ExamAnswerNumberChip(
 ) {
     val shape = RoundedCornerShape(ShirohaRadius.Pill)
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.shirohaNoRippleClickable(onClick = onClick),
         shape = shape,
         color = when {
             current -> MaterialTheme.colorScheme.primary

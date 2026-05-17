@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -358,7 +358,7 @@ private fun BankExportDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .shirohaNoRippleClickable {
                                 onSelectedChange(if (selectedBankIds.size == banks.size) emptySet() else banks.map { it.id }.toSet())
                             },
                         verticalAlignment = Alignment.CenterVertically
@@ -375,7 +375,7 @@ private fun BankExportDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .shirohaNoRippleClickable {
                                     onSelectedChange(
                                         if (bank.id in selectedBankIds) selectedBankIds - bank.id else selectedBankIds + bank.id
                                     )
@@ -426,7 +426,7 @@ private fun DataActionTile(
     onClick: () -> Unit = {}
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         color = ShirohaColors.CardWhite68,
         border = BorderStroke(ShirohaDimens.Hairline, if (warning) ShirohaColors.StateWarningSoft else ShirohaColors.LineSoft)
@@ -1106,7 +1106,7 @@ private fun ThemeChoiceTile(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(ShirohaRadius.Md),
         color = if (selected) ShirohaColors.BrandPrimarySoft else ShirohaColors.CardWhite78,
         border = BorderStroke(ShirohaDimens.Hairline, if (selected) ShirohaColors.LineSelected else ShirohaColors.LineSoft)
@@ -1185,7 +1185,7 @@ private fun PreferenceSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .shirohaNoRippleClickable { onCheckedChange(!checked) }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1231,7 +1231,7 @@ private fun FeaturePlanStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .shirohaNoRippleClickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

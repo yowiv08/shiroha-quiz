@@ -1,6 +1,6 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
-import androidx.compose.foundation.clickable
+import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -97,7 +97,7 @@ private fun RecordCard(
     val finishTime = record.timestamp
     val isExam = record.source.contains("考试")
 
-    GlassCard(modifier = Modifier.clickable(onClick = onClick)) {
+    GlassCard(modifier = Modifier.shirohaNoRippleClickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

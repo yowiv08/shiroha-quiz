@@ -240,7 +240,7 @@ fun MetricGlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    val cardModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    val cardModifier = if (onClick != null) modifier.shirohaNoRippleClickable(onClick = onClick) else modifier
     GlassCard(modifier = cardModifier) {
         Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(ShirohaSpacing.Xs))
@@ -262,7 +262,7 @@ fun ShortcutGlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    val cardModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    val cardModifier = if (onClick != null) modifier.shirohaNoRippleClickable(onClick = onClick) else modifier
     GlassCard(modifier = cardModifier) {
         Icon(icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(14.dp))

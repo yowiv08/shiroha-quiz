@@ -1,7 +1,7 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -185,7 +185,7 @@ private fun CompactHomeActionButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         color = ShirohaColors.CardWhite86,
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
@@ -333,7 +333,7 @@ private fun HomeShortcutCard(
 ) {
     Surface(
         modifier = modifier
-            .clickable(onClick = onClick),
+            .shirohaNoRippleClickable(onClick = onClick),
         shape = RoundedCornerShape(26.dp),
         color = ShirohaColors.CardWhite72,
         border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineSoft)
