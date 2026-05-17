@@ -287,17 +287,18 @@ function looksLikeTextualAnswer(s){
   if(/(?:\u5305\u62ec|\u5e94\u5f53|\u9700\u8981|\u6b65\u9aa4|\u63aa\u65bd|\u6d41\u7a0b|\u539f\u56e0|\u8981\u6c42|\u5185\u5bb9|\u68c0\u67e5|\u6838\u5bf9|\u8fdb\u884c|\u4fdd\u8bc1|\u786e\u4fdd|\u4e25\u7981|\u5fc5\u987b|\u4e0d\u5f97|\u9996\u5148|\u5176\u6b21|\u7136\u540e|\u6700\u540e|\u4e00\u662f|\u4e8c\u662f|\u4e09\u662f|\u65bd\u5de5|\u8bbe\u5907|\u5b89\u5168|\u53c2\u6570)/.test(s))return true;
   return false;
 }
-function shouldGuessBlankFromNoOption(question,answer){
+function hasShortAnswerPrompt(question){
+  return /简述|说明|阐述|分析|论述|列举|写出|叙述|解释|概括|谈谈|提出|给出|简答|问答|名词解释|含义|定义|为什么|原因|措施|流程|步骤|要求|内容|注意事项|如何|哪些|什么是|是什么|怎么办|怎么做|意义|作用|影响|区别|联系|原则|要点|路径/.test(String(question||''));
+}
+function hasExplicitBlankPrompt(question){
   const q=String(question||'');
-  const ans=(answer||[]).map(x=>String(x||'').trim()).filter(Boolean);
-  const ansText=ans.join('?');
-  const ansLen=normalizeTextAnswerForCompare(ansText).length;
-  const hasBlankStem=/_{2,}|____|[\uFF08(]\s*[\uFF09)]|\[\s*\]|\u586b\u7a7a|\u586b\u5165|\u8865\u5168|\u7a7a\u683c|\u6a2a\u7ebf/.test(q);
-  const hasShortStem=/\u7b80\u8ff0|\u8bf4\u660e|\u9610\u8ff0|\u5206\u6790|\u8bba\u8ff0|\u5217\u4e3e|\u5199\u51fa|\u53d9\u8ff0|\u4e3a\u4ec0\u4e48|\u539f\u56e0|\u63aa\u65bd|\u6d41\u7a0b|\u6b65\u9aa4|\u8981\u6c42|\u5185\u5bb9|\u6ce8\u610f\u4e8b\u9879|\u5982\u4f55|\u54ea\u4e9b|\u4ec0\u4e48|\u7b80\u7b54|\u95ee\u7b54/.test(q);
-  const hasLongText=looksLikeTextualAnswer(ansText)||ansLen>20;
-  if(hasShortStem||hasLongText)return false;
-  if(hasBlankStem)return true;
-  return ans.length<=2 && ansLen>0 && ansLen<=20 && !/[??;\n]/.test(ansText);
+  return /_{2,}|____|[（(]\s*[）)]|\[\s*\]|填空|填入|补全|补充完整|空白处|空格|横线|括号内|空内/.test(q);
+}
+function shouldGuessBlankFromNoOption(question,answer){
+  // v52：填空题必须有明确填空特征；短答案不再单独作为填空依据。
+  // “什么是/简述/说明/列举”等无选项题，即使答案很短，也应优先按简答处理。
+  if(hasShortAnswerPrompt(question))return false;
+  return hasExplicitBlankPrompt(question);
 }
 function splitTextAnswer(s){
   if(Array.isArray(s))return s.map(x=>String(x||'').trim()).filter(Boolean);
@@ -3215,16 +3216,13 @@ function guessType(question,options,answer,group=''){
     if(/多选|多项选择/.test(question))return'multiple';
     return'single';
   }
-  if(/简答|问答|名词解释|论述/.test(question))return'short';
-  if(/填空|填入|补全|_{2,}|____|（\s*）|\(\s*\)/.test(question)){
-    if(ans.length && !shouldGuessBlankFromNoOption(question,ans))return'short';
-    return'blank';
-  }
+  if(hasShortAnswerPrompt(question))return'short';
+  if(hasExplicitBlankPrompt(question))return'blank';
   if(!optionCount && ans.length){
     if(ans.some(a=>isJudgeSymbolAnswer(a)))return'judge';
     if(ans.every(a=>/^[A-Ga-g]$/.test(a)))return ans.length>1?'multiple':'single';
-    if(ans.every(a=>/^[1-9]$/.test(a)))return'blank';
-    return shouldGuessBlankFromNoOption(question,ans)?'blank':'short';
+    // 无选项题不再只凭“答案短/数字短”推成填空，避免简答题被误判。
+    return 'short';
   }
   return'single';
 }
