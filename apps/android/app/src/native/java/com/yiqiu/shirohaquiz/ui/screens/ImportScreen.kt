@@ -10,6 +10,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -53,6 +56,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +70,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -101,8 +107,10 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -122,6 +130,8 @@ fun ImportScreen(
     var reviewMode by rememberSaveable { mutableStateOf(false) }
     var reviewIndex by rememberSaveable { mutableStateOf(0) }
     var reviewEditingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var reviewEditFromFilterList by rememberSaveable { mutableStateOf(false) }
+    var reviewFilterListFocusTick by rememberSaveable { mutableStateOf(0) }
     var reviewFilterName by rememberSaveable { mutableStateOf(ReviewFilter.ALL.name) }
     var statusText by rememberSaveable {
         mutableStateOf("请选择题库文件。")
@@ -339,6 +349,7 @@ fun ImportScreen(
             aiAnalysisAppliedQuestionIds = aiAnalysisAppliedQuestionIds.filterNot { it == deletedQuestionId }
         }
         reviewEditingIndex = null
+        reviewEditFromFilterList = false
         reviewIndex = index.coerceAtMost((nextQuestions.size - 1).coerceAtLeast(0))
         firstMatchingQuestionIndex(
             questions = nextQuestions,
@@ -390,7 +401,13 @@ fun ImportScreen(
                 }
             },
             onDeleteQuestion = { deleteReviewQuestionAt(safeEditingIndex) },
-            onBack = { reviewEditingIndex = null }
+            onBack = {
+                reviewEditingIndex = null
+                if (reviewEditFromFilterList) {
+                    reviewFilterListFocusTick += 1
+                }
+                reviewEditFromFilterList = false
+            }
         )
         return
     }
@@ -407,6 +424,7 @@ fun ImportScreen(
             aiAnalysisAppliedQuestionIds = aiAnalysisAppliedQuestionIds,
             filter = reviewFilter,
             currentIndex = reviewIndex.coerceIn(0, (editableQuestions.size - 1).coerceAtLeast(0)),
+            focusFilterListTick = reviewFilterListFocusTick,
             onFilterChange = { filter ->
                 reviewFilterName = filter.name
                 firstMatchingQuestionIndex(
@@ -448,10 +466,11 @@ fun ImportScreen(
                 }
             },
             onDeleteQuestion = { index -> deleteReviewQuestionAt(index) },
-            onEditQuestion = { index ->
+            onEditQuestion = { index, focusFilterListOnBack ->
                 if (editableQuestions.isNotEmpty()) {
                     reviewIndex = index.coerceIn(0, editableQuestions.lastIndex)
                     reviewEditingIndex = index.coerceIn(0, editableQuestions.lastIndex)
+                    reviewEditFromFilterList = focusFilterListOnBack
                 }
             },
             onBack = {
@@ -1853,7 +1872,7 @@ private fun NativeImportPreview(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun NativeQuestionReviewScreen(
     questions: List<Question>,
@@ -1864,12 +1883,13 @@ private fun NativeQuestionReviewScreen(
     aiAnalysisAppliedQuestionIds: List<String>,
     filter: ReviewFilter,
     currentIndex: Int,
+    focusFilterListTick: Int,
     onFilterChange: (ReviewFilter) -> Unit,
     onIndexChange: (Int) -> Unit,
     onQuestionChange: (Int, Question) -> Unit,
     onApplyAiSuggestion: (Int, AiReviewSuggestion) -> Unit,
     onDeleteQuestion: (Int) -> Unit,
-    onEditQuestion: (Int) -> Unit,
+    onEditQuestion: (Int, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     if (questions.isEmpty()) {
@@ -1929,10 +1949,25 @@ private fun NativeQuestionReviewScreen(
     val questionWarnings = warningsForQuestion(question, warnings)
     val questionAiSuggestions = aiSuggestions.filter { it.questionId == question.id && isActionableAiSuggestion(it) }
     val visiblePosition = visibleIndices.indexOf(safeIndex).takeIf { it >= 0 } ?: 0
+    val reviewScrollState = rememberScrollState()
+    val filterListBringIntoViewRequester = remember { BringIntoViewRequester() }
+    var filterListRootY by remember { mutableStateOf(0f) }
+    val focusTopOffsetPx = with(LocalDensity.current) { 24.dp.toPx() }
+
+    LaunchedEffect(focusFilterListTick, activeFilter, visibleIndices.size, safeIndex) {
+        if (focusFilterListTick > 0 && activeFilter != ReviewFilter.ALL && visibleIndices.size > 1) {
+            delay(120)
+            val targetScroll = (reviewScrollState.value + filterListRootY - focusTopOffsetPx)
+                .roundToInt()
+                .coerceAtLeast(0)
+            reviewScrollState.animateScrollTo(targetScroll)
+            filterListBringIntoViewRequester.bringIntoView()
+        }
+    }
 
     Column(
         modifier = Modifier
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(reviewScrollState)
             .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
         verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
     ) {
@@ -2032,7 +2067,7 @@ private fun NativeQuestionReviewScreen(
                     icon = Icons.Rounded.Edit,
                     text = "编辑本题",
                     modifier = Modifier.weight(1f),
-                    onClick = { onEditQuestion(safeIndex) }
+                    onClick = { onEditQuestion(safeIndex, false) }
                 )
                 ReviewCompactButton(
                     icon = Icons.Rounded.ArrowBack,
@@ -2072,7 +2107,12 @@ private fun NativeQuestionReviewScreen(
                 currentIndex = safeIndex,
                 warnings = warnings,
                 onIndexChange = onIndexChange,
-                onEditQuestion = onEditQuestion
+                onEditQuestion = { index -> onEditQuestion(index, true) },
+                modifier = Modifier
+                    .bringIntoViewRequester(filterListBringIntoViewRequester)
+                    .onGloballyPositioned { coordinates ->
+                        filterListRootY = coordinates.positionInRoot().y
+                    }
             )
         }
 
@@ -3118,9 +3158,10 @@ private fun ReviewFilteredJumpList(
     currentIndex: Int,
     warnings: List<ImportWarning>,
     onIndexChange: (Int) -> Unit,
-    onEditQuestion: (Int) -> Unit
+    onEditQuestion: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    GlassCard {
+    GlassCard(modifier = modifier) {
         Text(
             text = "当前筛选列表",
             style = MaterialTheme.typography.titleMedium,
