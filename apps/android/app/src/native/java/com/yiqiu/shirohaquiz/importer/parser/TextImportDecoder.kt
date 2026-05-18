@@ -36,8 +36,8 @@ object TextImportDecoder {
     fun decodeDetailed(bytes: ByteArray, fileName: String): DecodeResult {
         if (bytes.isEmpty()) return DecodeResult.Success("")
         val lowerName = fileName.lowercase(Locale.ROOT)
-        val zipEntriesResult = if (looksLikeZip(bytes)) runCatching { readZipEntries(bytes) } else null
-        val zipEntries = zipEntriesResult?.getOrNull()
+        val zipEntriesResult = if (looksLikeZip(bytes)) readZipEntriesResult(bytes) else null
+        val zipEntries = zipEntriesResult?.fold(onSuccess = { it }, onFailure = { null })
 
         return when {
             lowerName.endsWith(".docx") -> decodeDocxDetailed(bytes, zipEntriesResult, zipEntries)
@@ -74,10 +74,6 @@ object TextImportDecoder {
             bytes[3] == 4.toByte()
     }
 
-    private fun decodeDocx(bytes: ByteArray): String? {
-        return runCatching { decodeDocxFromEntries(readZipEntries(bytes)) }.getOrNull()
-    }
-
     private fun decodeDocxDetailed(
         bytes: ByteArray,
         zipEntriesResult: Result<List<RawZipEntry>>?,
@@ -92,7 +88,7 @@ object TextImportDecoder {
         if (!looksLikeZip(bytes)) {
             return DecodeResult.Failure("这个文件不是标准 docx 文档。请用 Word 或 WPS 另存为 docx 后再导入。")
         }
-        val entries = zipEntries ?: return runCatching { readZipEntries(bytes) }
+        val entries = zipEntries ?: return readZipEntriesResult(bytes)
             .fold(
                 onSuccess = { readEntries ->
                     if (readEntries.isEmpty()) {
@@ -124,10 +120,6 @@ object TextImportDecoder {
         return extractTextFromWordXml(documentXml)
     }
 
-    private fun decodeXlsx(bytes: ByteArray): String? {
-        return runCatching { decodeXlsxFromEntries(readZipEntries(bytes)) }.getOrNull()
-    }
-
     private fun decodeXlsxDetailed(
         bytes: ByteArray,
         zipEntriesResult: Result<List<RawZipEntry>>?,
@@ -142,7 +134,7 @@ object TextImportDecoder {
         if (!looksLikeZip(bytes)) {
             return DecodeResult.Failure("这个文件不是标准 xlsx 表格。请用 Excel 或 WPS 另存为 xlsx 后再导入。")
         }
-        val entries = zipEntries ?: return runCatching { readZipEntries(bytes) }
+        val entries = zipEntries ?: return readZipEntriesResult(bytes)
             .fold(
                 onSuccess = { readEntries ->
                     if (readEntries.isEmpty()) {
@@ -486,6 +478,14 @@ object TextImportDecoder {
             DecodeResult.Failure(emptyMessage)
         } else {
             DecodeResult.Success(normalized)
+        }
+    }
+
+    private fun readZipEntriesResult(bytes: ByteArray): Result<List<RawZipEntry>> {
+        return try {
+            Result.success(readZipEntries(bytes))
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
 
