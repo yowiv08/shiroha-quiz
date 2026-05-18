@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.ui.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -97,11 +98,41 @@ private enum class MainTab(
     About("关于", Icons.Rounded.Settings, showInBottomBar = false)
 }
 
+private fun MainTab.systemBackTarget(): MainTab? = when (this) {
+    MainTab.Exam,
+    MainTab.BankList,
+    MainTab.BankDetail,
+    MainTab.WrongBook,
+    MainTab.Records -> MainTab.Home
+
+    MainTab.BankReview -> MainTab.BankDetail
+    MainTab.RecordDetail -> MainTab.Records
+
+    MainTab.AppearancePreference,
+    MainTab.PracticePreference,
+    MainTab.AiSettings,
+    MainTab.DataManagement,
+    MainTab.StandardFormat,
+    MainTab.About -> MainTab.Me
+
+    MainTab.Home,
+    MainTab.Practice,
+    MainTab.Import,
+    MainTab.Me -> null
+}
+
 @Composable
 fun ShirohaAppShell() {
     var currentTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var detailBankId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRecordId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val systemBackTarget = currentTab.systemBackTarget()
+    BackHandler(enabled = systemBackTarget != null) {
+        systemBackTarget?.let { target ->
+            currentTab = target
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
