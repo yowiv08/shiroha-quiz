@@ -243,20 +243,30 @@ fun ImportScreen(
                 }
             }
             isImportBusy = false
-            val content = result.getOrNull()
-            if (content == null || content.text.isBlank()) {
-                statusText = "当前导入还不能稳定读取这个文件。建议优先使用 docx / txt / json / xlsx / csv；旧版 xls 请另存为 xlsx 后导入。"
-                isStatusWarn = true
-            } else {
-                rawText = content.text
-                importedImages = content.images
-                rawTextEditorExpanded = content.text.length <= LARGE_TEXT_PREVIEW_THRESHOLD
-                statusText = if (content.images.isNotEmpty()) {
-                    "已读取：$selectedFileName，含 ${content.images.size} 张图片。"
-                } else {
-                    "已读取：$selectedFileName。"
+            when (val decodeResult = result.getOrElse {
+                QuestionImportAssetExtractor.DecodeResult.Failure("文件无法读取，可能已损坏或没有访问权限。")
+            }) {
+                is QuestionImportAssetExtractor.DecodeResult.Success -> {
+                    val content = decodeResult.content
+                    if (content.text.isBlank()) {
+                        statusText = "已读取文件，但没有发现可用文本内容。请确认文档不是空白、扫描图片或旧版 xls。"
+                        isStatusWarn = true
+                    } else {
+                        rawText = content.text
+                        importedImages = content.images
+                        rawTextEditorExpanded = content.text.length <= LARGE_TEXT_PREVIEW_THRESHOLD
+                        statusText = if (content.images.isNotEmpty()) {
+                            "已读取：$selectedFileName，含 ${content.images.size} 张图片。"
+                        } else {
+                            "已读取：$selectedFileName。"
+                        }
+                        isStatusWarn = false
+                    }
                 }
-                isStatusWarn = false
+                is QuestionImportAssetExtractor.DecodeResult.Failure -> {
+                    statusText = decodeResult.userMessage
+                    isStatusWarn = true
+                }
             }
         }
     }
@@ -275,16 +285,26 @@ fun ImportScreen(
                 }
             }
             isImportBusy = false
-            val text = result.getOrNull()
-            if (text.isNullOrBlank()) {
-                statusText = "答案文件暂时还不能稳定读取，请优先使用 txt / docx / xlsx / csv 或可复制文本的文档。"
-                isStatusWarn = true
-            } else {
-                answerText = text
-                answerTextEditorExpanded = text.length <= LARGE_TEXT_PREVIEW_THRESHOLD
-                clearParsedResult()
-                statusText = "已读取答案文件：$selectedAnswerFileName。"
-                isStatusWarn = false
+            when (val decodeResult = result.getOrElse {
+                TextImportDecoder.DecodeResult.Failure("答案文件无法读取，可能已损坏或没有访问权限。")
+            }) {
+                is TextImportDecoder.DecodeResult.Success -> {
+                    val text = decodeResult.text
+                    if (text.isBlank()) {
+                        statusText = "已读取答案文件，但没有发现可用文本内容。请确认文件不是空白、扫描图片或旧版 xls。"
+                        isStatusWarn = true
+                    } else {
+                        answerText = text
+                        answerTextEditorExpanded = text.length <= LARGE_TEXT_PREVIEW_THRESHOLD
+                        clearParsedResult()
+                        statusText = "已读取答案文件：$selectedAnswerFileName。"
+                        isStatusWarn = false
+                    }
+                }
+                is TextImportDecoder.DecodeResult.Failure -> {
+                    statusText = decodeResult.userMessage
+                    isStatusWarn = true
+                }
             }
         }
     }
@@ -3342,14 +3362,16 @@ private fun readImportedContent(
     context: Context,
     uri: Uri,
     fileName: String
-): QuestionImportAssetExtractor.ImportedContent? {
-    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-    return QuestionImportAssetExtractor.decode(context, bytes, fileName)
+): QuestionImportAssetExtractor.DecodeResult {
+    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: return QuestionImportAssetExtractor.DecodeResult.Failure("文件无法读取，请确认文件仍可访问。")
+    return QuestionImportAssetExtractor.decodeDetailed(context, bytes, fileName)
 }
 
-private fun readImportedText(context: Context, uri: Uri, fileName: String): String? {
-    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-    return TextImportDecoder.decode(bytes, fileName)
+private fun readImportedText(context: Context, uri: Uri, fileName: String): TextImportDecoder.DecodeResult {
+    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: return TextImportDecoder.DecodeResult.Failure("文件无法读取，请确认文件仍可访问。")
+    return TextImportDecoder.decodeDetailed(bytes, fileName)
 }
 
 private fun sampleImportText(): String = """

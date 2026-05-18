@@ -27,6 +27,14 @@ object QuestionImportAssetExtractor {
         val images: List<ExtractedImportImage> = emptyList()
     )
 
+    sealed class DecodeResult {
+        data class Success(val content: ImportedContent) : DecodeResult()
+        data class Failure(
+            val userMessage: String,
+            val technicalMessage: String? = null
+        ) : DecodeResult()
+    }
+
     data class ExtractedImportImage(
         val marker: String,
         val image: QuestionImage
@@ -38,19 +46,31 @@ object QuestionImportAssetExtractor {
     )
 
     fun decode(context: Context, bytes: ByteArray, fileName: String): ImportedContent? {
-        if (bytes.isEmpty()) return ImportedContent("")
-        val lowerName = fileName.lowercase(Locale.ROOT)
-        return if (lowerName.endsWith(".docx") || looksLikeDocx(bytes)) {
-            decodeDocxWithImages(context, bytes, fileName)
-        } else {
-            TextImportDecoder.decode(bytes, fileName)?.let { ImportedContent(it) }
+        return when (val result = decodeDetailed(context, bytes, fileName)) {
+            is DecodeResult.Success -> result.content
+            is DecodeResult.Failure -> null
         }
     }
 
-    private fun decodeDocxWithImages(context: Context, bytes: ByteArray, fileName: String): ImportedContent? {
-        val entries = readZipEntries(bytes)
+    fun decodeDetailed(context: Context, bytes: ByteArray, fileName: String): DecodeResult {
+        if (bytes.isEmpty()) return DecodeResult.Success(ImportedContent(""))
+        val lowerName = fileName.lowercase(Locale.ROOT)
+        return if (lowerName.endsWith(".docx") || (looksLikeDocx(bytes) && !lowerName.endsWith(".xlsx"))) {
+            decodeDocxWithImagesDetailed(context, bytes, fileName)
+        } else {
+            TextImportDecoder.decodeDetailed(bytes, fileName).toImportedContentResult()
+        }
+    }
+
+    private fun decodeDocxWithImagesDetailed(context: Context, bytes: ByteArray, fileName: String): DecodeResult {
+        val entries = runCatching { readZipEntries(bytes) }.getOrElse { error ->
+            return DecodeResult.Failure(
+                userMessage = "文件无法读取，可能已损坏。请重新导出或另存为 docx 后再试。",
+                technicalMessage = error.message
+            )
+        }
         val documentXml = entries.firstOrNull { it.name == "word/document.xml" }?.bytes?.toString(Charsets.UTF_8)
-            ?: return TextImportDecoder.decode(bytes, fileName)?.let { ImportedContent(it) }
+            ?: return TextImportDecoder.decodeDetailed(bytes, fileName).toImportedContentResult()
         val relationshipsXml = entries.firstOrNull { it.name == "word/_rels/document.xml.rels" }?.bytes?.toString(Charsets.UTF_8).orEmpty()
         val relationshipTargets = parseRelationships(relationshipsXml)
         val mediaByName = entries
@@ -58,7 +78,7 @@ object QuestionImportAssetExtractor {
             .associateBy { it.name }
 
         if (mediaByName.isEmpty()) {
-            return TextImportDecoder.decode(bytes, fileName)?.let { ImportedContent(it) }
+            return TextImportDecoder.decodeDetailed(bytes, fileName).toImportedContentResult()
         }
 
         val sessionDir = File(context.filesDir, "question_assets/import_${System.currentTimeMillis()}").apply { mkdirs() }
@@ -69,7 +89,7 @@ object QuestionImportAssetExtractor {
         val paragraphRegex = Regex("""<w:p[\s\S]*?</w:p>""")
         val paragraphMatches = paragraphRegex.findAll(documentXml).toList()
         if (paragraphMatches.isEmpty()) {
-            return TextImportDecoder.decode(bytes, fileName)?.let { ImportedContent(it) }
+            return TextImportDecoder.decodeDetailed(bytes, fileName).toImportedContentResult()
         }
 
         paragraphMatches.forEach { paragraphMatch ->
@@ -96,7 +116,18 @@ object QuestionImportAssetExtractor {
         }
 
         val normalized = QuestionTextNormalizer.normalize(builder.toString())
-        return ImportedContent(normalized, extracted)
+        return if (normalized.isBlank()) {
+            TextImportDecoder.decodeDetailed(bytes, fileName).toImportedContentResult()
+        } else {
+            DecodeResult.Success(ImportedContent(normalized, extracted))
+        }
+    }
+
+    private fun TextImportDecoder.DecodeResult.toImportedContentResult(): DecodeResult {
+        return when (this) {
+            is TextImportDecoder.DecodeResult.Success -> DecodeResult.Success(ImportedContent(text))
+            is TextImportDecoder.DecodeResult.Failure -> DecodeResult.Failure(userMessage, technicalMessage)
+        }
     }
 
     private fun readZipEntries(bytes: ByteArray): List<RawZipEntry> {

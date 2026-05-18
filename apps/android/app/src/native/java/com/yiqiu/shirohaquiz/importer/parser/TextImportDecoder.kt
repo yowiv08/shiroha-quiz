@@ -7,6 +7,14 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
 object TextImportDecoder {
+    sealed class DecodeResult {
+        data class Success(val text: String) : DecodeResult()
+        data class Failure(
+            val userMessage: String,
+            val technicalMessage: String? = null
+        ) : DecodeResult()
+    }
+
     private data class RawZipEntry(
         val name: String,
         val bytes: ByteArray
@@ -19,17 +27,33 @@ object TextImportDecoder {
     }
 
     fun decode(bytes: ByteArray, fileName: String): String? {
-        if (bytes.isEmpty()) return ""
+        return when (val result = decodeDetailed(bytes, fileName)) {
+            is DecodeResult.Success -> result.text
+            is DecodeResult.Failure -> null
+        }
+    }
+
+    fun decodeDetailed(bytes: ByteArray, fileName: String): DecodeResult {
+        if (bytes.isEmpty()) return DecodeResult.Success("")
         val lowerName = fileName.lowercase(Locale.ROOT)
-        val zipEntries = if (looksLikeZip(bytes)) runCatching { readZipEntries(bytes) }.getOrNull() else null
+        val zipEntriesResult = if (looksLikeZip(bytes)) runCatching { readZipEntries(bytes) } else null
+        val zipEntries = zipEntriesResult?.getOrNull()
 
         return when {
-            lowerName.endsWith(".docx") -> zipEntries?.let(::decodeDocxFromEntries) ?: decodeDocx(bytes)
-            lowerName.endsWith(".xlsx") -> zipEntries?.let(::decodeXlsxFromEntries) ?: decodeXlsx(bytes)
-            zipEntries?.any { it.name == "word/document.xml" } == true -> decodeDocxFromEntries(zipEntries)
-            zipEntries?.any { it.name.startsWith("xl/worksheets/") } == true -> decodeXlsxFromEntries(zipEntries)
-            else -> decodePlainText(bytes)
-        }?.let(QuestionTextNormalizer::normalize)
+            lowerName.endsWith(".docx") -> decodeDocxDetailed(bytes, zipEntriesResult, zipEntries)
+            lowerName.endsWith(".xlsx") -> decodeXlsxDetailed(bytes, zipEntriesResult, zipEntries)
+            zipEntries?.any { it.name == "word/document.xml" } == true -> {
+                decodeDocxFromEntries(zipEntries).toDecodeResult(
+                    emptyMessage = "已读取 Word 文档，但没有找到可用正文内容。"
+                )
+            }
+            zipEntries?.any { it.name.startsWith("xl/worksheets/") } == true -> {
+                decodeXlsxFromEntries(zipEntries).toDecodeResult(
+                    emptyMessage = "已读取 Excel 文件，但没有找到可用工作表内容。"
+                )
+            }
+            else -> DecodeResult.Success(QuestionTextNormalizer.normalize(decodePlainText(bytes).orEmpty()))
+        }
     }
 
     private fun decodePlainText(bytes: ByteArray): String? {
@@ -54,6 +78,46 @@ object TextImportDecoder {
         return runCatching { decodeDocxFromEntries(readZipEntries(bytes)) }.getOrNull()
     }
 
+    private fun decodeDocxDetailed(
+        bytes: ByteArray,
+        zipEntriesResult: Result<List<RawZipEntry>>?,
+        zipEntries: List<RawZipEntry>?
+    ): DecodeResult {
+        if (zipEntriesResult?.isFailure == true) {
+            return DecodeResult.Failure(
+                userMessage = "文件无法读取，可能已损坏。请重新导出或另存为 docx 后再试。",
+                technicalMessage = zipEntriesResult.exceptionOrNull()?.message
+            )
+        }
+        if (!looksLikeZip(bytes)) {
+            return DecodeResult.Failure("这个文件不是标准 docx 文档。请用 Word 或 WPS 另存为 docx 后再导入。")
+        }
+        val entries = zipEntries ?: return runCatching { readZipEntries(bytes) }
+            .fold(
+                onSuccess = { readEntries ->
+                    if (readEntries.isEmpty()) {
+                        DecodeResult.Failure("文件无法读取，可能已损坏。请重新导出或另存为 docx 后再试。")
+                    } else {
+                        decodeDocxFromEntries(readEntries).toDecodeResult(
+                            emptyMessage = "这个 docx 结构不完整，缺少可读取的正文内容。"
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    DecodeResult.Failure(
+                        userMessage = "文件无法读取，可能已损坏。请重新导出或另存为 docx 后再试。",
+                        technicalMessage = error.message
+                    )
+                }
+            )
+        if (entries.isEmpty()) {
+            return DecodeResult.Failure("文件无法读取，可能已损坏。请重新导出或另存为 docx 后再试。")
+        }
+        return decodeDocxFromEntries(entries).toDecodeResult(
+            emptyMessage = "这个 docx 结构不完整，缺少可读取的正文内容。"
+        )
+    }
+
     private fun decodeDocxFromEntries(entries: List<RawZipEntry>): String? {
         val documentXml = entries.firstOrNull { it.name == "word/document.xml" }?.bytes?.toString(Charsets.UTF_8)
             ?: return null
@@ -62,6 +126,46 @@ object TextImportDecoder {
 
     private fun decodeXlsx(bytes: ByteArray): String? {
         return runCatching { decodeXlsxFromEntries(readZipEntries(bytes)) }.getOrNull()
+    }
+
+    private fun decodeXlsxDetailed(
+        bytes: ByteArray,
+        zipEntriesResult: Result<List<RawZipEntry>>?,
+        zipEntries: List<RawZipEntry>?
+    ): DecodeResult {
+        if (zipEntriesResult?.isFailure == true) {
+            return DecodeResult.Failure(
+                userMessage = "文件无法读取，可能已损坏。请重新导出或另存为 xlsx 后再试。",
+                technicalMessage = zipEntriesResult.exceptionOrNull()?.message
+            )
+        }
+        if (!looksLikeZip(bytes)) {
+            return DecodeResult.Failure("这个文件不是标准 xlsx 表格。请用 Excel 或 WPS 另存为 xlsx 后再导入。")
+        }
+        val entries = zipEntries ?: return runCatching { readZipEntries(bytes) }
+            .fold(
+                onSuccess = { readEntries ->
+                    if (readEntries.isEmpty()) {
+                        DecodeResult.Failure("文件无法读取，可能已损坏。请重新导出或另存为 xlsx 后再试。")
+                    } else {
+                        decodeXlsxFromEntries(readEntries).toDecodeResult(
+                            emptyMessage = "这个 xlsx 没有可读取的工作表内容。"
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    DecodeResult.Failure(
+                        userMessage = "文件无法读取，可能已损坏。请重新导出或另存为 xlsx 后再试。",
+                        technicalMessage = error.message
+                    )
+                }
+            )
+        if (entries.isEmpty()) {
+            return DecodeResult.Failure("文件无法读取，可能已损坏。请重新导出或另存为 xlsx 后再试。")
+        }
+        return decodeXlsxFromEntries(entries).toDecodeResult(
+            emptyMessage = "这个 xlsx 没有可读取的工作表内容。"
+        )
     }
 
     private fun decodeXlsxFromEntries(entries: List<RawZipEntry>): String? {
@@ -374,6 +478,15 @@ object TextImportDecoder {
     private fun codePointToString(codePoint: Int?): String {
         if (codePoint == null || !Character.isValidCodePoint(codePoint)) return ""
         return String(Character.toChars(codePoint))
+    }
+
+    private fun String?.toDecodeResult(emptyMessage: String): DecodeResult {
+        val normalized = this?.let(QuestionTextNormalizer::normalize).orEmpty()
+        return if (normalized.isBlank()) {
+            DecodeResult.Failure(emptyMessage)
+        } else {
+            DecodeResult.Success(normalized)
+        }
     }
 
     private fun readZipEntries(bytes: ByteArray): List<RawZipEntry> {
