@@ -244,14 +244,45 @@ function normalizeQuestion(q,i=0){
   }
   return {id:q.id||'q_'+Date.now()+'_'+i,type,number:q.number||i+1,volume:q.volume||'',group:q.group||'',question:questionText,options,answer,analysis:analysisText,category:q.category||q.topic||q.group||'',score:Number(q.score||0)||undefined,normalized:normalizeText(questionText)}
 }
+function toNativeQuestionType(type){
+  const value=String(type||'').trim().toLowerCase();
+  if(value==='single'||value==='single_choice'||value==='choice')return'SINGLE';
+  if(value==='multiple'||value==='multi'||value==='multiple_choice')return'MULTIPLE';
+  if(value==='judge'||value==='judgement'||value==='judgment'||value==='true_false')return'JUDGE';
+  if(value==='blank'||value==='fill'||value==='fill_blank')return'BLANK';
+  if(value==='short'||value==='short_answer'||value==='essay'||value==='qa'||value==='subjective')return'SHORT';
+  return'SINGLE';
+}
+function normalizeWebQuestionType(type){
+  const value=String(type||'').trim().toLowerCase();
+  if(value==='single'||value==='single_choice'||value==='choice')return'single';
+  if(value==='multiple'||value==='multi'||value==='multiple_choice')return'multiple';
+  if(value==='judge'||value==='judgement'||value==='judgment'||value==='true_false')return'judge';
+  if(value==='blank'||value==='fill'||value==='fill_blank')return'blank';
+  if(value==='short'||value==='short_answer'||value==='essay'||value==='qa'||value==='subjective')return'short';
+  return'';
+}
+function serializeQuestionForCrossExportV53(q){
+  const out=JSON.parse(JSON.stringify(q||{}));
+  out.type=toNativeQuestionType(out.type||out.questionType||out.kind);
+  return out;
+}
+function serializeBankForCrossExportV53(bank){
+  const out=JSON.parse(JSON.stringify(bank||{}));
+  out.questions=Array.isArray(out.questions)?out.questions.map(serializeQuestionForCrossExportV53):[];
+  return out;
+}
+function serializeStateForCrossExportV53(data){
+  const out=JSON.parse(JSON.stringify(data||{}));
+  out.banks=Array.isArray(out.banks)?out.banks.map(serializeBankForCrossExportV53):[];
+  return out;
+}
 function normalizeType(t){
-  t=String(t||'').trim();
-  if(!t)return'';
-  if(t==='multi')return'multiple';
-  if(t==='short_answer'||t==='essay'||t==='qa'||t==='subjective')return'short';
-  if(t==='fill'||t==='fill_blank')return'blank';
-  if(['single','multiple','judge','blank','short'].includes(t))return t;
-  return mapType(t)||'';
+  const raw=String(t||'').trim();
+  if(!raw)return'';
+  const normalized=normalizeWebQuestionType(raw);
+  if(normalized)return normalized;
+  return mapType(raw)||'';
 }
 function isTextType(t){return t==='blank'||t==='short'||t==='short_answer'}
 function splitAnswerByType(s,type){
@@ -3688,7 +3719,7 @@ function duplicateActiveBank(){duplicateBankById(activeBank().id)}
 function duplicateBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const copy=JSON.parse(JSON.stringify(b));copy.id='bank_'+Date.now();copy.name=b.name+' - 副本';copy.createdAt=now();copy.updatedAt=now();copy.questions=(copy.questions||[]).map((q,i)=>({...q,id:'q_'+Date.now()+'_'+i,number:i+1}));state.banks.push(copy);state.activeBankId=copy.id;saveSilent();renderAll()}
 function newEmptyBank(){const name=prompt('请输入新题库名称：','新建空题库');if(!name)return;const bank={id:'bank_'+Date.now(),name:name.trim()||'新建空题库',createdAt:now(),updatedAt:now(),questions:[]};state.banks.push(bank);state.activeBankId=bank.id;saveSilent();renderAll()}
 function mergeBankIntoActive(){const sourceId=$('#merge-bank-select').value;const target=activeBank();const src=state.banks.find(b=>b.id===sourceId);if(!src){alert('没有可合并的来源题库。');return}if(!confirm(`将“${src.name}”的 ${src.questions.length} 道题合并到当前题库“${target.name}”？`))return;const before=target.questions.length;const existing=new Set(target.questions.map(q=>normalizeText(q.question)));let added=0,skipped=0;src.questions.forEach((q)=>{const k=normalizeText(q.question);if(existing.has(k)){skipped++;return}existing.add(k);target.questions.push({...JSON.parse(JSON.stringify(q)),id:'q_'+Date.now()+'_'+Math.random().toString(16).slice(2),number:target.questions.length+1});added++});target.updatedAt=now();saveSilent();renderAll();alert(`合并完成：新增 ${added} 题，跳过重复 ${skipped} 题。合并前 ${before} 题，当前 ${target.questions.length} 题。`)}
-function exportBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const text=JSON.stringify(b,null,2);$('#export-output')&&($('#export-output').value=text);download((b.name||'题库')+'.json',text)}
+function exportBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const text=JSON.stringify(serializeBankForCrossExportV53(b),null,2);$('#export-output')&&($('#export-output').value=text);download((b.name||'题库')+'.json',text)}
 
 function dedupeActiveBank(){const b=activeBank();const map=new Map(),dups=[];b.questions.forEach(q=>{const k=normalizeText(q.question);if(map.has(k))dups.push(q);else map.set(k,q)});b.questions=[...map.values()].map((q,i)=>({...q,number:i+1}));saveSilent();renderAll();alert(`去重完成：删除 ${dups.length} 道重复题，剩余 ${b.questions.length} 道。`)}
 function filteredQuestions(source,type,order,limit){let qs=[...activeBank().questions];if(source==='wrong'){const ids=new Set(getWrongEntries(activeBank().id).filter(e=>e.status!=='已掌握').map(e=>e.id));qs=qs.filter(q=>ids.has(q.id))}if(type&&type!=='all'){const t=type==='multi'?'multiple':type;qs=qs.filter(q=>q.type===t)}if(order==='random')qs=shuffle(qs);if(limit==='half'){qs=qs.slice(0,Math.max(1,Math.ceil(qs.length/2)))}else if(limit&&limit!=='all'){qs=qs.slice(0,Number(limit))}return qs}
@@ -3839,8 +3870,8 @@ function renderWrongBook(){const bid=activeBank().id;let entries=getWrongEntries
 function renderRecords(){const list=$('#records-list');let rows=[...state.records];const mode=$('#record-mode-filter')?.value||'all';if(mode!=='all')rows=rows.filter(r=>r.mode===mode);const lim=$('#record-limit')?.value||'30';if(lim!=='all')rows=rows.slice(0,Number(lim));list.innerHTML=rows.length?rows.map((r,idx)=>{const detail=(r.details||[]).slice(0,8).map((d,i)=>`<tr><td>${i+1}</td><td>${esc(short(d.question,42))}</td><td>${esc((d.chosen||[]).join('')||'未答')}</td><td>${esc((d.answer||[]).join(''))}</td><td>${d.correct?'正确':'错误'}</td></tr>`).join('');const summary=`题数${r.total}｜已答${r.answered}｜正确${r.correct}｜错误${r.wrong}｜正确率${r.accuracy}%${r.score!=null?`｜得分${r.score}/${r.totalScore}${r.passScore!=null?`｜及格线${r.passScore}｜${r.passed?'合格':'未合格'}`:''}`:''}｜用时${r.duration}秒`;return `<div class="record-item"><b>${esc(r.name||r.mode)}｜${esc(r.bankName)}｜${fmt(r.date)}</b><p class="muted">${summary}</p>${detail?`<details><summary>查看作答明细（前8题 / 共${(r.details||[]).length}题）</summary><div class="table-wrap"><table><thead><tr><th>#</th><th>题干</th><th>你的答案</th><th>正确答案</th><th>结果</th></tr></thead><tbody>${detail}</tbody></table></div></details>`:''}</div>`}).join(''):'<p class="muted">暂无练习或考试记录。</p>'}
 function exportRecords(){const text=JSON.stringify(state.records||[],null,2);$('#export-output')&&($('#export-output').value=text);download('学习记录.json',text)}
 function fmt(s){return new Date(s).toLocaleString('zh-CN',{hour12:false})}
-function exportCurrentBank(){const text=JSON.stringify(activeBank(),null,2);$('#export-output').value=text;download(activeBank().name+'.json',text)}
-function exportAll(){const text=JSON.stringify({...state,schemaVersion:CURRENT_SCHEMA_VERSION},null,2);$('#export-output').value=text;download('shiroha_quiz_all_data.json',text)}
+function exportCurrentBank(){const text=JSON.stringify(serializeBankForCrossExportV53(activeBank()),null,2);$('#export-output').value=text;download(activeBank().name+'.json',text)}
+function exportAll(){const text=JSON.stringify(serializeStateForCrossExportV53({...state,schemaVersion:CURRENT_SCHEMA_VERSION}),null,2);$('#export-output').value=text;download('shiroha_quiz_all_data.json',text)}
 function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 
 
@@ -3953,7 +3984,7 @@ function todayV23(){return new Date().toISOString().slice(0,10)}
 function buildBackupPayloadV23(banks,exportType='selected_banks',includeAll=false){
   const bankIds=new Set((banks||[]).map(b=>b.id));
   const wrongBook={};Object.keys(state.wrongBook||{}).forEach(id=>{if(includeAll||bankIds.has(id))wrongBook[id]=state.wrongBook[id]});
-  return {app:'Shiroha Quiz',schemaVersion:CURRENT_SCHEMA_VERSION,exportType,exportedAt:now(),banks:banks||[],wrongBook,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
+  return {app:'Shiroha Quiz',schemaVersion:CURRENT_SCHEMA_VERSION,exportType,exportedAt:now(),banks:(banks||[]).map(serializeBankForCrossExportV53),wrongBook,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
 }
 function exportSelectedBanksV23(){
   const banks=selectedBanksV23();if(!banks.length){toast('请至少选择一个题库。','warn');return}
@@ -4269,7 +4300,7 @@ function buildBackupPayloadV23(banks,exportType='selected_banks',includeAll=fals
   const bankIds=new Set((banks||[]).map(b=>b.id));
   const wrongBook={};Object.keys(state.wrongBook||{}).forEach(id=>{if(includeAll||bankIds.has(id))wrongBook[id]=state.wrongBook[id]});
   const favorites={};Object.keys(state.favorites||{}).forEach(id=>{if(includeAll||bankIds.has(id))favorites[id]=state.favorites[id]});
-  return {app:'Shiroha Quiz',schemaVersion:CURRENT_SCHEMA_VERSION,exportType,exportedAt:now(),banks:banks||[],wrongBook,favorites,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
+  return {app:'Shiroha Quiz',schemaVersion:CURRENT_SCHEMA_VERSION,exportType,exportedAt:now(),banks:(banks||[]).map(serializeBankForCrossExportV53),wrongBook,favorites,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
 }
 function normalizeBackupPayloadV23(data,fileName){
   if(!data||typeof data!=='object')throw new Error('JSON 根节点不是对象');

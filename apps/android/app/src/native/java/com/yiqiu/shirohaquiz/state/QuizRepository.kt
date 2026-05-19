@@ -2320,9 +2320,7 @@ object QuizRepository {
             Question(
                 id = questionJson.optString("id"),
                 number = questionJson.optString("number"),
-                type = runCatching {
-                    QuestionType.valueOf(questionJson.optString("type"))
-                }.getOrDefault(QuestionType.SINGLE),
+                type = parseQuestionType(questionJson.optString("type")),
                 question = questionJson.optString("question"),
                 options = options,
                 answer = answers,
@@ -2332,6 +2330,19 @@ object QuizRepository {
                 score = if (questionJson.has("score")) questionJson.optDouble("score") else null
             )
         )
+    }
+
+    private fun parseQuestionType(rawType: String?): QuestionType {
+        val value = rawType.orEmpty().trim()
+        if (value.isBlank()) return QuestionType.SINGLE
+        return when (value.lowercase(Locale.ROOT).replace("-", "_").replace(" ", "_")) {
+            "single", "single_choice", "singlechoice", "choice", "radio" -> QuestionType.SINGLE
+            "multiple", "multiple_choice", "multiplechoice", "multi", "checkbox" -> QuestionType.MULTIPLE
+            "judge", "judgement", "judgment", "true_false", "truefalse", "boolean" -> QuestionType.JUDGE
+            "blank", "fill_blank", "fillblank", "fill_in_blank" -> QuestionType.BLANK
+            "short", "subjective", "essay", "qa", "question_answer" -> QuestionType.SHORT
+            else -> runCatching { QuestionType.valueOf(value.uppercase(Locale.ROOT)) }.getOrDefault(QuestionType.SINGLE)
+        }
     }
 
     private fun questionsToJsonArray(questions: List<Question>, assetMapping: MutableMap<String, BackupAsset>? = null): JSONArray {
