@@ -256,7 +256,7 @@ function normalizeQuestion(q,i=0){
   return {id:q.id||'q_'+Date.now()+'_'+i,type,number:q.number||i+1,volume:q.volume||'',group:q.group||'',question:questionText,options,answer,analysis:analysisText,category:q.category||q.topic||q.group||'',score:Number(q.score||0)||undefined,normalized:normalizeText(questionText)}
 }
 function normalizeType(t){
-  t=String(t||'').trim();
+  t=String(t||'').trim().toLowerCase();
   if(!t)return'';
   if(t==='multi')return'multiple';
   if(t==='short_answer'||t==='essay'||t==='qa'||t==='subjective')return'short';
