@@ -48,6 +48,8 @@ data class WrongQuestionEntry(
     val timestamp: Long,
     val wrongCount: Int = 1,
     val rightCount: Int = 0,
+    val reviewRightCount: Int = 0,
+    val streakCorrectCount: Int = 0,
     val lastWrongAt: Long = timestamp,
     val lastCorrectAt: Long? = null,
     val status: String = WrongStatus.REVIEWING.label
@@ -614,13 +616,16 @@ object QuizRepository {
         wrongBook[index] = if (mastered) {
             current.copy(
                 status = WrongStatus.MASTERED.label,
-                rightCount = current.rightCount.coerceAtLeast(2),
+                rightCount = current.rightCount.coerceAtLeast(3),
+                reviewRightCount = current.reviewRightCount.coerceAtLeast(3),
+                streakCorrectCount = current.streakCorrectCount.coerceAtLeast(2),
                 lastCorrectAt = now
             )
         } else {
             current.copy(
-                status = WrongStatus.REVIEWING.label,
-                rightCount = current.rightCount.coerceAtMost(1)
+                status = WrongStatus.NOT_MASTERED.label,
+                reviewRightCount = 0,
+                streakCorrectCount = 0
             )
         }
         persist()
@@ -1807,12 +1812,21 @@ object QuizRepository {
 
     private fun sanitizeWrongEntry(entry: WrongQuestionEntry): WrongQuestionEntry {
         val normalizedStatus = WrongStatus.normalize(entry.status)
+        val normalizedReviewRightCount = entry.reviewRightCount.coerceAtLeast(0)
+        val normalizedStreakCorrectCount = entry.streakCorrectCount.coerceAtLeast(0)
+        val sanitizedStatus = when {
+            normalizedStatus == WrongStatus.MASTERED.label -> WrongStatus.MASTERED.label
+            isWrongEntryMastered(normalizedReviewRightCount, normalizedStreakCorrectCount) -> WrongStatus.MASTERED.label
+            else -> normalizedStatus
+        }
         return entry.copy(
             question = sanitizeQuestion(entry.question),
             wrongCount = entry.wrongCount.coerceAtLeast(0),
             rightCount = entry.rightCount.coerceAtLeast(0),
+            reviewRightCount = if (sanitizedStatus == WrongStatus.MASTERED.label && normalizedReviewRightCount == 0 && normalizedStreakCorrectCount == 0) 2 else normalizedReviewRightCount,
+            streakCorrectCount = if (sanitizedStatus == WrongStatus.MASTERED.label && normalizedReviewRightCount == 0 && normalizedStreakCorrectCount == 0) 2 else normalizedStreakCorrectCount,
             lastWrongAt = if (entry.lastWrongAt > 0L) entry.lastWrongAt else entry.timestamp,
-            status = normalizedStatus
+            status = sanitizedStatus
         )
     }
 
@@ -1936,8 +1950,10 @@ object QuizRepository {
                 source = source,
                 timestamp = now,
                 wrongCount = nextWrongCount,
+                reviewRightCount = 0,
+                streakCorrectCount = 0,
                 lastWrongAt = now,
-                status = if (nextWrongCount >= 2) WrongStatus.NOT_MASTERED.label else WrongStatus.REVIEWING.label
+                status = WrongStatus.NOT_MASTERED.label
             )
         } else {
             wrongBook.add(
@@ -1951,9 +1967,11 @@ object QuizRepository {
                     timestamp = now,
                     wrongCount = 1,
                     rightCount = 0,
+                    reviewRightCount = 0,
+                    streakCorrectCount = 0,
                     lastWrongAt = now,
                     lastCorrectAt = null,
-                    status = WrongStatus.REVIEWING.label
+                    status = WrongStatus.NOT_MASTERED.label
                 )
             )
         }
@@ -1966,13 +1984,21 @@ object QuizRepository {
         val now = System.currentTimeMillis()
         val current = wrongBook[index]
         val nextRightCount = current.rightCount + 1
+        val nextReviewRightCount = current.reviewRightCount + 1
+        val nextStreakCorrectCount = current.streakCorrectCount + 1
         wrongBook[index] = current.copy(
             question = question,
             timestamp = now,
             rightCount = nextRightCount,
+            reviewRightCount = nextReviewRightCount,
+            streakCorrectCount = nextStreakCorrectCount,
             lastCorrectAt = now,
-            status = if (nextRightCount >= 2) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
+            status = if (isWrongEntryMastered(nextReviewRightCount, nextStreakCorrectCount)) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
         )
+    }
+
+    private fun isWrongEntryMastered(reviewRightCount: Int, streakCorrectCount: Int): Boolean {
+        return streakCorrectCount >= 2
     }
 
 
@@ -2141,6 +2167,8 @@ object QuizRepository {
             item.put("lastAnswer", JSONArray(entry.lastAnswer))
             item.put("wrongCount", entry.wrongCount)
             item.put("rightCount", entry.rightCount)
+            item.put("reviewRightCount", entry.reviewRightCount)
+            item.put("streakCorrectCount", entry.streakCorrectCount)
             item.put("lastWrongAt", entry.lastWrongAt)
             if (entry.lastCorrectAt != null) item.put("lastCorrectAt", entry.lastCorrectAt)
             item.put("status", entry.status)
@@ -2232,6 +2260,9 @@ object QuizRepository {
                         add(answerArray.optString(index))
                     }
                 }
+                val normalizedStatus = WrongStatus.normalize(item.optString("status", WrongStatus.NOT_MASTERED.label))
+                val fallbackReviewRightCount = if (normalizedStatus == WrongStatus.MASTERED.label) 2 else 0
+                val fallbackStreakCorrectCount = if (normalizedStatus == WrongStatus.MASTERED.label) 2 else 0
                 add(
                     WrongQuestionEntry(
                         bankId = item.optString("bankId"),
@@ -2242,9 +2273,11 @@ object QuizRepository {
                         timestamp = item.optLong("timestamp"),
                         wrongCount = item.optInt("wrongCount", 1),
                         rightCount = item.optInt("rightCount", 0),
+                        reviewRightCount = item.optInt("reviewRightCount", fallbackReviewRightCount),
+                        streakCorrectCount = item.optInt("streakCorrectCount", fallbackStreakCorrectCount),
                         lastWrongAt = item.optLong("lastWrongAt", item.optLong("timestamp")),
                         lastCorrectAt = if (item.has("lastCorrectAt") && !item.isNull("lastCorrectAt")) item.optLong("lastCorrectAt") else null,
-                        status = WrongStatus.normalize(item.optString("status", WrongStatus.NOT_MASTERED.label))
+                        status = normalizedStatus
                     )
                 )
             }

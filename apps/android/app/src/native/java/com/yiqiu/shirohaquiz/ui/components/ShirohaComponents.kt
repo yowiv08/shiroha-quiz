@@ -318,6 +318,7 @@ fun QuizOptionCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 72.dp)
             .clip(shape)
             .clickable(
                 interactionSource = interactionSource,
@@ -350,14 +351,13 @@ fun QuizOptionCard(
             Spacer(Modifier.width(ShirohaDimens.OptionLabelTextGap))
             Text(
                 text = text,
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
                 fontWeight = if (selected || resultStyle != QuizOptionResultStyle.Neutral) FontWeight.SemiBold else FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color = MaterialTheme.colorScheme.onSurface
             )
             if (selected && resultStyle == QuizOptionResultStyle.Neutral) {
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 StatusChip("已选", selected = true)
             }
         }
