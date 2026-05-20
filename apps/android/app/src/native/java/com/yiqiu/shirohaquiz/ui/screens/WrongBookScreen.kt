@@ -282,47 +282,30 @@ private fun WrongBookSmartReviewSection(
     masteredReview: Int,
     onStart: () -> Unit
 ) {
-    GlassCard(contentPadding = ShirohaSpacing.Md) {
-        Text(
-            text = "今日复习",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = if (total > 0) {
-                "今日待复习 $total 题"
-            } else {
-                "今日暂无到期错题"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = if (total > 0) {
-                "未掌握 $notMastered · 已掌握回顾 $masteredReview。根据错题表现自动推荐今天该复习的题目。"
-            } else {
-                "可以继续刷当前筛选错题；后续答错会提前复习，已掌握题会进入低频回顾。"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(10.dp))
-        ActionPillButton(
-            icon = Icons.Rounded.PlayArrow,
-            text = "开始今日复习",
-            primary = total > 0,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(46.dp),
-            fillWidthContent = true,
-            onClick = {
-                if (total > 0) onStart()
-            }
-        )
-    }
+    Text(
+        text = "今日复习",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "未掌握 $notMastered · 已掌握回顾 $masteredReview",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(10.dp))
+    ActionPillButton(
+        icon = Icons.Rounded.PlayArrow,
+        text = if (total > 0) "开始今日复习" else "今日暂无到期",
+        primary = total > 0,
+        modifier = Modifier
+            .fillMaxWidth(0.58f)
+            .height(44.dp),
+        fillWidthContent = true,
+        onClick = {
+            if (total > 0) onStart()
+        }
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
