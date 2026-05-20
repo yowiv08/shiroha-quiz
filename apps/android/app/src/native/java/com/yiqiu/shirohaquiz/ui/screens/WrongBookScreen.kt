@@ -38,6 +38,7 @@ import com.yiqiu.shirohaquiz.ui.components.EmptyStateIllustration
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
+import com.yiqiu.shirohaquiz.ui.components.ShirohaDangerConfirmDialog
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
@@ -67,12 +68,28 @@ fun WrongBookScreen(
     val wrongBook = QuizRepository.wrongBook.toList()
     var filter by remember { mutableStateOf(WrongBookFilter.NOT_MASTERED) }
     var sort by remember { mutableStateOf(WrongBookSort.RECENT_WRONG) }
+    var showClearWrongBookConfirm by remember { mutableStateOf(false) }
     val filteredEntries = remember(wrongBook, filter, sort) {
         wrongBook.filterBy(filter).sortBy(sort)
     }
-    val reviewEntries = filteredEntries.filter { it.status != WrongStatus.MASTERED.label }
+    val reviewEntries = filteredEntries.filter { it.status != WrongStatus.MASTERED.label && !QuizRepository.isQuestionSlashed(it.bankId, it.question) }
     val notMasteredCount = wrongBook.count { it.status != WrongStatus.MASTERED.label }
     val masteredCount = wrongBook.count { it.status == WrongStatus.MASTERED.label }
+    val smartReviewEnabled = QuizRepository.wrongBookSmartReviewEnabled
+    val smartReviewSummary = QuizRepository.todayWrongBookSmartReviewSummary()
+
+    if (showClearWrongBookConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认清空错题本？",
+            message = "这会移除当前错题本里的全部错题记录，包括错题次数、掌握状态和复习统计。操作不可撤销。",
+            confirmText = "确认清空",
+            onDismiss = { showClearWrongBookConfirm = false },
+            onConfirm = {
+                QuizRepository.clearWrongBook()
+                showClearWrongBookConfirm = false
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -136,7 +153,21 @@ fun WrongBookScreen(
                     text = "清空",
                     primary = false,
                     modifier = Modifier.height(42.dp),
-                    onClick = { QuizRepository.clearWrongBook() }
+                    onClick = { showClearWrongBookConfirm = true }
+                )
+            }
+
+            if (smartReviewEnabled) {
+                Spacer(Modifier.height(16.dp))
+                WrongBookSmartReviewSection(
+                    total = smartReviewSummary.total,
+                    notMastered = smartReviewSummary.notMastered,
+                    masteredReview = smartReviewSummary.masteredReview,
+                    onStart = {
+                        if (QuizRepository.startTodayWrongBookReview()) {
+                            onGoPractice()
+                        }
+                    }
                 )
             }
 
@@ -197,7 +228,7 @@ fun WrongBookScreen(
             ) {
                 ActionPillButton(
                     icon = Icons.Rounded.PlayArrow,
-                    text = "刷错题",
+                    text = "刷当前筛选",
                     primary = reviewEntries.isNotEmpty(),
                     modifier = Modifier
                         .weight(1f)
@@ -243,9 +274,75 @@ fun WrongBookScreen(
     }
 }
 
+
+@Composable
+private fun WrongBookSmartReviewSection(
+    total: Int,
+    notMastered: Int,
+    masteredReview: Int,
+    onStart: () -> Unit
+) {
+    GlassCard(contentPadding = ShirohaSpacing.Md) {
+        Text(
+            text = "今日复习",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (total > 0) {
+                "今日待复习 $total 题"
+            } else {
+                "今日暂无到期错题"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (total > 0) {
+                "未掌握 $notMastered · 已掌握回顾 $masteredReview。根据错题表现自动推荐今天该复习的题目。"
+            } else {
+                "可以继续刷当前筛选错题；后续答错会提前复习，已掌握题会进入低频回顾。"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(10.dp))
+        ActionPillButton(
+            icon = Icons.Rounded.PlayArrow,
+            text = "开始今日复习",
+            primary = total > 0,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp),
+            fillWidthContent = true,
+            onClick = {
+                if (total > 0) onStart()
+            }
+        )
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WrongQuestionPreview(entry: WrongQuestionEntry) {
+    var showRemoveConfirm by remember(entry.bankId, entry.question.id) { mutableStateOf(false) }
+
+    if (showRemoveConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认移出这道错题？",
+            message = "这会从错题本中移出本题，并清除这道题当前的错题复习状态。原题库中的题目不会被删除。",
+            confirmText = "确认移出",
+            onDismiss = { showRemoveConfirm = false },
+            onConfirm = {
+                QuizRepository.removeWrongQuestion(entry)
+                showRemoveConfirm = false
+            }
+        )
+    }
+
     GlassCard {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip(displayWrongStatus(entry.status), selected = entry.status != WrongStatus.MASTERED.label)
@@ -304,7 +401,7 @@ private fun WrongQuestionPreview(entry: WrongQuestionEntry) {
                     .weight(1f)
                     .height(46.dp),
                 fillWidthContent = true,
-                onClick = { QuizRepository.removeWrongQuestion(entry) }
+                onClick = { showRemoveConfirm = true }
             )
         }
     }

@@ -44,6 +44,7 @@ import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.EmptyStateIllustration
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
+import com.yiqiu.shirohaquiz.ui.components.ShirohaDangerConfirmDialog
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
@@ -64,8 +65,25 @@ fun BankDetailScreen(
     val bank = QuizRepository.banks.firstOrNull { it.id == bankId } ?: QuizRepository.activeBank()
     val isActive = bank?.id == QuizRepository.activeBank()?.id
     var showSlashedList by remember(bank?.id) { mutableStateOf(false) }
+    var showDeleteBankConfirm by remember(bank?.id) { mutableStateOf(false) }
 
     BackHandler(enabled = showSlashedList) { showSlashedList = false }
+
+    if (showDeleteBankConfirm) {
+        bank?.let { targetBank ->
+            ShirohaDangerConfirmDialog(
+                title = "确认删除题库？",
+                message = "将删除“${targetBank.name}”，并清理这份题库关联的错题、斩题和学习记录。操作不可撤销。",
+                confirmText = "确认删除",
+                onDismiss = { showDeleteBankConfirm = false },
+                onConfirm = {
+                    QuizRepository.deleteBank(context, targetBank.id)
+                    showDeleteBankConfirm = false
+                    onBack()
+                }
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -226,10 +244,7 @@ fun BankDetailScreen(
                     icon = Icons.Rounded.DeleteOutline,
                     text = "删除这份题库",
                     primary = false,
-                    onClick = {
-                        QuizRepository.deleteBank(context, bank.id)
-                        onBack()
-                    }
+                    onClick = { showDeleteBankConfirm = true }
                 )
             }
         }

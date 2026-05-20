@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Article
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Save
@@ -64,6 +65,7 @@ import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.IllustrationHeroCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
+import com.yiqiu.shirohaquiz.ui.components.ShirohaDangerConfirmDialog
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
@@ -78,10 +80,10 @@ import java.util.Locale
 
 @Composable
 fun MeScreen(
-    onOpenWrongBook: () -> Unit,
     onOpenRecords: () -> Unit,
     onOpenAppearancePreference: () -> Unit,
     onOpenPracticePreference: () -> Unit,
+    onOpenWrongBookPreference: () -> Unit,
     onOpenAiSettings: () -> Unit,
     onOpenDataManagement: () -> Unit,
     onOpenStandardFormat: () -> Unit,
@@ -131,7 +133,7 @@ fun MeScreen(
         }
         IllustrationHeroCard(
             title = "我是Shiroha",
-            subtitle = "欢迎关注，喜欢的话请给我⭐️⭐️",
+            subtitle = "喜欢的话请给我⭐️⭐️",
             imageRes = R.drawable.illus_me_settings,
             modifier = Modifier.height(ShirohaDimens.HeroCardHeight),
             imageSize = ShirohaDimens.HeroImageSize
@@ -158,6 +160,13 @@ fun MeScreen(
                 title = "刷题偏好",
                 desc = "默认答题方式、每组题数和切题习惯。",
                 onClick = onOpenPracticePreference
+            )
+            Spacer(Modifier.height(10.dp))
+            FeaturePlanStrip(
+                icon = Icons.Rounded.FactCheck,
+                title = "错题本",
+                desc = "错题收录、掌握判定与智能复习。",
+                onClick = onOpenWrongBookPreference
             )
             Spacer(Modifier.height(10.dp))
             FeaturePlanStrip(
@@ -518,6 +527,108 @@ fun AppearancePreferenceScreen(
     }
 }
 
+
+@Composable
+fun WrongBookPreferenceScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)
+    ) {
+        ShirohaHeader(
+            kicker = "Wrong Book",
+            title = "错题本",
+            subtitle = "管理错题收录、掌握判定和智能复习。"
+        )
+
+        WrongBookExplanationCard(
+            icon = Icons.Rounded.FactCheck,
+            title = "默认错题本逻辑",
+            paragraphs = listOf(
+                "练习、考试和错题复习中答错的题会自动进入错题本。错题本会保留“错 X 次 / 对 Y 次”的历史累计表现。",
+                "连续答对 2 次后，题目会自动标记为已掌握；后续再次答错会清零连续正确次数，并回到未掌握。",
+                "背题模式不会加入错题，也不会推进掌握进度。斩题是用户主动移出普通练习池，不等同于已掌握。"
+            )
+        )
+
+        WrongBookExplanationCard(
+            icon = Icons.Rounded.AutoAwesome,
+            title = "智能复习逻辑",
+            paragraphs = listOf(
+                "开启后，错题本会根据答题表现安排今日待复习题目。未掌握题会更频繁出现，已掌握题会进入较长间隔回顾。",
+                "如果复习中再次答错，题目会回到未掌握，并提前进入后续复习；连续答对后会逐步拉长复习间隔。",
+                "开启后，错题本会显示今日复习入口，首页学习状态中的复习数量也会切换为同一套今日待复习数量。普通练习和考试仍保持原流程，但答题结果会同步更新错题复习计划。"
+            )
+        )
+
+        GlassCard {
+            Text(
+                text = "错题智能复习",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "启用错题智能复习",
+                desc = "开启后将在错题本中显示今日复习入口，并根据错题表现安排到期复习；首页学习状态会同步显示今日待复习数量。",
+                checked = QuizRepository.wrongBookSmartReviewEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setWrongBookSmartReviewEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "提示：关闭后，错题本仍按原有规则收录错题、统计错 X 次 / 对 Y 次，并根据连续答对 2 次判断已掌握。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        BackToSettingsButton(onBack = onBack)
+    }
+}
+
+@Composable
+private fun WrongBookExplanationCard(
+    icon: ImageVector,
+    title: String,
+    paragraphs: List<String>
+) {
+    GlassCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            paragraphs.forEach { paragraph ->
+                Text(
+                    text = paragraph,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun PracticePreferenceScreen(
     onBack: () -> Unit
@@ -777,7 +888,26 @@ private fun AiSettingsPanel(context: Context) {
     var limitStatusText by remember { mutableStateOf<String?>(null) }
     var statusWarning by remember { mutableStateOf(false) }
     var isTestingConnection by remember { mutableStateOf(false) }
+    var showClearAiConfigConfirm by remember { mutableStateOf(false) }
     val aiScope = rememberCoroutineScope()
+
+    if (showClearAiConfigConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认清除 AI 配置？",
+            message = "这会清除当前保存的 API 地址、API Key 和模型名称。清除后需要重新填写才能继续使用 AI 核对或 AI 解析。",
+            confirmText = "确认清除",
+            onDismiss = { showClearAiConfigConfirm = false },
+            onConfirm = {
+                QuizRepository.clearAiConfig(context)
+                apiBaseUrl = ""
+                apiKey = ""
+                modelName = ""
+                statusText = "AI 配置已清除。"
+                statusWarning = true
+                showClearAiConfigConfirm = false
+            }
+        )
+    }
 
     GlassCard {
         Text(
@@ -890,14 +1020,7 @@ private fun AiSettingsPanel(context: Context) {
                 Text(if (isTestingConnection) "测试中" else "测试连接")
             }
             TextButton(
-                onClick = {
-                    QuizRepository.clearAiConfig(context)
-                    apiBaseUrl = ""
-                    apiKey = ""
-                    modelName = ""
-                    statusText = "AI 配置已清除。"
-                    statusWarning = true
-                }
+                onClick = { showClearAiConfigConfirm = true }
             ) {
                 Text("清除配置")
             }
@@ -1188,9 +1311,7 @@ private fun PreferenceInfoRow(
             Text(
                 text = desc,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -1229,9 +1350,7 @@ private fun PreferenceSwitchRow(
             Text(
                 text = desc,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(Modifier.width(10.dp))
@@ -1275,9 +1394,7 @@ private fun FeaturePlanStrip(
             Text(
                 text = desc,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

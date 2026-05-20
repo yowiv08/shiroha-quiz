@@ -54,10 +54,18 @@ fun HomeScreen(
     val bankCount = QuizRepository.banks.size
     val questionCount = activeBank?.questions?.size ?: 0
     val bankName = activeBank?.name ?: "尚未导入题库"
-    val todayPracticeCount = QuizRepository.studyRecords.count { record ->
-        record.source == "练习" && isToday(record.timestamp)
+    val todayPracticeCount = QuizRepository.studyRecords
+        .filter { record ->
+            record.source in listOf("练习", "错题练习", "今日复习") && isToday(record.timestamp)
+        }
+        .sumOf { record -> record.total }
+    val smartReviewEnabled = QuizRepository.wrongBookSmartReviewEnabled
+    val pendingReviewCount = if (smartReviewEnabled) {
+        QuizRepository.todayWrongBookSmartReviewCount()
+    } else {
+        QuizRepository.wrongBookActiveCount()
     }
-    val pendingReviewCount = QuizRepository.wrongBookActiveCount()
+    val pendingReviewTitle = if (smartReviewEnabled) "今日待复习" else "待复习"
     val homeSectionGap = ShirohaSpacing.Lg
 
     Column(
@@ -86,6 +94,7 @@ fun HomeScreen(
         TodayStatusCard(
             bankName = bankName,
             todayPracticeCount = todayPracticeCount,
+            pendingReviewTitle = pendingReviewTitle,
             pendingReviewCount = pendingReviewCount,
             onGoPractice = onGoPractice,
             onGoExam = onGoExam
@@ -114,6 +123,7 @@ fun HomeScreen(
 private fun TodayStatusCard(
     bankName: String,
     todayPracticeCount: Int,
+    pendingReviewTitle: String,
     pendingReviewCount: Int,
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit
@@ -141,14 +151,14 @@ private fun TodayStatusCard(
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniStatusCard(
-                title = "今日练习",
-                value = "${todayPracticeCount} 次",
+                title = "今日练题",
+                value = "${todayPracticeCount} 题",
                 modifier = Modifier
                     .weight(1f)
                     .height(metricCardHeight)
             )
             MiniStatusCard(
-                title = "待复习",
+                title = pendingReviewTitle,
                 value = "${pendingReviewCount} 题",
                 modifier = Modifier
                     .weight(1f)

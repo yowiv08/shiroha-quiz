@@ -66,6 +66,7 @@ import com.yiqiu.shirohaquiz.ui.screens.PracticeScreen
 import com.yiqiu.shirohaquiz.ui.screens.RecordDetailScreen
 import com.yiqiu.shirohaquiz.ui.screens.RecordsScreen
 import com.yiqiu.shirohaquiz.ui.screens.StandardImportFormatScreen
+import com.yiqiu.shirohaquiz.ui.screens.WrongBookPreferenceScreen
 import com.yiqiu.shirohaquiz.ui.screens.WrongBookScreen
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
@@ -92,6 +93,7 @@ private enum class MainTab(
     RecordDetail("记录详情", Icons.Rounded.Dashboard, showInBottomBar = false),
     AppearancePreference("外观偏好", Icons.Rounded.Settings, showInBottomBar = false),
     PracticePreference("刷题偏好", Icons.Rounded.School, showInBottomBar = false),
+    WrongBookPreference("错题本设置", Icons.Rounded.School, showInBottomBar = false),
     AiSettings("AI 设置", Icons.Rounded.Settings, showInBottomBar = false),
     DataManagement("数据管理", Icons.Rounded.Settings, showInBottomBar = false),
     StandardFormat("标准格式", Icons.Rounded.ImportExport, showInBottomBar = false),
@@ -114,6 +116,7 @@ private fun MainTab.systemBackTarget(): MainTab? = when (this) {
     MainTab.RecordDetail -> MainTab.Records
     MainTab.AppearancePreference,
     MainTab.PracticePreference,
+    MainTab.WrongBookPreference,
     MainTab.AiSettings,
     MainTab.DataManagement,
     MainTab.StandardFormat,
@@ -212,10 +215,10 @@ fun ShirohaAppShell() {
                         onOpenPreference = { currentTab = MainTab.AiSettings }
                     )
                     MainTab.Me -> MeScreen(
-                        onOpenWrongBook = { currentTab = MainTab.WrongBook },
                         onOpenRecords = { currentTab = MainTab.Records },
                         onOpenAppearancePreference = { currentTab = MainTab.AppearancePreference },
                         onOpenPracticePreference = { currentTab = MainTab.PracticePreference },
+                        onOpenWrongBookPreference = { currentTab = MainTab.WrongBookPreference },
                         onOpenAiSettings = { currentTab = MainTab.AiSettings },
                         onOpenDataManagement = { currentTab = MainTab.DataManagement },
                         onOpenStandardFormat = { currentTab = MainTab.StandardFormat },
@@ -262,6 +265,9 @@ fun ShirohaAppShell() {
                         onBack = { currentTab = MainTab.Me }
                     )
                     MainTab.PracticePreference -> PracticePreferenceScreen(
+                        onBack = { currentTab = MainTab.Me }
+                    )
+                    MainTab.WrongBookPreference -> WrongBookPreferenceScreen(
                         onBack = { currentTab = MainTab.Me }
                     )
                     MainTab.AiSettings -> AiSettingsScreen(

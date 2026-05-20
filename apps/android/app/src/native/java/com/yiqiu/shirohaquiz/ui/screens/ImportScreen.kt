@@ -97,6 +97,7 @@ import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.LoadingIllustration
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
+import com.yiqiu.shirohaquiz.ui.components.ShirohaDangerConfirmDialog
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
@@ -2302,6 +2303,51 @@ private fun ReviewQuestionEditorContent(
     onQuestionChange: (Question) -> Unit,
     onDeleteQuestion: (() -> Unit)? = null
 ) {
+    var showRemoveImagesConfirm by remember(question.id) { mutableStateOf(false) }
+    var showDeleteLastOptionConfirm by remember(question.id) { mutableStateOf(false) }
+    var showDeleteQuestionConfirm by remember(question.id) { mutableStateOf(false) }
+
+    if (showRemoveImagesConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认移除本题图片？",
+            message = "这会从当前核对题目中移除已绑定图片。保存题库时会使用移除图片后的题目。",
+            confirmText = "确认移除",
+            onDismiss = { showRemoveImagesConfirm = false },
+            onConfirm = {
+                onQuestionChange(question.copy(images = emptyList()))
+                showRemoveImagesConfirm = false
+            }
+        )
+    }
+
+    if (showDeleteLastOptionConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认删除最后一个选项？",
+            message = "这会删除当前题目的最后一个选项。保存题库时会使用删除后的题目。",
+            confirmText = "确认删除",
+            onDismiss = { showDeleteLastOptionConfirm = false },
+            onConfirm = {
+                if (question.options.isNotEmpty()) {
+                    onQuestionChange(question.copy(options = question.options.dropLast(1)))
+                }
+                showDeleteLastOptionConfirm = false
+            }
+        )
+    }
+
+    if (showDeleteQuestionConfirm) {
+        ShirohaDangerConfirmDialog(
+            title = "确认删除本题？",
+            message = "这会从当前核对列表中删除本题。保存题库时会使用删除后的题目列表。",
+            confirmText = "确认删除",
+            onDismiss = { showDeleteQuestionConfirm = false },
+            onConfirm = {
+                onDeleteQuestion?.invoke()
+                showDeleteQuestionConfirm = false
+            }
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(ShirohaSpacing.Lg)) {
         GlassCard {
             Text(
@@ -2376,7 +2422,7 @@ private fun ReviewQuestionEditorContent(
                     icon = Icons.Rounded.Delete,
                     text = "移除本题图片",
                     primary = false,
-                    onClick = { onQuestionChange(question.copy(images = emptyList())) }
+                    onClick = { showRemoveImagesConfirm = true }
                 )
             }
         }
@@ -2443,7 +2489,7 @@ private fun ReviewQuestionEditorContent(
                     primary = false,
                     onClick = {
                         if (question.options.isNotEmpty()) {
-                            onQuestionChange(question.copy(options = question.options.dropLast(1)))
+                            showDeleteLastOptionConfirm = true
                         }
                     }
                 )
@@ -2512,7 +2558,7 @@ private fun ReviewQuestionEditorContent(
                 icon = Icons.Rounded.Delete,
                 text = "删除本题",
                 primary = false,
-                onClick = { onDeleteQuestion?.invoke() }
+                onClick = { showDeleteQuestionConfirm = true }
             )
         }
     }

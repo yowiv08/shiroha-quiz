@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Calendar
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -52,7 +53,10 @@ data class WrongQuestionEntry(
     val streakCorrectCount: Int = 0,
     val lastWrongAt: Long = timestamp,
     val lastCorrectAt: Long? = null,
-    val status: String = WrongStatus.REVIEWING.label
+    val status: String = WrongStatus.REVIEWING.label,
+    val lastReviewedAt: Long? = null,
+    val nextReviewAt: Long? = null,
+    val reviewLevel: Int = 0
 )
 
 data class SlashedQuestionEntry(
@@ -72,6 +76,12 @@ enum class WrongStatus(val label: String) {
         }
     }
 }
+
+data class WrongBookSmartReviewSummary(
+    val total: Int,
+    val notMastered: Int,
+    val masteredReview: Int
+)
 
 data class StudyQuestionResult(
     val question: Question,
@@ -124,6 +134,7 @@ object QuizRepository {
     private const val KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED = "practice_inline_answer_settings_enabled"
     private const val KEY_PRACTICE_RECITE_MODE_ENABLED = "practice_recite_mode_enabled"
     private const val KEY_PRACTICE_SLASH_ENABLED = "practice_slash_enabled"
+    private const val KEY_WRONG_BOOK_SMART_REVIEW_ENABLED = "wrong_book_smart_review_enabled"
     private const val KEY_PRACTICE_PREFERRED_COUNT_MODE = "practice_preferred_count_mode"
     private const val KEY_PRACTICE_PREFERRED_CUSTOM_COUNT = "practice_preferred_custom_count"
     private const val KEY_PRACTICE_PREFERRED_ORDER_MODE = "practice_preferred_order_mode"
@@ -153,6 +164,7 @@ object QuizRepository {
     private const val KEY_AI_MAX_QUESTIONS = "ai_max_questions"
     private const val KEY_AI_TIMEOUT_SECONDS = "ai_timeout_seconds"
     private const val KEY_AI_REFACTOR_MAX_CHARS = "ai_refactor_max_chars"
+    private const val DAY_MILLIS = 24L * 60L * 60L * 1000L
 
     val banks = mutableStateListOf<QuizBank>()
     val wrongBook = mutableStateListOf<WrongQuestionEntry>()
@@ -192,6 +204,8 @@ object QuizRepository {
     var practiceReciteModeEnabled by mutableStateOf(false)
         private set
     var practiceSlashEnabled by mutableStateOf(false)
+        private set
+    var wrongBookSmartReviewEnabled by mutableStateOf(false)
         private set
     var preferredPracticeQuestionCountMode by mutableStateOf("custom")
         private set
@@ -250,6 +264,7 @@ object QuizRepository {
         private set
     val practiceSessionResults = mutableStateMapOf<String, Boolean>()
     val practiceAnswerResults = mutableStateMapOf<String, StudyQuestionResult>()
+    private val practiceQuestionBankIds = mutableStateMapOf<String, String>()
     private var practiceStartedAt by mutableStateOf<Long?>(null)
 
     private var initialized by mutableStateOf(false)
@@ -309,6 +324,7 @@ object QuizRepository {
         practiceInlineAnswerSettingsEnabled = prefs.getBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, false)
         practiceReciteModeEnabled = prefs.getBoolean(KEY_PRACTICE_RECITE_MODE_ENABLED, false)
         practiceSlashEnabled = prefs.getBoolean(KEY_PRACTICE_SLASH_ENABLED, false)
+        wrongBookSmartReviewEnabled = prefs.getBoolean(KEY_WRONG_BOOK_SMART_REVIEW_ENABLED, false)
         preferredPracticeQuestionCountMode = normalizePracticeCountMode(
             prefs.getString(KEY_PRACTICE_PREFERRED_COUNT_MODE, "custom") ?: "custom"
         )
@@ -523,7 +539,8 @@ object QuizRepository {
         sourceLabel: String = "当前题库",
         randomize: Boolean = true,
         practiceMode: String = PRACTICE_MODE_INSTANT,
-        batchGroupSize: Int = preferredPracticeBatchGroupSize()
+        batchGroupSize: Int = preferredPracticeBatchGroupSize(),
+        sourceBankIds: Map<String, String>? = null
     ): Boolean {
         val selectedTypes = allowedTypes.ifEmpty { objectiveQuestionTypes() }
         val bank = activeBank()
@@ -531,7 +548,8 @@ object QuizRepository {
         val source = rawSource.filter { it.type in selectedTypes }
         if (source.isEmpty()) return false
         val count = questionCount.coerceIn(1, source.size)
-        practiceQuestions = if (randomize) source.shuffled().take(count) else source.take(count)
+        val selectedQuestions = if (randomize) source.shuffled().take(count) else source.take(count)
+        practiceQuestions = selectedQuestions
         practiceSourceLabel = sourceLabel
         practiceIndex = 0
         selectedAnswer = emptyList()
@@ -543,21 +561,45 @@ object QuizRepository {
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
         practiceDraftAnswers.clear()
+        practiceQuestionBankIds.clear()
+        selectedQuestions.forEach { question ->
+            val bankId = sourceBankIds?.get(question.id) ?: bank?.id
+            if (!bankId.isNullOrBlank()) practiceQuestionBankIds[question.id] = bankId
+        }
         practiceStartedAt = System.currentTimeMillis()
         return true
     }
 
-    fun startWrongBookPractice(entries: List<WrongQuestionEntry> = reviewDueWrongEntries()): Boolean {
-        val questions = entries
-            .filter { it.status != WrongStatus.MASTERED.label }
+    fun startWrongBookPractice(
+        entries: List<WrongQuestionEntry> = reviewDueWrongEntries(),
+        includeMastered: Boolean = false,
+        sourceLabel: String = "错题本"
+    ): Boolean {
+        val selectedEntries = entries
+            .filter { includeMastered || it.status != WrongStatus.MASTERED.label }
+            .filterNot { isQuestionSlashed(it.bankId, it.question) }
+        val questions = selectedEntries
             .map { it.question }
             .distinctBy { it.id }
+        if (questions.isEmpty()) return false
+        val sourceBankIds = selectedEntries.associate { it.question.id to it.bankId }
         return startPracticeSession(
             questionCount = questions.size,
             allowedTypes = QuestionType.values().toSet(),
             sourceQuestions = questions,
-            sourceLabel = "错题本",
-            randomize = false
+            sourceLabel = sourceLabel,
+            randomize = false,
+            sourceBankIds = sourceBankIds
+        )
+    }
+
+    fun startTodayWrongBookReview(): Boolean {
+        val entries = todayWrongBookSmartReviewEntries()
+        if (entries.isEmpty()) return false
+        return startWrongBookPractice(
+            entries = entries,
+            includeMastered = true,
+            sourceLabel = "今日复习"
         )
     }
 
@@ -599,6 +641,8 @@ object QuizRepository {
             practiceSessionResults.clear()
             practiceAnswerResults.clear()
             practiceDraftAnswers.clear()
+            practiceQuestionBankIds.clear()
+            practiceQuestionBankIds[entry.question.id] = entry.bankId
             practiceStartedAt = System.currentTimeMillis()
         }
     }
@@ -614,23 +658,56 @@ object QuizRepository {
         val now = System.currentTimeMillis()
         val current = wrongBook[index]
         wrongBook[index] = if (mastered) {
+            val nextReviewLevel = current.reviewLevel.coerceAtLeast(2)
             current.copy(
                 status = WrongStatus.MASTERED.label,
                 streakCorrectCount = current.streakCorrectCount.coerceAtLeast(2),
-                lastCorrectAt = now
+                lastCorrectAt = now,
+                lastReviewedAt = now,
+                reviewLevel = nextReviewLevel,
+                nextReviewAt = nextReviewTimeForLevel(now, nextReviewLevel)
             )
         } else {
             current.copy(
                 status = WrongStatus.NOT_MASTERED.label,
-                streakCorrectCount = 0
+                streakCorrectCount = 0,
+                lastReviewedAt = now,
+                reviewLevel = 0,
+                nextReviewAt = startOfDay(now)
             )
         }
         persist()
     }
 
     fun reviewDueWrongEntries(): List<WrongQuestionEntry> {
-        return wrongBook.filter { it.status != WrongStatus.MASTERED.label }
+        return wrongBook
+            .filter { it.status != WrongStatus.MASTERED.label }
+            .filterNot { isQuestionSlashed(it.bankId, it.question) }
     }
+
+    fun todayWrongBookSmartReviewEntries(now: Long = System.currentTimeMillis()): List<WrongQuestionEntry> {
+        if (!wrongBookSmartReviewEnabled) return emptyList()
+        return wrongBook
+            .filterNot { isQuestionSlashed(it.bankId, it.question) }
+            .filter { entry -> isWrongEntryDueForSmartReview(entry, now) }
+            .sortedWith(
+                compareBy<WrongQuestionEntry> { if (it.status == WrongStatus.MASTERED.label) 1 else 0 }
+                    .thenBy { it.nextReviewAt ?: 0L }
+                    .thenByDescending { it.wrongCount }
+                    .thenByDescending { it.lastWrongAt }
+            )
+    }
+
+    fun todayWrongBookSmartReviewSummary(now: Long = System.currentTimeMillis()): WrongBookSmartReviewSummary {
+        val entries = todayWrongBookSmartReviewEntries(now)
+        return WrongBookSmartReviewSummary(
+            total = entries.size,
+            notMastered = entries.count { it.status != WrongStatus.MASTERED.label },
+            masteredReview = entries.count { it.status == WrongStatus.MASTERED.label }
+        )
+    }
+
+    fun todayWrongBookSmartReviewCount(): Int = todayWrongBookSmartReviewSummary().total
 
     fun wrongBookActiveCount(): Int = reviewDueWrongEntries().size
 
@@ -674,6 +751,7 @@ object QuizRepository {
         practiceSessionResults.remove(question.id)
         practiceAnswerResults.remove(question.id)
         practiceDraftAnswers.remove(question.id)
+        practiceQuestionBankIds.remove(question.id)
         practiceLastResult = null
         selectedAnswer = emptyList()
 
@@ -773,6 +851,12 @@ object QuizRepository {
     fun setPracticeSlashEnabled(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         practiceSlashEnabled = enabled
+        persist()
+    }
+
+    fun setWrongBookSmartReviewEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        wrongBookSmartReviewEnabled = enabled
         persist()
     }
 
@@ -966,7 +1050,7 @@ object QuizRepository {
             answerText = result.answerText
         )
 
-        val bank = activeBank()
+        val bank = bankForPracticeQuestion(question)
         if (result.correct) {
             markWrongQuestionRight(bank = bank, question = question)
         } else {
@@ -974,7 +1058,7 @@ object QuizRepository {
                 bank = bank,
                 question = question,
                 userAnswer = result.userAnswer,
-                source = "练习"
+                source = currentPracticeWrongSource()
             )
         }
         persist()
@@ -983,7 +1067,6 @@ object QuizRepository {
 
     fun submitPracticeBatch(): Boolean {
         if (practiceMode != PRACTICE_MODE_BATCH || practiceQuestions.isEmpty() || practiceBatchSubmitted) return false
-        val bank = activeBank()
         practiceCurrentBatchQuestions().forEach { question ->
             val userAnswer = practiceDraftAnswers[question.id].orEmpty()
             val result = evaluateQuestion(question, userAnswer)
@@ -994,6 +1077,7 @@ object QuizRepository {
                 correct = result.correct,
                 answerText = result.answerText
             )
+            val bank = bankForPracticeQuestion(question)
             if (result.correct) {
                 markWrongQuestionRight(bank = bank, question = question)
             } else {
@@ -1001,7 +1085,7 @@ object QuizRepository {
                     bank = bank,
                     question = question,
                     userAnswer = result.userAnswer,
-                    source = "练习"
+                    source = currentPracticeWrongSource()
                 )
             }
         }
@@ -1724,19 +1808,25 @@ object QuizRepository {
 
     private fun finishPracticeSessionIfNeeded() {
         if (practiceQuestions.isEmpty() || practiceAnswerResults.isEmpty()) return
-        val bank = activeBank()
         val now = System.currentTimeMillis()
         val startedAt = practiceStartedAt ?: now
         val orderedResults = practiceQuestions.mapNotNull { question -> practiceAnswerResults[question.id] }
         if (orderedResults.isEmpty()) return
         val correctCount = orderedResults.count { it.correct }
+        val involvedBankIds = practiceQuestions.mapNotNull { practiceQuestionBankIds[it.id] }.distinct()
+        val recordBank = involvedBankIds.singleOrNull()?.let { bankId -> banks.firstOrNull { it.id == bankId } }
+        val recordSource = when (practiceSourceLabel) {
+            "错题本" -> "错题练习"
+            "今日复习" -> "今日复习"
+            else -> "练习"
+        }
         studyRecords.add(
             0,
             StudyRecord(
                 id = "practice_${now}",
-                bankId = bank?.id,
-                bankName = bank?.name ?: "未命名题库",
-                source = if (practiceSourceLabel == "错题本") "错题练习" else "练习",
+                bankId = recordBank?.id,
+                bankName = recordBank?.name ?: practiceSourceLabel.ifBlank { "未命名题库" },
+                source = recordSource,
                 title = practiceSourceLabel.ifBlank { "练习记录" },
                 total = orderedResults.size,
                 correct = correctCount,
@@ -1763,6 +1853,7 @@ object QuizRepository {
         practiceSessionResults.clear()
         practiceAnswerResults.clear()
         practiceDraftAnswers.clear()
+        practiceQuestionBankIds.clear()
         practiceStartedAt = null
     }
 
@@ -1823,7 +1914,10 @@ object QuizRepository {
             reviewRightCount = if (sanitizedStatus == WrongStatus.MASTERED.label && normalizedReviewRightCount == 0 && normalizedStreakCorrectCount == 0) 2 else normalizedReviewRightCount,
             streakCorrectCount = if (sanitizedStatus == WrongStatus.MASTERED.label && normalizedReviewRightCount == 0 && normalizedStreakCorrectCount == 0) 2 else normalizedStreakCorrectCount,
             lastWrongAt = if (entry.lastWrongAt > 0L) entry.lastWrongAt else entry.timestamp,
-            status = sanitizedStatus
+            status = sanitizedStatus,
+            lastReviewedAt = entry.lastReviewedAt?.takeIf { it > 0L },
+            nextReviewAt = entry.nextReviewAt?.takeIf { it > 0L },
+            reviewLevel = entry.reviewLevel.coerceIn(0, 5)
         )
     }
 
@@ -1950,7 +2044,10 @@ object QuizRepository {
                 reviewRightCount = 0,
                 streakCorrectCount = 0,
                 lastWrongAt = now,
-                status = WrongStatus.NOT_MASTERED.label
+                status = WrongStatus.NOT_MASTERED.label,
+                lastReviewedAt = now,
+                nextReviewAt = nextDayStart(now),
+                reviewLevel = 0
             )
         } else {
             wrongBook.add(
@@ -1968,7 +2065,10 @@ object QuizRepository {
                     streakCorrectCount = 0,
                     lastWrongAt = now,
                     lastCorrectAt = null,
-                    status = WrongStatus.NOT_MASTERED.label
+                    status = WrongStatus.NOT_MASTERED.label,
+                    lastReviewedAt = now,
+                    nextReviewAt = nextDayStart(now),
+                    reviewLevel = 0
                 )
             )
         }
@@ -1983,6 +2083,9 @@ object QuizRepository {
         val nextRightCount = current.rightCount + 1
         val nextReviewRightCount = current.reviewRightCount + 1
         val nextStreakCorrectCount = current.streakCorrectCount + 1
+        val mastered = isWrongEntryMastered(nextReviewRightCount, nextStreakCorrectCount)
+        val nextStatus = if (mastered) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
+        val nextReviewLevel = nextReviewLevelAfterCorrect(current, mastered)
         wrongBook[index] = current.copy(
             question = question,
             timestamp = now,
@@ -1990,7 +2093,10 @@ object QuizRepository {
             reviewRightCount = nextReviewRightCount,
             streakCorrectCount = nextStreakCorrectCount,
             lastCorrectAt = now,
-            status = if (isWrongEntryMastered(nextReviewRightCount, nextStreakCorrectCount)) WrongStatus.MASTERED.label else WrongStatus.REVIEWING.label
+            status = nextStatus,
+            lastReviewedAt = now,
+            reviewLevel = nextReviewLevel,
+            nextReviewAt = nextReviewTimeForLevel(now, nextReviewLevel)
         )
     }
 
@@ -1998,8 +2104,57 @@ object QuizRepository {
         return streakCorrectCount >= 2
     }
 
+    private fun currentPracticeWrongSource(): String {
+        return when (practiceSourceLabel) {
+            "错题本" -> "错题练习"
+            "今日复习" -> "今日复习"
+            else -> "练习"
+        }
+    }
 
+    private fun bankForPracticeQuestion(question: Question): QuizBank? {
+        val mappedBankId = practiceQuestionBankIds[question.id]
+        return mappedBankId?.let { bankId -> banks.firstOrNull { it.id == bankId } } ?: activeBank()
+    }
 
+    private fun isWrongEntryDueForSmartReview(entry: WrongQuestionEntry, now: Long): Boolean {
+        val dueAt = entry.nextReviewAt ?: when (entry.status) {
+            WrongStatus.MASTERED.label -> return false
+            else -> startOfDay(now)
+        }
+        return dueAt <= now
+    }
+
+    private fun nextReviewLevelAfterCorrect(entry: WrongQuestionEntry, mastered: Boolean): Int {
+        return if (mastered) {
+            (entry.reviewLevel.coerceAtLeast(1) + 1).coerceIn(2, 5)
+        } else {
+            1
+        }
+    }
+
+    private fun nextReviewTimeForLevel(now: Long, level: Int): Long {
+        val days = when (level.coerceAtLeast(0)) {
+            0, 1 -> 1
+            2 -> 3
+            3 -> 7
+            4 -> 15
+            else -> 30
+        }
+        return startOfDay(now) + days * DAY_MILLIS
+    }
+
+    private fun startOfDay(timestamp: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = timestamp
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
+    private fun nextDayStart(timestamp: Long): Long = startOfDay(timestamp) + DAY_MILLIS
 
     private fun uniqueBankNameForRename(rawName: String, bankId: String): String {
         val baseName = rawName.ifBlank { "未命名题库" }
@@ -2109,6 +2264,7 @@ object QuizRepository {
             .putBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, practiceInlineAnswerSettingsEnabled)
             .putBoolean(KEY_PRACTICE_RECITE_MODE_ENABLED, practiceReciteModeEnabled)
             .putBoolean(KEY_PRACTICE_SLASH_ENABLED, practiceSlashEnabled)
+            .putBoolean(KEY_WRONG_BOOK_SMART_REVIEW_ENABLED, wrongBookSmartReviewEnabled)
             .putString(KEY_PRACTICE_PREFERRED_COUNT_MODE, preferredPracticeQuestionCountMode)
             .putInt(KEY_PRACTICE_PREFERRED_CUSTOM_COUNT, preferredPracticeCustomQuestionCount)
             .putString(KEY_PRACTICE_PREFERRED_ORDER_MODE, preferredPracticeOrderMode)
@@ -2168,6 +2324,9 @@ object QuizRepository {
             item.put("streakCorrectCount", entry.streakCorrectCount)
             item.put("lastWrongAt", entry.lastWrongAt)
             if (entry.lastCorrectAt != null) item.put("lastCorrectAt", entry.lastCorrectAt)
+            if (entry.lastReviewedAt != null) item.put("lastReviewedAt", entry.lastReviewedAt)
+            if (entry.nextReviewAt != null) item.put("nextReviewAt", entry.nextReviewAt)
+            item.put("reviewLevel", entry.reviewLevel)
             item.put("status", entry.status)
             item.put("question", questionToJson(entry.question, assetMapping))
             array.put(item)
@@ -2274,7 +2433,10 @@ object QuizRepository {
                         streakCorrectCount = item.optInt("streakCorrectCount", fallbackStreakCorrectCount),
                         lastWrongAt = item.optLong("lastWrongAt", item.optLong("timestamp")),
                         lastCorrectAt = if (item.has("lastCorrectAt") && !item.isNull("lastCorrectAt")) item.optLong("lastCorrectAt") else null,
-                        status = normalizedStatus
+                        status = normalizedStatus,
+                        lastReviewedAt = if (item.has("lastReviewedAt") && !item.isNull("lastReviewedAt")) item.optLong("lastReviewedAt") else null,
+                        nextReviewAt = if (item.has("nextReviewAt") && !item.isNull("nextReviewAt")) item.optLong("nextReviewAt") else null,
+                        reviewLevel = item.optInt("reviewLevel", if (normalizedStatus == WrongStatus.MASTERED.label) 2 else 0)
                     )
                 )
             }

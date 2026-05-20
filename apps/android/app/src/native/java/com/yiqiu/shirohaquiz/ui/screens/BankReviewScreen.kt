@@ -55,6 +55,7 @@ import com.yiqiu.shirohaquiz.ui.components.EmptyStateIllustration
 import com.yiqiu.shirohaquiz.ui.components.GlassCard
 import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
+import com.yiqiu.shirohaquiz.ui.components.ShirohaDangerConfirmDialog
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
@@ -101,6 +102,9 @@ fun BankReviewScreen(
     var currentIndex by rememberSaveable(bank.id) { mutableStateOf(0) }
     var filterName by rememberSaveable(bank.id) { mutableStateOf(BankReviewFilter.ALL.name) }
     var query by rememberSaveable(bank.id) { mutableStateOf("") }
+    var showRemoveImagesConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
+    var showDeleteLastOptionConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
+    var showDeleteQuestionConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
     val filter = bankReviewFilterFromName(filterName)
 
     val allIndices = editableQuestions.indices.toList()
@@ -119,6 +123,54 @@ fun BankReviewScreen(
         else -> visibleIndices.first()
     }
     if (editableQuestions.isNotEmpty() && safeIndex != currentIndex) currentIndex = safeIndex
+
+    if (showRemoveImagesConfirm && editableQuestions.isNotEmpty()) {
+        ShirohaDangerConfirmDialog(
+            title = "确认移除本题图片？",
+            message = "这会从当前核对题目中移除已绑定图片。需要点击保存返回后才会写入题库。",
+            confirmText = "确认移除",
+            onDismiss = { showRemoveImagesConfirm = false },
+            onConfirm = {
+                val target = editableQuestions.getOrNull(safeIndex)
+                if (target != null) {
+                    editableQuestions[safeIndex] = target.copy(images = emptyList())
+                }
+                showRemoveImagesConfirm = false
+            }
+        )
+    }
+
+    if (showDeleteLastOptionConfirm && editableQuestions.isNotEmpty()) {
+        ShirohaDangerConfirmDialog(
+            title = "确认删除最后一个选项？",
+            message = "这会删除当前题目的最后一个选项。需要点击保存返回后才会写入题库。",
+            confirmText = "确认删除",
+            onDismiss = { showDeleteLastOptionConfirm = false },
+            onConfirm = {
+                val target = editableQuestions.getOrNull(safeIndex)
+                if (target != null && target.options.isNotEmpty()) {
+                    editableQuestions[safeIndex] = target.copy(options = target.options.dropLast(1))
+                }
+                showDeleteLastOptionConfirm = false
+            }
+        )
+    }
+
+    if (showDeleteQuestionConfirm && editableQuestions.isNotEmpty()) {
+        ShirohaDangerConfirmDialog(
+            title = "确认删除本题？",
+            message = "这会从当前核对列表中删除本题。需要点击保存返回后才会真正写入题库。",
+            confirmText = "确认删除",
+            onDismiss = { showDeleteQuestionConfirm = false },
+            onConfirm = {
+                if (safeIndex in editableQuestions.indices) {
+                    editableQuestions.removeAt(safeIndex)
+                    currentIndex = safeIndex.coerceAtMost((editableQuestions.size - 1).coerceAtLeast(0))
+                }
+                showDeleteQuestionConfirm = false
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -381,7 +433,7 @@ fun BankReviewScreen(
                         icon = Icons.Rounded.Delete,
                         text = "移除本题图片",
                         primary = false,
-                        onClick = { editableQuestions[safeIndex] = question.copy(images = emptyList()) }
+                        onClick = { showRemoveImagesConfirm = true }
                     )
                 }
             }
@@ -448,7 +500,7 @@ fun BankReviewScreen(
                         primary = false,
                         onClick = {
                             if (question.options.isNotEmpty()) {
-                                editableQuestions[safeIndex] = question.copy(options = question.options.dropLast(1))
+                                showDeleteLastOptionConfirm = true
                             }
                         }
                     )
@@ -515,10 +567,7 @@ fun BankReviewScreen(
                     icon = Icons.Rounded.Delete,
                     text = "删除本题",
                     primary = false,
-                    onClick = {
-                        editableQuestions.removeAt(safeIndex)
-                        currentIndex = safeIndex.coerceAtMost((editableQuestions.size - 1).coerceAtLeast(0))
-                    }
+                    onClick = { showDeleteQuestionConfirm = true }
                 )
             }
         }
