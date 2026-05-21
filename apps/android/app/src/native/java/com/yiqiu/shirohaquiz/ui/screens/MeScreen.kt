@@ -304,39 +304,6 @@ fun DataManagementScreen(
                 NoticeCard(text = message, warning = message.contains("失败") || message.contains("清除"))
             }
         }
-
-
-        GlassCard {
-            Text(
-                text = "阅读显示",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(12.dp))
-            ReadingSizeChoiceRow(
-                title = "题干字号",
-                desc = "调整练习和考试中的题干阅读大小。",
-                currentMode = QuizRepository.questionFontSizeMode,
-                onSelect = { mode -> QuizRepository.setQuestionFontSizeMode(context, mode) }
-            )
-            Spacer(Modifier.height(14.dp))
-            ReadingSizeChoiceRow(
-                title = "选项字号",
-                desc = "调整练习和考试中的选项文字大小。",
-                currentMode = QuizRepository.optionFontSizeMode,
-                onSelect = { mode -> QuizRepository.setOptionFontSizeMode(context, mode) }
-            )
-            Spacer(Modifier.height(14.dp))
-            PreferenceSwitchRow(
-                title = "紧凑选项模式",
-                desc = "减少选项卡片背景和间距，适合长题快速阅读。",
-                checked = QuizRepository.compactOptionsEnabled,
-                onCheckedChange = { enabled -> QuizRepository.setCompactOptionsEnabled(context, enabled) }
-            )
-        }
-
         BackToSettingsButton(onBack = onBack)
     }
 
@@ -552,6 +519,40 @@ fun AppearancePreferenceScreen(
                 text = "提示：部分桌面可能会缓存应用图标，切换后可能需要稍等片刻才刷新。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+
+
+
+        GlassCard {
+            Text(
+                text = "阅读显示",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            ReadingSizeChoiceRow(
+                title = "题干字号",
+                desc = "调整练习和考试中的题干阅读大小。",
+                currentMode = QuizRepository.questionFontSizeMode,
+                onSelect = { mode -> QuizRepository.setQuestionFontSizeMode(context, mode) }
+            )
+            Spacer(Modifier.height(14.dp))
+            ReadingSizeChoiceRow(
+                title = "选项字号",
+                desc = "调整练习和考试中的选项文字大小。",
+                currentMode = QuizRepository.optionFontSizeMode,
+                onSelect = { mode -> QuizRepository.setOptionFontSizeMode(context, mode) }
+            )
+            Spacer(Modifier.height(14.dp))
+            PreferenceSwitchRow(
+                title = "紧凑选项模式",
+                desc = "减少选项卡片背景和间距，适合长题快速阅读。",
+                checked = QuizRepository.compactOptionsEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setCompactOptionsEnabled(context, enabled) }
             )
         }
 
