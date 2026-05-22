@@ -444,6 +444,22 @@ fun PracticeScreen(
                 }
             }
         }
+        val scheduleBatchAutoNextAfterSelect: (String, Int) -> Unit = { autoNextQuestionId, autoNextIndex ->
+            if (isBatchBeforeSubmit &&
+                !isReciteMode &&
+                QuizRepository.practiceBatchAutoNextEnabled &&
+                autoNextIndex < batchGroupEnd
+            ) {
+                autoNextScope.launch {
+                    delay(180)
+                    if (QuizRepository.practiceIndex == autoNextIndex &&
+                        QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
+                    ) {
+                        QuizRepository.nextQuestion()
+                    }
+                }
+            }
+        }
         val isPracticeComplete = !isReciteMode &&
             practiceQuestions.isNotEmpty() &&
             if (isBatchPractice) QuizRepository.isAllPracticeBatchGroupsSubmitted() else QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
@@ -574,6 +590,9 @@ fun PracticeScreen(
                                     val shouldAutoSubmitInstant = !isBatchPractice &&
                                         QuizRepository.practiceAutoSubmitEnabled &&
                                         isInstantAutoSubmitQuestion
+                                    val shouldBatchAutoNext = isBatchBeforeSubmit &&
+                                        QuizRepository.practiceBatchAutoNextEnabled &&
+                                        isInstantAutoSubmitQuestion
                                     QuizRepository.toggleAnswer(
                                         key = option.key,
                                         multiple = question.type == QuestionType.MULTIPLE
@@ -585,6 +604,8 @@ fun PracticeScreen(
                                         if (submitted != null) {
                                             scheduleInstantAutoNextAfterSubmit(autoNextQuestionId, autoNextIndex, submitted.correct)
                                         }
+                                    } else if (shouldBatchAutoNext) {
+                                        scheduleBatchAutoNextAfterSelect(question.id, QuizRepository.practiceIndex)
                                     }
                                 }
                             }

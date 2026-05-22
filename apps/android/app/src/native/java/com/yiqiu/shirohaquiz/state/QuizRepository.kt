@@ -139,6 +139,7 @@ object QuizRepository {
     private const val KEY_SWIPE_NAVIGATION_ENABLED = "swipe_navigation_enabled"
     private const val KEY_PRACTICE_AUTO_SUBMIT_ENABLED = "practice_auto_submit_enabled"
     private const val KEY_PRACTICE_AUTO_NEXT_ENABLED = "practice_auto_next_enabled"
+    private const val KEY_PRACTICE_BATCH_AUTO_NEXT_ENABLED = "practice_batch_auto_next_enabled"
     private const val KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED = "practice_inline_answer_settings_enabled"
     private const val KEY_PRACTICE_RECITE_MODE_ENABLED = "practice_recite_mode_enabled"
     private const val KEY_PRACTICE_SLASH_ENABLED = "practice_slash_enabled"
@@ -211,6 +212,8 @@ object QuizRepository {
     var practiceAutoSubmitEnabled by mutableStateOf(true)
         private set
     var practiceAutoNextEnabled by mutableStateOf(false)
+        private set
+    var practiceBatchAutoNextEnabled by mutableStateOf(false)
         private set
     var practiceInlineAnswerSettingsEnabled by mutableStateOf(false)
         private set
@@ -346,6 +349,7 @@ object QuizRepository {
         swipeNavigationEnabled = prefs.getBoolean(KEY_SWIPE_NAVIGATION_ENABLED, true)
         practiceAutoSubmitEnabled = prefs.getBoolean(KEY_PRACTICE_AUTO_SUBMIT_ENABLED, true)
         practiceAutoNextEnabled = prefs.getBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, false)
+        practiceBatchAutoNextEnabled = prefs.getBoolean(KEY_PRACTICE_BATCH_AUTO_NEXT_ENABLED, false)
         practiceInlineAnswerSettingsEnabled = prefs.getBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, false)
         practiceReciteModeEnabled = prefs.getBoolean(KEY_PRACTICE_RECITE_MODE_ENABLED, false)
         practiceSlashEnabled = prefs.getBoolean(KEY_PRACTICE_SLASH_ENABLED, false)
@@ -971,6 +975,12 @@ object QuizRepository {
     fun setPracticeAutoNextEnabled(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         practiceAutoNextEnabled = enabled
+        persist()
+    }
+
+    fun setPracticeBatchAutoNextEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        practiceBatchAutoNextEnabled = enabled
         persist()
     }
 
@@ -2498,6 +2508,7 @@ object QuizRepository {
             .putBoolean(KEY_SWIPE_NAVIGATION_ENABLED, swipeNavigationEnabled)
             .putBoolean(KEY_PRACTICE_AUTO_SUBMIT_ENABLED, practiceAutoSubmitEnabled)
             .putBoolean(KEY_PRACTICE_AUTO_NEXT_ENABLED, practiceAutoNextEnabled)
+            .putBoolean(KEY_PRACTICE_BATCH_AUTO_NEXT_ENABLED, practiceBatchAutoNextEnabled)
             .putBoolean(KEY_PRACTICE_INLINE_ANSWER_SETTINGS_ENABLED, practiceInlineAnswerSettingsEnabled)
             .putBoolean(KEY_PRACTICE_RECITE_MODE_ENABLED, practiceReciteModeEnabled)
             .putBoolean(KEY_PRACTICE_SLASH_ENABLED, practiceSlashEnabled)

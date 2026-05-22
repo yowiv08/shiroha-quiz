@@ -767,14 +767,21 @@ fun PracticePreferenceScreen(
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
                 title = "答对后自动下一题",
-                desc = "仅即时练习生效。答对后自动切到下一题，答错时停留当前题查看解析。",
+                desc = "即时练习答对自动切题，答错停留。",
                 checked = QuizRepository.practiceAutoNextEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setPracticeAutoNextEnabled(context, enabled) }
             )
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
-                title = "练习页显示答题设置",
-                desc = "开启后可在练习页临时调整答题方式和每组题数；关闭后只使用这里的默认设置。",
+                title = "批量选后自动下一题",
+                desc = "单选和判断选后自动切题。",
+                checked = QuizRepository.practiceBatchAutoNextEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setPracticeBatchAutoNextEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "练习页答题方式切换",
+                desc = "显示即时反馈、批量做题和每组题数。",
                 checked = QuizRepository.practiceInlineAnswerSettingsEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setPracticeInlineAnswerSettingsEnabled(context, enabled) }
             )
@@ -878,7 +885,7 @@ fun PracticePreferenceScreen(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "批量做题默认每组 ${QuizRepository.preferredPracticeBatchGroupSize()} 题；开启练习页显示答题设置后可临时调整。",
+                text = "批量做题时每组提交一次。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
