@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,17 +83,6 @@ fun HomeScreen(
         } else {
             Modifier.fillMaxSize()
         }
-        val shortcutGridModifier = if (compactHomeLayout) {
-            Modifier
-                .fillMaxWidth()
-                .height(224.dp)
-        } else {
-            Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(bottom = homeSectionGap)
-        }
-
         Column(
             modifier = homeContentModifier
                 .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm)
@@ -135,11 +125,24 @@ fun HomeScreen(
                 onOpenWrongBook = onOpenWrongBook,
                 onOpenFavorites = onOpenFavorites,
                 onOpenRecords = onOpenRecords,
-                modifier = shortcutGridModifier
+                modifier = if (compactHomeLayout) {
+                    Modifier
+                        .fillMaxWidth()
+                        .height(224.dp)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(bottom = homeSectionGap)
+                }
             )
 
             if (compactHomeLayout) {
-                Spacer(Modifier.height(homeSectionGap))
+                Spacer(
+                    Modifier
+                        .height(homeSectionGap)
+                        .navigationBarsPadding()
+                )
             }
         }
     }
