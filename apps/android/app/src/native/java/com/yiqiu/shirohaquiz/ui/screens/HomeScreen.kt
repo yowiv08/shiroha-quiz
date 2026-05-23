@@ -1,8 +1,11 @@
 package com.yiqiu.shirohaquiz.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
 import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -69,54 +72,76 @@ fun HomeScreen(
     val pendingReviewTitle = if (smartReviewEnabled) "今日待复习" else "待复习"
     val homeSectionGap = ShirohaSpacing.Lg
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm)
-    ) {
-        ShirohaHeader(
-            kicker = "Shiroha Quiz",
-            title = "首页",
-            subtitle = ""
-        )
-
-        Spacer(Modifier.height(homeSectionGap))
-
-        IllustrationHeroCard(
-            title = "欢迎回来",
-            subtitle = "继续练习、考试或查看学习记录。",
-            imageRes = R.drawable.illus_home_welcome,
-            modifier = Modifier.height(ShirohaDimens.HeroCardHeight),
-            imageSize = ShirohaDimens.HeroImageSize
-        )
-
-        Spacer(Modifier.height(homeSectionGap))
-
-        TodayStatusCard(
-            bankName = bankName,
-            todayPracticeCount = todayPracticeCount,
-            pendingReviewTitle = pendingReviewTitle,
-            pendingReviewCount = pendingReviewCount,
-            onGoPractice = onGoPractice,
-            onGoExam = onGoExam
-        )
-
-        Spacer(Modifier.height(homeSectionGap))
-
-        HomeShortcutGrid(
-            bankCount = bankCount,
-            favoriteCount = QuizRepository.favoriteQuestions.size,
-            wrongCount = QuizRepository.wrongBook.size,
-            recordCount = QuizRepository.studyRecords.size,
-            onOpenBankList = onOpenBankList,
-            onOpenWrongBook = onOpenWrongBook,
-            onOpenFavorites = onOpenFavorites,
-            onOpenRecords = onOpenRecords,
-            modifier = Modifier
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compactHomeLayout = maxHeight < 860.dp
+        val homeScrollState = rememberScrollState()
+        val homeContentModifier = if (compactHomeLayout) {
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(homeScrollState)
+        } else {
+            Modifier.fillMaxSize()
+        }
+        val shortcutGridModifier = if (compactHomeLayout) {
+            Modifier
+                .fillMaxWidth()
+                .height(224.dp)
+        } else {
+            Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(bottom = homeSectionGap)
-        )
+        }
+
+        Column(
+            modifier = homeContentModifier
+                .padding(horizontal = ShirohaSpacing.Xl, vertical = ShirohaSpacing.Sm)
+        ) {
+            ShirohaHeader(
+                kicker = "Shiroha Quiz",
+                title = "首页",
+                subtitle = ""
+            )
+
+            Spacer(Modifier.height(homeSectionGap))
+
+            IllustrationHeroCard(
+                title = "欢迎回来",
+                subtitle = "继续练习、考试或查看学习记录。",
+                imageRes = R.drawable.illus_home_welcome,
+                modifier = Modifier.height(ShirohaDimens.HeroCardHeight),
+                imageSize = ShirohaDimens.HeroImageSize
+            )
+
+            Spacer(Modifier.height(homeSectionGap))
+
+            TodayStatusCard(
+                bankName = bankName,
+                todayPracticeCount = todayPracticeCount,
+                pendingReviewTitle = pendingReviewTitle,
+                pendingReviewCount = pendingReviewCount,
+                onGoPractice = onGoPractice,
+                onGoExam = onGoExam
+            )
+
+            Spacer(Modifier.height(homeSectionGap))
+
+            HomeShortcutGrid(
+                bankCount = bankCount,
+                favoriteCount = QuizRepository.favoriteQuestions.size,
+                wrongCount = QuizRepository.wrongBook.size,
+                recordCount = QuizRepository.studyRecords.size,
+                onOpenBankList = onOpenBankList,
+                onOpenWrongBook = onOpenWrongBook,
+                onOpenFavorites = onOpenFavorites,
+                onOpenRecords = onOpenRecords,
+                modifier = shortcutGridModifier
+            )
+
+            if (compactHomeLayout) {
+                Spacer(Modifier.height(homeSectionGap))
+            }
+        }
     }
 }
 
