@@ -172,9 +172,15 @@ fun PracticeScreen(
             if (QuizRepository.rememberPracticeSettingsEnabled) {
                 QuizRepository.preferredPracticeOrderMode
             } else {
-                "random"
+                QuizRepository.PRACTICE_ORDER_RANDOM
             }
         )
+    }
+    var sequentialStartMode by rememberSaveable(bank?.id) {
+        mutableStateOf(QuizRepository.SEQUENTIAL_START_LAST)
+    }
+    var sequentialCustomStartNumber by rememberSaveable(bank?.id) {
+        mutableIntStateOf(1)
     }
     var selectedPracticeMode by rememberSaveable(bank?.id, QuizRepository.preferredPracticeMode) {
         mutableStateOf(QuizRepository.preferredPracticeMode)
@@ -194,6 +200,36 @@ fun PracticeScreen(
     val selectedAvailable = remember(availableCounts, selectedTypes) {
         availableCounts.entries.sumOf { (type, count) -> if (type in selectedTypes) count else 0 }
     }
+    val effectiveSelectedTypes = selectedTypes.ifEmpty { QuizRepository.objectiveQuestionTypes() }
+    val sequentialProgressSnapshot = bank?.id?.let { bankId -> QuizRepository.practiceSequentialProgress[bankId] } ?: 0
+    val sequentialProgressStartNumber = remember(
+        bank?.id,
+        selectedTypes,
+        selectedAvailable,
+        sequentialProgressSnapshot
+    ) {
+        QuizRepository.sequentialPracticeProgressIndex(bank, effectiveSelectedTypes) + 1
+    }
+    val sequentialRangePreview = remember(
+        bank?.id,
+        selectedQuestionCount,
+        selectedTypes,
+        sequentialStartMode,
+        sequentialCustomStartNumber,
+        selectedAvailable,
+        sequentialProgressSnapshot
+    ) {
+        QuizRepository.sequentialPracticeRangePreview(
+            questionCount = selectedQuestionCount,
+            allowedTypes = effectiveSelectedTypes,
+            startMode = sequentialStartMode,
+            customStartNumber = sequentialCustomStartNumber,
+            bank = bank
+        )
+    }
+    val sequentialRangeText = sequentialRangePreview?.let { (start, end) ->
+        if (start == end) "本次范围：第 ${start} 题" else "本次范围：第 ${start} - ${end} 题"
+    }
     val startPracticeWithSettings = {
         val safeTypes = selectedTypes.ifEmpty { QuizRepository.objectiveQuestionTypes() }
         val available = QuizRepository.activePracticePoolQuestions(bank).count { it.type in safeTypes }
@@ -209,14 +245,25 @@ fun PracticeScreen(
                 batchSizeMode = selectedBatchGroupSizeMode,
                 customBatchSize = if (selectedBatchGroupSizeMode == "custom") selectedBatchGroupSize.coerceIn(1, count) else null
             )
-            QuizRepository.startPracticeSession(
-                questionCount = count,
-                allowedTypes = safeTypes,
-                sourceLabel = "当前题库",
-                randomize = practiceOrderMode == "random",
-                practiceMode = if (QuizRepository.practiceReciteModeEnabled) QuizRepository.PRACTICE_MODE_INSTANT else selectedPracticeMode,
-                batchGroupSize = selectedBatchGroupSize.coerceIn(1, count)
-            )
+            if (practiceOrderMode == QuizRepository.PRACTICE_ORDER_SEQUENTIAL) {
+                QuizRepository.startSequentialPracticeSession(
+                    questionCount = count,
+                    allowedTypes = safeTypes,
+                    startMode = sequentialStartMode,
+                    customStartNumber = sequentialCustomStartNumber,
+                    practiceMode = if (QuizRepository.practiceReciteModeEnabled) QuizRepository.PRACTICE_MODE_INSTANT else selectedPracticeMode,
+                    batchGroupSize = selectedBatchGroupSize.coerceIn(1, count)
+                )
+            } else {
+                QuizRepository.startPracticeSession(
+                    questionCount = count,
+                    allowedTypes = safeTypes,
+                    sourceLabel = "当前题库",
+                    randomize = true,
+                    practiceMode = if (QuizRepository.practiceReciteModeEnabled) QuizRepository.PRACTICE_MODE_INSTANT else selectedPracticeMode,
+                    batchGroupSize = selectedBatchGroupSize.coerceIn(1, count)
+                )
+            }
         }
     }
 
@@ -298,6 +345,10 @@ fun PracticeScreen(
                 selectedQuestionCount = selectedQuestionCount.coerceAtMost(selectedAvailable.coerceAtLeast(1)),
                 selectedQuestionCountMode = selectedQuestionCountMode,
                 practiceOrderMode = practiceOrderMode,
+                sequentialStartMode = sequentialStartMode,
+                sequentialProgressStartNumber = sequentialProgressStartNumber,
+                sequentialCustomStartNumber = sequentialCustomStartNumber,
+                sequentialRangeText = sequentialRangeText,
                 selectedPracticeMode = selectedPracticeMode,
                 selectedBatchGroupSize = selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1)),
                 selectedBatchGroupSizeMode = selectedBatchGroupSizeMode,
@@ -309,6 +360,13 @@ fun PracticeScreen(
                 onSelectPracticeOrderMode = { mode ->
                     practiceOrderMode = mode
                     QuizRepository.rememberPracticeSettings(context, orderMode = mode)
+                },
+                onSelectSequentialStartMode = { mode ->
+                    sequentialStartMode = mode
+                },
+                onSelectSequentialCustomStart = { startNumber ->
+                    sequentialCustomStartNumber = startNumber.coerceAtLeast(1)
+                    sequentialStartMode = QuizRepository.SEQUENTIAL_START_CUSTOM
                 },
                 onToggleType = { type ->
                     val updated = if (selectedTypes.contains(type)) selectedTypes - type else selectedTypes + type
@@ -511,14 +569,14 @@ fun PracticeScreen(
                     answered = QuizRepository.practiceAnsweredCount(),
                     correct = QuizRepository.practiceCorrectCount(),
                     onRestart = {
-                        QuizRepository.endPracticeSession()
+                        QuizRepository.completePracticeSession()
                         startPracticeWithSettings()
                     },
                     onOpenRecords = {
-                        QuizRepository.endPracticeSession()
+                        QuizRepository.completePracticeSession()
                         onOpenRecords()
                     },
-                    onExit = { QuizRepository.endPracticeSession() }
+                    onExit = { QuizRepository.completePracticeSession() }
                 )
             }
 
@@ -728,7 +786,7 @@ fun PracticeScreen(
                             batchReviewWrongOnly = false
                             isPracticeProgressExpanded = true
                         } else {
-                            QuizRepository.endPracticeSession()
+                            QuizRepository.completePracticeSession()
                         }
                     }
                 )
@@ -760,7 +818,11 @@ fun PracticeScreen(
                     onDismiss = { showExitPracticeConfirm = false },
                     onConfirm = {
                         showExitPracticeConfirm = false
-                        QuizRepository.endPracticeSession()
+                        if (isPracticeComplete) {
+                            QuizRepository.completePracticeSession()
+                        } else {
+                            QuizRepository.endPracticeSession()
+                        }
                     }
                 )
             }
@@ -1035,12 +1097,18 @@ private fun PracticeSetupPanel(
     selectedQuestionCount: Int,
     selectedQuestionCountMode: String,
     practiceOrderMode: String,
+    sequentialStartMode: String,
+    sequentialProgressStartNumber: Int,
+    sequentialCustomStartNumber: Int,
+    sequentialRangeText: String?,
     selectedPracticeMode: String,
     selectedBatchGroupSize: Int,
     selectedBatchGroupSizeMode: String,
     showInlineAnswerSettings: Boolean,
     onSelectPracticeMode: (String) -> Unit,
     onSelectPracticeOrderMode: (String) -> Unit,
+    onSelectSequentialStartMode: (String) -> Unit,
+    onSelectSequentialCustomStart: (Int) -> Unit,
     onToggleType: (QuestionType) -> Unit,
     onSelectQuestionCount: (Int, String) -> Unit,
     onSelectBatchGroupSize: (Int, String) -> Unit,
@@ -1054,6 +1122,10 @@ private fun PracticeSetupPanel(
     var showCustomBatchGroupDialog by remember { mutableStateOf(false) }
     var customBatchGroupText by remember(selectedQuestionCount) {
         mutableStateOf(selectedBatchGroupSize.coerceIn(1, selectedQuestionCount.coerceAtLeast(1)).toString())
+    }
+    var showCustomSequentialStartDialog by remember { mutableStateOf(false) }
+    var customSequentialStartText by remember(sequentialCustomStartNumber, selectedAvailable) {
+        mutableStateOf(sequentialCustomStartNumber.coerceIn(1, selectedAvailable.coerceAtLeast(1)).toString())
     }
 
     GlassCard {
@@ -1089,6 +1161,85 @@ private fun PracticeSetupPanel(
         }
         Spacer(Modifier.height(12.dp))
 
+        Text("练习范围", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(7.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ActionPillButton(
+                icon = Icons.Rounded.PlayArrow,
+                text = "随机抽题",
+                primary = practiceOrderMode == QuizRepository.PRACTICE_ORDER_RANDOM,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp),
+                fillWidthContent = true,
+                onClick = { onSelectPracticeOrderMode(QuizRepository.PRACTICE_ORDER_RANDOM) }
+            )
+            ActionPillButton(
+                icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                text = "顺序刷题",
+                primary = practiceOrderMode == QuizRepository.PRACTICE_ORDER_SEQUENTIAL,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp),
+                fillWidthContent = true,
+                onClick = { onSelectPracticeOrderMode(QuizRepository.PRACTICE_ORDER_SEQUENTIAL) }
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (practiceOrderMode == QuizRepository.PRACTICE_ORDER_RANDOM) "从已选题型中随机抽题。" else "按当前题库顺序从指定起点取题。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (practiceOrderMode == QuizRepository.PRACTICE_ORDER_SEQUENTIAL) {
+            Spacer(Modifier.height(10.dp))
+            Text("顺序起点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(7.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                ActionPillButton(
+                    icon = Icons.Rounded.PlayArrow,
+                    text = "从上次：第 ${sequentialProgressStartNumber.coerceAtLeast(1)} 题",
+                    primary = sequentialStartMode == QuizRepository.SEQUENTIAL_START_LAST,
+                    modifier = Modifier.height(44.dp),
+                    onClick = { onSelectSequentialStartMode(QuizRepository.SEQUENTIAL_START_LAST) }
+                )
+                ActionPillButton(
+                    icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                    text = "从头开始",
+                    primary = sequentialStartMode == QuizRepository.SEQUENTIAL_START_FIRST,
+                    modifier = Modifier.height(44.dp),
+                    onClick = { onSelectSequentialStartMode(QuizRepository.SEQUENTIAL_START_FIRST) }
+                )
+                ActionPillButton(
+                    icon = Icons.Rounded.EditNote,
+                    text = "自选题号",
+                    primary = sequentialStartMode == QuizRepository.SEQUENTIAL_START_CUSTOM,
+                    modifier = Modifier.height(44.dp),
+                    onClick = {
+                        customSequentialStartText = sequentialCustomStartNumber.coerceIn(1, selectedAvailable.coerceAtLeast(1)).toString()
+                        showCustomSequentialStartDialog = true
+                    }
+                )
+            }
+            sequentialRangeText?.let { range ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = range,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
         if (showInlineAnswerSettings) {
             Text("答题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(7.dp))
@@ -1171,43 +1322,6 @@ private fun PracticeSetupPanel(
 
             Spacer(Modifier.height(10.dp))
         }
-        Text("组题方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(7.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ActionPillButton(
-                icon = Icons.Rounded.PlayArrow,
-                text = "随机刷题",
-                primary = practiceOrderMode == "random",
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                fillWidthContent = true,
-                onClick = { onSelectPracticeOrderMode("random") }
-            )
-            ActionPillButton(
-                icon = Icons.AutoMirrored.Rounded.TextSnippet,
-                text = "顺序刷题",
-                primary = practiceOrderMode == "ordered",
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                fillWidthContent = true,
-                onClick = { onSelectPracticeOrderMode("ordered") }
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = if (practiceOrderMode == "random") "从已选题型中随机抽题。" else "按题库原顺序练习。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(Modifier.height(10.dp))
         Text("题型", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1280,6 +1394,19 @@ private fun PracticeSetupPanel(
         }
     }
 
+    if (showCustomSequentialStartDialog) {
+        CustomQuestionCountDialog(
+            title = "自选顺序起点",
+            value = customSequentialStartText,
+            maxCount = selectedAvailable.coerceAtLeast(1),
+            onValueChange = { customSequentialStartText = it },
+            onDismiss = { showCustomSequentialStartDialog = false },
+            onConfirm = { startNumber ->
+                onSelectSequentialCustomStart(startNumber)
+                showCustomSequentialStartDialog = false
+            }
+        )
+    }
     if (showCustomCountDialog) {
         CustomQuestionCountDialog(
             title = "自定义练习题量",
