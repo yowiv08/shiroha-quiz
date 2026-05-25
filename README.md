@@ -1,5 +1,9 @@
 <div align="center">
-  <img src="assets/promo4.jpg" width="800" alt="Shiroha Quiz">
+
+> [!NOTE]
+> 最近空闲时间沉迷「黑夜君临」，更新不会很勤快（）祝大家刷题顺利~
+
+<img src="assets/promo4.jpg" width="800" alt="Shiroha Quiz">
 </div>
 
 <br>
