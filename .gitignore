@@ -70,3 +70,6 @@ apps/android/.gradle-user-home/
 assets/*.zip
 .codex/
 run-regression.ps1
+
+# Regression test tools (dev only)
+test/native-parser-regression/
