@@ -11,6 +11,7 @@ object ImportStrategyScorer {
         val answeredCount = questions.count { it.answer.isNotEmpty() }
         val hardErrors = warnings.count { it.level == WarningLevel.ERROR }
         val softWarnings = warnings.count { it.level == WarningLevel.WARNING }
+        val analysisCount = questions.count { it.analysis.isNotBlank() }
         val answerCoverage = answeredCount.toDouble() / questions.size.toDouble()
         val objectiveCount = questions.count {
             it.type == QuestionType.SINGLE || it.type == QuestionType.MULTIPLE || it.type == QuestionType.JUDGE
@@ -29,6 +30,7 @@ object ImportStrategyScorer {
 
         return questions.size * 5 +
             answeredCount * 12 +
+            analysisCount * 4 +
             (answerCoverage * 150).toInt() +
             (optionCoverage * 80).toInt() +
             sectionBonus -

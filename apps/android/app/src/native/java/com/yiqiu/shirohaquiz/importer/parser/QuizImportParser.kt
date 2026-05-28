@@ -19,9 +19,11 @@ object QuizImportParser {
             candidates += buildCandidate("Excel/CSV 表格题库解析", tableQuestions)
         }
 
-        val sharedStemQuestions = SharedStemQuestionFallbackParser.parse(normalized)
-        if (sharedStemQuestions.isNotEmpty()) {
-            candidates += buildCandidate("共用题干/材料题兜底解析", sharedStemQuestions)
+        if (!AnswerSectionParser.hasAnswerSection(normalized)) {
+            val sharedStemQuestions = SharedStemQuestionFallbackParser.parse(normalized)
+            if (sharedStemQuestions.isNotEmpty()) {
+                candidates += buildCandidate("共用题干/材料题兜底解析", sharedStemQuestions)
+            }
         }
 
         val standardQuestions = QuestionParser.parseStandard(normalized)

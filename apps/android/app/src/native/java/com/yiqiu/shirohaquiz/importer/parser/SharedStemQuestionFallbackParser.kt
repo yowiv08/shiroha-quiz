@@ -32,7 +32,7 @@ object SharedStemQuestionFallbackParser {
     )
 
     private val materialIntroRegex = Regex(
-        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料|病例|案例|病历).*回答\s*(\d{1,4})\s*[~～\-—至到]\s*(\d{1,4})\s*题"""
+        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料|病例|案例|病历).*回答\s*(\d{1,4})\s*[~～\-—至到]\s*(\d{1,4})\s*题\s*[。.:：]?\s*$"""
     )
 
     private val strictQuestionStartRegex = Regex(

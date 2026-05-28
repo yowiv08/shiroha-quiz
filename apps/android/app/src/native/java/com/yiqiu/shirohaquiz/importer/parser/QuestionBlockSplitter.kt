@@ -39,7 +39,7 @@ object QuestionBlockSplitter {
     private val subjectiveQuestionTypeRegex = Regex("""(?:[【\[（(〔〖《]\s*)?(?:简答题|问答题|面试题|结构化面试题|公考面试题|公务员面试题|材料分析题|案例分析题|名词解释|论述题|综合题)(?:\s*[】\]）)〕〗》])?""")
     private val subjectiveContinuationMarkerRegex = Regex("""^\s*(?:参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答)\s*[:：]""")
     private val materialIntroLineRegex = Regex(
-        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d{1,4}\s*[~～\-—至到]\s*\d{1,4}\s*题"""
+        """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d{1,4}\s*[~～\-—至到]\s*\d{1,4}\s*题\s*[。.:：]?\s*$"""
     )
 
     fun split(
