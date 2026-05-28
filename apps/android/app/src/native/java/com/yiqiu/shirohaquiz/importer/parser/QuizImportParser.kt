@@ -19,6 +19,11 @@ object QuizImportParser {
             candidates += buildCandidate("Excel/CSV 表格题库解析", tableQuestions)
         }
 
+        val sharedStemQuestions = SharedStemQuestionFallbackParser.parse(normalized)
+        if (sharedStemQuestions.isNotEmpty()) {
+            candidates += buildCandidate("共用题干/材料题兜底解析", sharedStemQuestions)
+        }
+
         val standardQuestions = QuestionParser.parseStandard(normalized)
         val standardCandidate = buildCandidate("标准优先解析", standardQuestions)
         candidates += standardCandidate
@@ -47,6 +52,10 @@ object QuizImportParser {
         if (AnswerSectionParser.hasAnswerSection(normalized)) {
             val (questionArea, _) = AnswerSectionParser.splitSections(normalized)
             val baseQuestionCandidates = buildList {
+                val sharedStemAreaQuestions = SharedStemQuestionFallbackParser.parse(questionArea)
+                if (sharedStemAreaQuestions.isNotEmpty()) {
+                    add("题目区共用题干/材料题兜底解析" to sharedStemAreaQuestions)
+                }
                 add("题目区标准解析" to QuestionParser.parseStandard(questionArea))
                 if (QuestionParser.looksCompact(questionArea)) {
                     add("题目区紧凑解析" to QuestionParser.parseCompact(questionArea))
@@ -90,6 +99,10 @@ object QuizImportParser {
         val normalizedAnswer = QuestionTextNormalizer.normalize(answerText)
 
         val questionCandidates = buildList {
+            val sharedStemQuestions = SharedStemQuestionFallbackParser.parse(normalizedQuestion)
+            if (sharedStemQuestions.isNotEmpty()) {
+                add("共用题干/材料题兜底解析" to sharedStemQuestions)
+            }
             add("标准题目解析" to QuestionParser.parseStandard(normalizedQuestion))
             if (QuestionParser.looksCompact(normalizedQuestion)) {
                 add("紧凑题目解析" to QuestionParser.parseCompact(normalizedQuestion))
