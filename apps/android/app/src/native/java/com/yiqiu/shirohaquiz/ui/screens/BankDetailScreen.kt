@@ -53,6 +53,7 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import com.yiqiu.shirohaquiz.ui.util.bankDisplayPath
 
 @Composable
 fun BankDetailScreen(
@@ -63,7 +64,11 @@ fun BankDetailScreen(
     onOpenReview: () -> Unit
 ) {
     val context = LocalContext.current
-    val bank = QuizRepository.banks.firstOrNull { it.id == bankId } ?: QuizRepository.activeBank()
+    val bank = if (bankId == null) {
+        QuizRepository.activeBank()
+    } else {
+        QuizRepository.banks.firstOrNull { it.id == bankId }
+    }
     val isActive = bank?.id == QuizRepository.activeBank()?.id
     var showSlashedList by remember(bank?.id) { mutableStateOf(false) }
     var showDeleteBankConfirm by remember(bank?.id) { mutableStateOf(false) }
@@ -251,11 +256,6 @@ fun BankDetailScreen(
             }
         }
     }
-}
-
-private fun bankDisplayPath(groupName: String, bankName: String): String {
-    val cleanGroupName = groupName.ifBlank { DEFAULT_BANK_GROUP_NAME }
-    return "$cleanGroupName / $bankName"
 }
 
 @Composable

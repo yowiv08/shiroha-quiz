@@ -1943,13 +1943,21 @@ object QuizRepository {
 
         val idMap = mutableMapOf<String, String>()
         val now = System.currentTimeMillis()
+        val importedNamesByGroup = mutableMapOf<String, MutableSet<String>>()
         val addedBanks = importedBanks.mapIndexed { index, bank ->
             val newId = "bank_${now}_$index"
             idMap[bank.id] = newId
             val cleanGroupName = normalizeBankGroupName(bank.groupName)
+            val reservedNames = importedNamesByGroup.getOrPut(cleanGroupName) { mutableSetOf() }
+            val cleanName = uniqueImportedBankName(
+                rawName = bank.name,
+                groupName = cleanGroupName,
+                reservedNames = reservedNames
+            )
+            reservedNames += cleanName
             bank.copy(
                 id = newId,
-                name = uniqueImportedBankName(bank.name.ifBlank { "导入题库" }, cleanGroupName),
+                name = cleanName,
                 groupName = cleanGroupName
             )
         }
@@ -2674,13 +2682,18 @@ object QuizRepository {
         return candidate
     }
 
-    private fun uniqueImportedBankName(rawName: String, groupName: String): String {
+    private fun uniqueImportedBankName(
+        rawName: String,
+        groupName: String,
+        reservedNames: Set<String> = emptySet()
+    ): String {
         val cleanGroupName = normalizeBankGroupName(groupName)
         val baseName = rawName.ifBlank { "导入题库" }
         val existingNames = banks
             .filter { normalizeBankGroupName(it.groupName) == cleanGroupName }
             .map { it.name }
             .toSet()
+            .plus(reservedNames)
         if (baseName !in existingNames) return baseName
         var index = 2
         var candidate: String

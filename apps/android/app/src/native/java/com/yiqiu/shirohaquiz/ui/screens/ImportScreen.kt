@@ -108,6 +108,7 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaMotion
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import com.yiqiu.shirohaquiz.ui.util.bankDisplayPath
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -3622,11 +3623,6 @@ private fun defaultImportBankName(fileName: String): String {
         ?: "导入题库"
 }
 
-private fun bankDisplayPath(groupName: String, bankName: String): String {
-    val cleanGroupName = groupName.ifBlank { DEFAULT_BANK_GROUP_NAME }
-    return "$cleanGroupName / $bankName"
-}
-
 @Composable
 private fun ImportStepPill(
     index: String,
@@ -3659,4 +3655,3 @@ private fun ImportStepPill(
         }
     }
 }
-

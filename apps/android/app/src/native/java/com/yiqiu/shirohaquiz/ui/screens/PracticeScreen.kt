@@ -821,14 +821,19 @@ fun PracticeScreen(
 
             if (showExitPracticeConfirm) {
                 PracticeExitConfirmDialog(
+                    canSaveProgress = !isPracticeComplete && QuizRepository.canSaveSequentialProgressOnPracticeExit(),
                     onDismiss = { showExitPracticeConfirm = false },
-                    onConfirm = {
+                    onDirectExit = {
                         showExitPracticeConfirm = false
                         if (isPracticeComplete) {
                             QuizRepository.completePracticeSession()
                         } else {
                             QuizRepository.endPracticeSession()
                         }
+                    },
+                    onSaveAndExit = {
+                        showExitPracticeConfirm = false
+                        QuizRepository.endPracticeSessionSavingSequentialProgress()
                     }
                 )
             }
@@ -2222,24 +2227,39 @@ private fun BatchAnswerNumberChip(
 
 @Composable
 private fun PracticeExitConfirmDialog(
+    canSaveProgress: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onDirectExit: () -> Unit,
+    onSaveAndExit: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("确定要退出练习吗？") },
+        title = { Text("退出练习？") },
         text = {
             Text(
-                text = "退出后将结束当前练习进度。",
+                text = if (canSaveProgress) {
+                    "保存退出后，下次可从当前位置继续。直接退出不会更新顺序进度。"
+                } else {
+                    "退出后将结束当前练习。"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("退出") }
+            if (canSaveProgress) {
+                TextButton(onClick = onSaveAndExit) { Text("保存退出") }
+            } else {
+                TextButton(onClick = onDirectExit) { Text("退出") }
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onDismiss) { Text("取消") }
+                if (canSaveProgress) {
+                    TextButton(onClick = onDirectExit) { Text("直接退出") }
+                }
+            }
         }
     )
 }

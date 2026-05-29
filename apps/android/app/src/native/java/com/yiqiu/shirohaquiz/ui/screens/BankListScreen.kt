@@ -14,9 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -29,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +53,7 @@ import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaColors
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import com.yiqiu.shirohaquiz.ui.util.bankDisplayPath
 
 @Composable
 fun BankListScreen(
@@ -62,7 +66,7 @@ fun BankListScreen(
     var editGroupText by remember { mutableStateOf(DEFAULT_BANK_GROUP_NAME) }
     var editNameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<QuizBank?>(null) }
-    var collapsedGroups by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var collapsedGroups by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
 
     if (editTarget != null) {
         AlertDialog(
@@ -158,16 +162,19 @@ fun BankListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .shirohaNoRippleClickable {
-                            collapsedGroups = if (isExpanded) collapsedGroups + groupName else collapsedGroups - groupName
+                            collapsedGroups = if (isExpanded) {
+                                (collapsedGroups + groupName).distinct()
+                            } else {
+                                collapsedGroups - groupName
+                            }
                         },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isExpanded) "⌄" else "›",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(24.dp)
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Rounded.ExpandMore else Icons.Rounded.ChevronRight,
+                        contentDescription = if (isExpanded) "收起分组" else "展开分组",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -234,7 +241,7 @@ private fun BankCard(
             .fillMaxWidth()
             .shirohaNoRippleClickable { onOpenBankDetail(bank.id) },
         shape = androidx.compose.foundation.shape.RoundedCornerShape(ShirohaRadius.Lg),
-        color = Color.White.copy(alpha = 0.64f),
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, ShirohaColors.LineSoft)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -341,9 +348,4 @@ private fun CompactBankStateChip(
             )
         }
     }
-}
-
-private fun bankDisplayPath(bank: QuizBank): String {
-    val groupName = bank.groupName.ifBlank { DEFAULT_BANK_GROUP_NAME }
-    return "$groupName / ${bank.name}"
 }

@@ -7,41 +7,42 @@ package com.yiqiu.shirohaquiz.ui.text
  * common LaTeX fragments into readable plain math text for display.
  */
 object LatexDisplayFormatter {
-    private val commandReplacements = linkedMapOf(
-        "\\\\leq" to "≤",
-        "\\\\le" to "≤",
-        "\\\\geq" to "≥",
-        "\\\\ge" to "≥",
-        "\\\\neq" to "≠",
-        "\\\\ne" to "≠",
-        "\\\\approx" to "≈",
-        "\\\\sim" to "≈",
-        "\\\\times" to "×",
-        "\\\\cdot" to "·",
-        "\\\\div" to "÷",
-        "\\\\pm" to "±",
-        "\\\\mp" to "∓",
-        "\\\\to" to "→",
-        "\\\\rightarrow" to "→",
-        "\\\\leftarrow" to "←",
-        "\\\\infty" to "∞",
-        "\\\\sum" to "∑",
-        "\\\\prod" to "∏",
-        "\\\\int" to "∫",
-        "\\\\pi" to "π",
-        "\\\\theta" to "θ",
-        "\\\\alpha" to "α",
-        "\\\\beta" to "β",
-        "\\\\gamma" to "γ",
-        "\\\\delta" to "δ",
-        "\\\\lambda" to "λ",
-        "\\\\mu" to "μ",
-        "\\\\sigma" to "σ",
-        "\\\\omega" to "ω",
-        "\\\\Delta" to "Δ",
-        "\\\\Omega" to "Ω",
-        "\\\\%" to "%"
+    private val commandReplacements = mapOf(
+        "leq" to "≤",
+        "le" to "≤",
+        "geq" to "≥",
+        "ge" to "≥",
+        "neq" to "≠",
+        "ne" to "≠",
+        "approx" to "≈",
+        "sim" to "≈",
+        "times" to "×",
+        "cdot" to "·",
+        "div" to "÷",
+        "pm" to "±",
+        "mp" to "∓",
+        "to" to "→",
+        "rightarrow" to "→",
+        "leftarrow" to "←",
+        "infty" to "∞",
+        "sum" to "∑",
+        "prod" to "∏",
+        "int" to "∫",
+        "pi" to "π",
+        "theta" to "θ",
+        "alpha" to "α",
+        "beta" to "β",
+        "gamma" to "γ",
+        "delta" to "δ",
+        "lambda" to "λ",
+        "mu" to "μ",
+        "sigma" to "σ",
+        "omega" to "ω",
+        "Delta" to "Δ",
+        "Omega" to "Ω",
+        "%" to "%"
     )
+    private val latexCommandRegex = Regex("""\\([A-Za-z]+|%)""")
 
     private val superscriptMap = mapOf(
         '0' to '⁰', '1' to '¹', '2' to '²', '3' to '³', '4' to '⁴',
@@ -68,7 +69,7 @@ object LatexDisplayFormatter {
     }
 
     private fun mightContainLatex(text: String): Boolean {
-        return '$' in text || '\\' in text || "^{" in text || "_{" in text
+        return '$' in text || latexCommandRegex.containsMatchIn(text) || "^{" in text || "_{" in text
     }
 
     private fun formatInternal(text: String): String {
@@ -283,11 +284,9 @@ object LatexDisplayFormatter {
     }
 
     private fun replaceCommands(text: String): String {
-        var working = text
-        commandReplacements.forEach { (pattern, replacement) ->
-            working = working.replace(Regex(pattern), replacement)
+        return latexCommandRegex.replace(text) { match ->
+            commandReplacements[match.groupValues[1]] ?: match.value
         }
-        return working
     }
 
     private fun convertScripts(text: String): String {
