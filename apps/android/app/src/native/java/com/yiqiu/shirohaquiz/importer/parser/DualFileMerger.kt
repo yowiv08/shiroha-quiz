@@ -21,6 +21,7 @@ object DualFileMerger {
         val candidates = listOf(
             mergeByNumber(questions, answers),
             mergeByTypeAndNumber(questions, answers),
+            mergeByChapterAndNumber(questions, answers),
             mergeBySequence(questions, answers)
         )
         return candidates.maxByOrNull { candidate ->
@@ -81,6 +82,94 @@ object DualFileMerger {
             warnings += ImportWarning(WarningLevel.WARNING, entry.number, "分组答案中存在未匹配题号")
         }
         return MergeResult(mergedQuestions, warnings, "按题型分组题号合并")
+    }
+
+
+    fun mergeByChapterAndNumber(
+        questions: List<Question>,
+        answers: List<ParsedAnswerEntry>
+    ): MergeResult {
+        val answerGroups = answers
+            .filter { it.category.isNotBlank() }
+            .groupByPreservingOrder { ChapterScopeParser.normalizeChapter(it.category) }
+            .filterKeys { it.isNotBlank() }
+        if (answerGroups.size < 2) {
+            return mergeByNumber(questions, answers).copy(name = "按章节顺序题号合并")
+        }
+
+        val questionGroups = splitQuestionsByNumberRestart(questions)
+        if (questionGroups.size < 2) {
+            return mergeByNumber(questions, answers).copy(name = "按章节顺序题号合并")
+        }
+
+        data class Key(val type: QuestionType?, val number: String)
+
+        val used = mutableSetOf<ParsedAnswerEntry>()
+        val warnings = mutableListOf<ImportWarning>()
+        var matchedCount = 0
+        val groupPairs = questionGroups.zip(answerGroups.values.toList())
+        val mergedQuestions = mutableListOf<Question>()
+
+        groupPairs.forEach { (questionGroup, answerGroup) ->
+            val answerMap = answerGroup.groupBy { Key(it.type, it.number) }.mapValues { it.value.first() }
+            val fallbackAnswerMap = answerGroup.groupBy { Key(null, it.number) }.mapValues { it.value.first() }
+            questionGroup.forEach { question ->
+                val matched = answerMap[Key(question.type, question.number)]
+                    ?: fallbackAnswerMap[Key(null, question.number)]
+                if (matched == null) {
+                    warnings += ImportWarning(WarningLevel.WARNING, question.number, "未在对应章节中匹配到答案")
+                    mergedQuestions += question
+                } else {
+                    matchedCount += 1
+                    used += matched
+                    mergedQuestions += applyAnswer(question, matched, warnings)
+                }
+            }
+        }
+
+        if (questionGroups.size > groupPairs.size) {
+            questionGroups.drop(groupPairs.size).flatten().forEach { question ->
+                warnings += ImportWarning(WarningLevel.WARNING, question.number, "题目章节多于答案章节，未匹配到对应答案")
+                mergedQuestions += question
+            }
+        }
+        if (answerGroups.size > groupPairs.size) {
+            warnings += ImportWarning(WarningLevel.WARNING, null, "答案章节多于题目章节，已忽略多余章节答案")
+        }
+        answers.filterNot { it in used }.filter { it.category.isNotBlank() }.forEach { entry ->
+            warnings += ImportWarning(WarningLevel.WARNING, entry.number, "章节答案中存在未匹配题号")
+        }
+        if (matchedCount < 5) {
+            warnings += ImportWarning(WarningLevel.WARNING, null, "章节答案匹配数量不足，建议改用标准答案表或检查章节标题")
+        }
+        return MergeResult(mergedQuestions, warnings, "按章节顺序题号合并")
+    }
+
+    private fun splitQuestionsByNumberRestart(questions: List<Question>): List<List<Question>> {
+        if (questions.isEmpty()) return emptyList()
+        val groups = mutableListOf<MutableList<Question>>()
+        var current = mutableListOf<Question>()
+        questions.forEach { question ->
+            val number = question.number.trim().toIntOrNull()
+            if (current.isNotEmpty() && number == 1) {
+                groups += current
+                current = mutableListOf()
+            }
+            current += question
+        }
+        if (current.isNotEmpty()) groups += current
+        return groups
+    }
+
+    private fun <T, K> Iterable<T>.groupByPreservingOrder(keySelector: (T) -> K): LinkedHashMap<K, List<T>> {
+        val result = linkedMapOf<K, MutableList<T>>()
+        for (item in this) {
+            val key = keySelector(item)
+            result.getOrPut(key) { mutableListOf() }.add(item)
+        }
+        return LinkedHashMap<K, List<T>>().apply {
+            result.forEach { (key, value) -> put(key, value) }
+        }
     }
 
     fun mergeBySequence(

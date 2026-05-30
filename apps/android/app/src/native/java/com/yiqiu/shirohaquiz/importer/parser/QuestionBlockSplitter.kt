@@ -41,6 +41,10 @@ object QuestionBlockSplitter {
     private val materialIntroLineRegex = Regex(
         """^\s*(?:[一二三四五六七八九十0-9]+[、.．:：]\s*)?根据(?:以下|下列|上述|给定)?(?:资料|材料|图表|统计资料).*回答\s*\d{1,4}\s*[~～\-—至到]\s*\d{1,4}\s*题\s*[。.:：]?\s*$"""
     )
+    private val standaloneNumericTableValueRegex = Regex(
+        """^\s*[+-]?\d+(?:\s*[.．]\s*\d+)?(?:[Ee][+-]?\d+)?\s*$""",
+        RegexOption.IGNORE_CASE
+    )
 
     fun split(
         text: String,
@@ -155,6 +159,7 @@ object QuestionBlockSplitter {
     }
 
     private fun parseQuestionStart(line: String): ParsedQuestionStart? {
+        if (looksLikeStandaloneNumericTableValue(line)) return null
         bracketQuestionStartRegex.find(line)?.let { match ->
             val typed = QuestionTypeLabelParser.extractLeading(match.groupValues[2])
             return ParsedQuestionStart(
@@ -182,9 +187,11 @@ object QuestionBlockSplitter {
         }
 
         strictQuestionStartRegex.find(line)?.let { match ->
+            val number = match.groupValues[1]
+            if (isInvalidQuestionNumber(number)) return null
             val typed = QuestionTypeLabelParser.extractLeading(match.groupValues[2])
             return ParsedQuestionStart(
-                number = match.groupValues[1],
+                number = number,
                 remainder = typed?.remainder ?: match.groupValues[2],
                 forcedType = typed?.type
             )
@@ -193,7 +200,7 @@ object QuestionBlockSplitter {
         spacedQuestionStartRegex.find(line)?.let { match ->
             val number = match.groupValues[1]
             val rest = match.groupValues[2]
-            if (number.length <= 3 && !looksLikeYearPrefix(number, rest)) {
+            if (number.length <= 3 && !isInvalidQuestionNumber(number) && !looksLikeYearPrefix(number, rest)) {
                 val typed = QuestionTypeLabelParser.extractLeading(rest)
                 return ParsedQuestionStart(
                     number = number,
@@ -206,7 +213,7 @@ object QuestionBlockSplitter {
         gluedQuestionStartRegex.find(line)?.let { match ->
             val number = match.groupValues[1]
             val rest = match.groupValues[2]
-            if (number.length <= 2 && rest.isNotBlank()) {
+            if (number.length <= 2 && !isInvalidQuestionNumber(number) && rest.isNotBlank()) {
                 val typed = QuestionTypeLabelParser.extractLeading(rest)
                 return ParsedQuestionStart(
                     number = number,
@@ -217,6 +224,19 @@ object QuestionBlockSplitter {
         }
 
         return null
+    }
+
+    private fun isInvalidQuestionNumber(number: String): Boolean {
+        return number.trim().toIntOrNull() == 0
+    }
+
+    private fun looksLikeStandaloneNumericTableValue(line: String): Boolean {
+        val normalized = line.trim()
+        if (!standaloneNumericTableValueRegex.matches(normalized)) return false
+        val digits = normalized.count { it.isDigit() }
+        if (digits >= 4) return true
+        if (Regex("""[.．Ee]""", RegexOption.IGNORE_CASE).containsMatchIn(normalized)) return true
+        return normalized == "0"
     }
 
     private fun looksLikeYearPrefix(number: String, rest: String): Boolean {

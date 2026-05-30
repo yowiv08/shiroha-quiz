@@ -26,6 +26,7 @@ object StandardQuestionParser {
     private data class OptionMarker(val key: String, val markerStart: Int, val contentStart: Int)
     private data class LineAnswerExtraction(val cleanLine: String, val answerText: String? = null, val analysisText: String? = null)
     private data class EmbeddedStemAnswer(val cleanStem: String, val answerText: String)
+    private data class InferredPlainOptions(val stem: List<String>, val options: List<Option>)
     private data class PreparedQuestionLine(val line: String, val forcedType: QuestionType? = null)
 
     fun parse(
@@ -101,6 +102,14 @@ object StandardQuestionParser {
 
         if (answerText.isBlank() && subjectiveAnswerLines.isNotEmpty()) {
             answerText = subjectiveAnswerLines.joinToString("\n").trim()
+        }
+
+        if (options.isEmpty()) {
+            inferPlainOptionLines(stemLines, forcedType, answerText)?.let { inferred ->
+                stemLines.clear()
+                stemLines += inferred.stem
+                options += inferred.options
+            }
         }
 
         var stem = stemLines.joinToString(" ").replace(Regex("""\s+"""), " ").trim()
@@ -225,7 +234,14 @@ object StandardQuestionParser {
         val firstMarker = markers.first()
         if (firstMarker.markerStart > 0) {
             val prefix = optionLine.substring(0, firstMarker.markerStart).trim()
-            if (prefix.isNotBlank()) stemLines += prefix
+            if (prefix.isNotBlank()) {
+                val inferredKey = missingPreviousOptionKey(firstMarker.key, options)
+                if (inferredKey != null && shouldUsePrefixAsMissingOption(prefix, inferredKey, firstMarker.key)) {
+                    options += Option(inferredKey, prefix)
+                } else {
+                    stemLines += prefix
+                }
+            }
         }
 
         markers.forEachIndexed { index, marker ->
@@ -252,6 +268,62 @@ object StandardQuestionParser {
             }
         }
         return true
+    }
+
+    private fun shouldUsePrefixAsMissingOption(prefix: String, inferredKey: String, firstMarkerKey: String): Boolean {
+        if (inferredKey != "A" || firstMarkerKey != "B") return false
+        val clean = prefix.trim()
+        if (clean.length > 80) return false
+        if (QuestionImageMarker.contains(clean)) return true
+        if (Regex("""^[+-]?\d+(?:\s*[.．]\s*\d+)?(?:%|[A-Za-z]*)?(?:\s*(?:和|与|、|,|，)\s*[+-]?\d+(?:\s*[.．]\s*\d+)?(?:%|[A-Za-z]*)?)*$""", RegexOption.IGNORE_CASE).matches(clean)) return true
+        if (Regex("""^[A-Za-z0-9\-+*/=^_()（）\[\]{}{}.,，。%％\s]{1,40}$""").matches(clean)) return true
+        return false
+    }
+
+    private fun inferPlainOptionLines(
+        stemLines: MutableList<String>,
+        forcedType: QuestionType?,
+        answerText: String
+    ): InferredPlainOptions? {
+        if (stemLines.size !in 5..8) return null
+        if (!shouldInferPlainOptions(forcedType, answerText)) return null
+        val stem = stemLines.first().trim()
+        if (!looksLikeChoiceStemNeedingOptions(stem)) return null
+        val optionLines = stemLines.drop(1).map { it.trim() }.filter { it.isNotBlank() }
+        if (optionLines.size !in 4..7) return null
+        if (optionLines.any { !looksLikePlainOptionText(it) }) return null
+        if (!looksLikePlainOptionList(optionLines)) return null
+        val keys = ('A'..'G').take(optionLines.size).map { it.toString() }
+        return InferredPlainOptions(
+            stem = listOf(stem),
+            options = keys.zip(optionLines).map { (key, value) -> Option(key, value) }
+        )
+    }
+
+    private fun shouldInferPlainOptions(forcedType: QuestionType?, answerText: String): Boolean {
+        if (forcedType == QuestionType.SINGLE || forcedType == QuestionType.MULTIPLE) return true
+        if (forcedType == QuestionType.BLANK || forcedType == QuestionType.SHORT || forcedType == QuestionType.JUDGE) return false
+        return AnswerTokenParser.parseObjectiveAnswers(answerText).isNotEmpty()
+    }
+
+    private fun looksLikeChoiceStemNeedingOptions(stem: String): Boolean {
+        if (Regex("""[（(]\s*[)）]""").containsMatchIn(stem)) return true
+        return Regex("""(?:下列|以下|哪个|哪项|哪一项|选择|选出|不正确|符合|不符合|可以避免|统计量是)""").containsMatchIn(stem)
+    }
+
+    private fun looksLikePlainOptionText(line: String): Boolean {
+        if (line.length !in 1..90) return false
+        if (answerLineRegex.matches(line) || analysisLineRegex.matches(line)) return false
+        if (QuestionTypeLabelParser.extractLeading(line) != null) return false
+        if (Regex("""^\s*(?:第\s*)?\d{1,4}\s*(?:题)?\s*[.、．:：)）]""").containsMatchIn(line)) return false
+        if (Regex("""^(?:df|SS|MS|F|Significance\s+F|回归分析|残差|总计|方差)$""", RegexOption.IGNORE_CASE).matches(line)) return false
+        return true
+    }
+
+    private fun looksLikePlainOptionList(lines: List<String>): Boolean {
+        if (lines.any { Regex("""[。；;]\s*$""").containsMatchIn(it) }) return false
+        if (lines.count { it.length <= 32 } < lines.size) return false
+        return lines.map { it.length }.average() <= 24.0
     }
 
     private fun stripLeadingOptionLabel(line: String): String {
@@ -314,7 +386,10 @@ object StandardQuestionParser {
         val previous = line.getOrNull(marker.markerStart - 1)
         val next = line.getOrNull(marker.contentStart)
         if (previous != null && (previous in 'A'..'G' || previous in 'a'..'g')) return true
-        if (next != null && (next in 'A'..'G' || next in 'a'..'g')) return true
+        if (next != null && (next in 'A'..'G' || next in 'a'..'g')) {
+            val tail = line.substring(marker.contentStart).trimStart()
+            if (Regex("""^[A-Ga-g]\s*[.、．:：)）]""").containsMatchIn(tail)) return true
+        }
         val prefix = line.take(marker.markerStart)
         if (Regex("""[A-Ga-g]\s*、\s*$""").containsMatchIn(prefix)) return true
         if (marker.markerStart > 0 && previous != null && previous.toString().matches(Regex("""[\u4e00-\u9fa5A-Za-z0-9]"""))) {

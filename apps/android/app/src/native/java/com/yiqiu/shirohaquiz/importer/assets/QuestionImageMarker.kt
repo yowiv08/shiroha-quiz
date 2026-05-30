@@ -1,43 +1,45 @@
 package com.yiqiu.shirohaquiz.importer.assets
 
-/**
- * Canonical and compatibility helpers for internal DOCX image placeholders.
- *
- * DOCX extraction writes [[SHIROHA_IMAGE:img_0001]], but Word/normalization/editing paths may
- * leave visually equivalent variants such as [SHIROHA_IMAGE:img_0001], 【SHIROHA_IMAGE:img_0001】
- * or [【SHIROHA_IMAGE:img_0001】].  Binding and validation should treat all of them as the same
- * marker and must never expose these internal tokens to the user.
- */
+/** Centralized helper for internal DOCX image placeholders. */
 object QuestionImageMarker {
-    private const val prefix = "SHIROHA_IMAGE:"
-
-    val markerRegex = Regex(
-        pattern = """(?:\[\[\s*|\[\s*【\s*|【\s*|\[\s*)SHIROHA_IMAGE\s*:\s*(img_\d{4})(?:\s*\]\]|\s*】\s*\]|\s*】|\s*\])"""
+    private val compatibleMarkerRegex = Regex(
+        pattern = """(?:\[\s*){0,2}SHIROHA_IMAGE\s*:\s*(img_\d{4})(?:\s*]){0,2}|(?:[【\[]\s*){1,2}SHIROHA_IMAGE\s*:\s*(img_\d{4})(?:\s*[】\]]){1,2}""",
+        options = setOf(RegexOption.IGNORE_CASE)
     )
 
-    fun canonical(id: String): String = "[[$prefix$id]]"
+    fun canonical(id: String): String = "[[SHIROHA_IMAGE:${id.trim()}]]"
 
-    fun canonicalFromMarker(marker: String): String? {
-        val id = markerRegex.find(marker)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
-        return id?.let(::canonical)
+    fun markerId(raw: String): String? {
+        val match = compatibleMarkerRegex.find(raw) ?: return null
+        return match.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.trim()
     }
 
-    fun canonicalMarkersIn(text: String): List<String> {
-        return markerRegex.findAll(text)
-            .mapNotNull { match -> match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }?.let(::canonical) }
+    fun canonicalize(text: String): String {
+        if (!contains(text)) return text
+        return compatibleMarkerRegex.replace(text) { match ->
+            markerId(match.value)?.let(::canonical).orEmpty()
+        }
+    }
+
+    fun contains(text: String): Boolean = compatibleMarkerRegex.containsMatchIn(text)
+
+    fun rangesIn(text: String): List<IntRange> {
+        if (text.isBlank()) return emptyList()
+        return compatibleMarkerRegex.findAll(text).map { it.range }.toList()
+    }
+
+    fun idsIn(text: String): List<String> {
+        if (text.isBlank()) return emptyList()
+        return compatibleMarkerRegex.findAll(text)
+            .mapNotNull { markerId(it.value) }
             .distinct()
             .toList()
     }
 
-    fun rangesIn(text: String): List<IntRange> {
-        return markerRegex.findAll(text).map { it.range }.toList()
-    }
-
-    fun contains(text: String): Boolean = markerRegex.containsMatchIn(text)
-
-    fun clean(text: String): String {
-        return text
-            .replace(markerRegex, "")
+    fun removeAll(text: String): String {
+        if (!contains(text)) return text.trim()
+        return compatibleMarkerRegex.replace(text, "")
+            .replace(Regex("""[ \t]{2,}"""), " ")
             .replace(Regex("""\n{3,}"""), "\n\n")
             .trim()
     }

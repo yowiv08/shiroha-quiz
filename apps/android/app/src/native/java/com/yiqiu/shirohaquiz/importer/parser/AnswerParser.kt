@@ -7,6 +7,7 @@ data class ParsedAnswerEntry(
     val answer: List<String>,
     val analysis: String = "",
     val type: QuestionType? = null,
+    val category: String = "",
     val sequence: Int = 0
 )
 
@@ -125,12 +126,15 @@ object AnswerParser {
         RegexOption.IGNORE_CASE
     )
     private val tableNumberTokenRegex = Regex("""(?:第\s*)?([0-9]{1,4}|[一二三四五六七八九十百]{1,4})(?:\s*题)?""")
+    private val compactAnswerPairRegex = Regex("""(\d{1,4})\s*([A-Ga-g])(?=\s*\d{1,4}|\s*$)""")
+    private val compactAnswerNoiseRegex = Regex("""[\s,，、;；:：.．\-—_()（）\[\]【】第章节单项选择题答案参考标准正确]+""")
 
 
     private data class AnswerParseContext(
         val lines: List<String>,
         val index: Int,
         val currentType: QuestionType?,
+        val currentCategory: String,
         val sequence: Int
     ) {
         val line: String get() = lines[index]
@@ -144,6 +148,7 @@ object AnswerParser {
 
         data class ConsumeLine(
             val nextType: QuestionType?,
+            val nextCategory: String? = null,
             override val consumedLines: Int = 1
         ) : AnswerRuleResult(consumedLines)
     }
@@ -155,6 +160,7 @@ object AnswerParser {
 
     private val answerParseRules = listOf(
         AnswerParseRule("table_answer", ::parseTableAnswerRule),
+        AnswerParseRule("compact_answer_line", ::parseCompactAnswerLineRule),
         AnswerParseRule("labeled_answer", ::parseLabeledAnswerRule),
         AnswerParseRule("expression_answer", ::parseExpressionAnswerRule),
         AnswerParseRule("subjective_answer", ::parseSubjectiveAnswerRule),
@@ -173,22 +179,28 @@ object AnswerParser {
     fun parse(text: String): List<ParsedAnswerEntry> {
         val entries = mutableListOf<ParsedAnswerEntry>()
         var currentType: QuestionType? = null
+        var currentCategory = ""
         var sequence = 0
 
         val lines = text.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
         var index = 0
         while (index < lines.size) {
-            val context = AnswerParseContext(lines, index, currentType, sequence)
+            val context = AnswerParseContext(lines, index, currentType, currentCategory, sequence)
             val result = answerParseRules.firstNotNullOfOrNull { rule -> rule.parse(context) }
 
             when (result) {
                 is AnswerRuleResult.Entries -> {
                     entries += result.values
+                    result.values.lastOrNull { it.category.isNotBlank() }?.let { entry ->
+                        currentCategory = entry.category
+                        currentType = entry.type ?: currentType
+                    }
                     sequence += result.values.size
                     index += result.consumedLines
                 }
                 is AnswerRuleResult.ConsumeLine -> {
                     currentType = result.nextType
+                    result.nextCategory?.let { currentCategory = it }
                     index += result.consumedLines
                 }
                 null -> index += 1
@@ -198,11 +210,73 @@ object AnswerParser {
         return entries
     }
 
+
+    private data class CompactAnswerLineContext(
+        val body: String,
+        val type: QuestionType?,
+        val category: String,
+        val explicitChapter: Boolean
+    )
+
+    private fun parseCompactAnswerLineRule(context: AnswerParseContext): AnswerRuleResult? {
+        val entries = parseCompactAnswerLine(
+            line = context.line,
+            currentType = context.currentType,
+            currentCategory = context.currentCategory,
+            startSequence = context.sequence
+        ) ?: return null
+        return AnswerRuleResult.Entries(entries)
+    }
+
+    private fun parseCompactAnswerLine(
+        line: String,
+        currentType: QuestionType?,
+        currentCategory: String,
+        startSequence: Int
+    ): List<ParsedAnswerEntry>? {
+        val lineContext = compactLineContext(line, currentType, currentCategory) ?: return null
+        val matches = compactAnswerPairRegex.findAll(lineContext.body).toList()
+        val minPairs = if (lineContext.explicitChapter || lineContext.category.isNotBlank()) 1 else 5
+        if (matches.size < minPairs) return null
+        val noise = compactAnswerPairRegex.replace(lineContext.body, "")
+        val remainingNoise = compactAnswerNoiseRegex.replace(noise, "")
+        if (remainingNoise.isNotBlank()) return null
+
+        return matches.mapIndexedNotNull { offset, match ->
+            val number = normalizeQuestionIndex(match.groupValues[1])
+            val answer = AnswerTokenParser.parseObjectiveAnswers(match.groupValues[2])
+            if (number.isBlank() || answer.isEmpty()) null else ParsedAnswerEntry(
+                number = number,
+                answer = answer,
+                type = lineContext.type,
+                category = lineContext.category,
+                sequence = startSequence + offset
+            )
+        }.takeIf { it.size >= minPairs }
+    }
+
+    private fun compactLineContext(
+        line: String,
+        currentType: QuestionType?,
+        currentCategory: String
+    ): CompactAnswerLineContext? {
+        val firstPair = compactAnswerPairRegex.find(line) ?: return null
+        val prefix = line.substring(0, firstPair.range.first).trim()
+        val body = line.substring(firstPair.range.first).trim()
+        val explicitChapter = ChapterScopeParser.hasChapter(prefix)
+        val category = ChapterScopeParser.normalizeChapter(prefix).ifBlank { currentCategory }
+        val type = QuestionTypeLabelParser.extractLeading(prefix)?.type
+            ?: QuestionTypeLabelParser.parseLabel(prefix.replace(Regex("""^.*章"""), "").trim().trimEnd(':', '：'))
+            ?: currentType
+        return CompactAnswerLineContext(body = body, type = type, category = category, explicitChapter = explicitChapter)
+    }
+
     private fun parseTableAnswerRule(context: AnswerParseContext): AnswerRuleResult? {
         val tableEntries = parseAnswerTableAt(
             context.lines,
             context.index,
             context.currentType,
+            context.currentCategory,
             context.sequence
         ) ?: return null
         return AnswerRuleResult.Entries(tableEntries, consumedLines = 2)
@@ -219,6 +293,7 @@ object AnswerParser {
                     answer = answer,
                     analysis = match.groupValues[3].trim(),
                     type = context.currentType,
+                    category = context.currentCategory,
                     sequence = context.sequence
                 )
             )
@@ -236,6 +311,7 @@ object AnswerParser {
                     answer = answer,
                     analysis = match.groupValues[3].trim(),
                     type = context.currentType,
+                    category = context.currentCategory,
                     sequence = context.sequence
                 )
             )
@@ -254,6 +330,7 @@ object AnswerParser {
                 number = number,
                 answer = objectiveAnswer,
                 type = context.currentType,
+                category = context.currentCategory,
                 sequence = context.sequence
             )
         } else {
@@ -261,6 +338,7 @@ object AnswerParser {
                 number = number,
                 answer = listOf(answerText),
                 type = context.currentType ?: QuestionType.SHORT,
+                category = context.currentCategory,
                 sequence = context.sequence
             )
         }
@@ -268,9 +346,16 @@ object AnswerParser {
     }
 
     private fun parseSectionHeadingRule(context: AnswerParseContext): AnswerRuleResult? {
+        val chapter = ChapterScopeParser.normalizeChapter(context.line)
+        if (chapter.isNotBlank()) {
+            val afterChapter = context.line.replace(Regex("""^.*?章"""), "").trim().trimEnd(':', '：')
+            val type = QuestionTypeLabelParser.parseLabel(afterChapter) ?: context.currentType
+            return AnswerRuleResult.ConsumeLine(nextType = type, nextCategory = chapter)
+        }
         val section = SectionTitleParser.parse(context.line) ?: return null
         val nextType = if (section.isAnswerSection) context.currentType else section.forcedType
-        return AnswerRuleResult.ConsumeLine(nextType = nextType)
+        val nextCategory = if (!section.isAnswerSection && section.forcedType == null) section.title else null
+        return AnswerRuleResult.ConsumeLine(nextType = nextType, nextCategory = nextCategory)
     }
 
     private fun parseRangeAnswerRule(context: AnswerParseContext): AnswerRuleResult? {
@@ -291,6 +376,7 @@ object AnswerParser {
                 number = number.toString(),
                 answer = tokens[offset],
                 type = context.currentType,
+                category = context.currentCategory,
                 sequence = context.sequence + offset
             )
         }
@@ -305,6 +391,7 @@ object AnswerParser {
                 number = match.groupValues[1],
                 answer = answer,
                 type = context.currentType,
+                category = context.currentCategory,
                 sequence = context.sequence + offset
             )
         }.toList()
@@ -323,6 +410,7 @@ object AnswerParser {
                     answer = answer,
                     analysis = match.groupValues[3].trim(),
                     type = context.currentType,
+                    category = context.currentCategory,
                     sequence = context.sequence
                 )
             )
@@ -346,6 +434,7 @@ object AnswerParser {
                     answer = answer,
                     analysis = match.groupValues[3].trim(),
                     type = context.currentType,
+                    category = context.currentCategory,
                     sequence = context.sequence
                 )
             )
@@ -370,6 +459,7 @@ object AnswerParser {
                     answer = answer,
                     analysis = tail,
                     type = context.currentType,
+                    category = context.currentCategory,
                     sequence = context.sequence
                 )
             )
@@ -383,6 +473,7 @@ object AnswerParser {
                 number = match.groupValues[1],
                 answer = answer,
                 type = context.currentType,
+                category = context.currentCategory,
                 sequence = context.sequence + offset
             )
         }.toList()
@@ -392,6 +483,7 @@ object AnswerParser {
         lines: List<String>,
         index: Int,
         currentType: QuestionType?,
+        currentCategory: String,
         startSequence: Int
     ): List<ParsedAnswerEntry>? {
         if (index + 1 >= lines.size) return null
@@ -415,6 +507,7 @@ object AnswerParser {
                 number = number,
                 answer = answers[offset],
                 type = currentType,
+                category = currentCategory,
                 sequence = startSequence + offset
             )
         }

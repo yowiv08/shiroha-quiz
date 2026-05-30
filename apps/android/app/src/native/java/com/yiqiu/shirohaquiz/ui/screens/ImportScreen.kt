@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FileOpen
@@ -90,6 +91,7 @@ import com.yiqiu.shirohaquiz.importer.model.WarningLevel
 import com.yiqiu.shirohaquiz.importer.parser.QuizImportParser
 import com.yiqiu.shirohaquiz.importer.parser.TextImportDecoder
 import com.yiqiu.shirohaquiz.importer.validate.ImportValidator
+import com.yiqiu.shirohaquiz.state.DEFAULT_BANK_GROUP_NAME
 import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.components.ActionPillButton
 import com.yiqiu.shirohaquiz.R
@@ -106,6 +108,7 @@ import com.yiqiu.shirohaquiz.ui.theme.ShirohaDimens
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaMotion
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaRadius
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
+import com.yiqiu.shirohaquiz.ui.util.bankDisplayPath
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -151,6 +154,17 @@ fun ImportScreen(
     var aiAnalyzedQuestionIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var aiAnalysisAppliedQuestionIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var aiReviewSuggestions by remember { mutableStateOf<List<AiReviewSuggestion>>(emptyList()) }
+    var saveMode by rememberSaveable { mutableStateOf(ImportSaveMode.NEW_BANK.name) }
+    var newBankGroupName by rememberSaveable { mutableStateOf(DEFAULT_BANK_GROUP_NAME) }
+    var newBankName by rememberSaveable { mutableStateOf("导入题库") }
+    var appendTargetBankId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedFileName) {
+        val defaultBankName = defaultImportBankName(selectedFileName)
+        if (newBankName.isBlank() || newBankName == "导入题库" || newBankName == "未选择文件") {
+            newBankName = defaultBankName
+        }
+    }
 
     fun clearParsedResult(clearImages: Boolean = false) {
         importResult = null
@@ -1301,18 +1315,112 @@ fun ImportScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(10.dp))
-                    ActionPillButton(
-                        icon = Icons.Rounded.Save,
-                        text = "保存为当前题库",
-                        primary = true,
-                        onClick = {
-                            val bankName = selectedFileName.substringBeforeLast('.').ifBlank { "导入题库" }
-                            QuizRepository.importBank(context, bankName, editableQuestions)
-                            statusText = "已写入原生题库：$bankName，共 ${editableQuestions.size} 题。现在可以切到首页、练习或考试查看。"
-                            isStatusWarn = false
-                            onImportSaved()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ActionPillButton(
+                            icon = Icons.Rounded.Save,
+                            text = "新建题库",
+                            primary = saveMode == ImportSaveMode.NEW_BANK.name,
+                            modifier = Modifier.weight(1f),
+                            fillWidthContent = true,
+                            onClick = { saveMode = ImportSaveMode.NEW_BANK.name }
+                        )
+                        ActionPillButton(
+                            icon = Icons.Rounded.Add,
+                            text = "追加题目",
+                            primary = saveMode == ImportSaveMode.APPEND_TO_BANK.name,
+                            modifier = Modifier.weight(1f),
+                            fillWidthContent = true,
+                            onClick = {
+                                saveMode = ImportSaveMode.APPEND_TO_BANK.name
+                                if (appendTargetBankId == null) {
+                                    appendTargetBankId = QuizRepository.activeBank()?.id ?: QuizRepository.banks.firstOrNull()?.id
+                                }
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    if (saveMode == ImportSaveMode.NEW_BANK.name) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = newBankGroupName,
+                                onValueChange = { newBankGroupName = it },
+                                label = { Text("一级分组") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = newBankName,
+                                onValueChange = { newBankName = it },
+                                label = { Text("二级题库名") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            ActionPillButton(
+                                icon = Icons.Rounded.Save,
+                                text = "保存新题库",
+                                primary = true,
+                                onClick = {
+                                    val cleanGroupName = newBankGroupName.trim().ifBlank { DEFAULT_BANK_GROUP_NAME }
+                                    val bankName = newBankName.trim().ifBlank { defaultImportBankName(selectedFileName) }
+                                    QuizRepository.importBank(context, bankName, editableQuestions, cleanGroupName)
+                                    statusText = "已新建题库：$cleanGroupName / $bankName，共 ${editableQuestions.size} 题。"
+                                    isStatusWarn = false
+                                    onImportSaved()
+                                }
+                            )
                         }
-                    )
+                    } else {
+                        val appendTargetBank = QuizRepository.banks.firstOrNull { it.id == appendTargetBankId }
+                            ?: QuizRepository.activeBank()
+                            ?: QuizRepository.banks.firstOrNull()
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            NoticeCard("追加导入会保留旧题并添加新题；本版不会自动去重，也不会替换原题库。", warning = false)
+                            if (QuizRepository.banks.isEmpty()) {
+                                NoticeCard("当前没有可追加的旧题库，请先保存为新题库。", warning = true)
+                            } else {
+                                Text(
+                                    text = "选择目标题库",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    QuizRepository.banks.forEach { bank ->
+                                        val selected = bank.id == appendTargetBank?.id
+                                        ActionPillButton(
+                                            icon = Icons.Rounded.Done,
+                                            text = bankDisplayPath(bank.groupName, bank.name),
+                                            primary = selected,
+                                            onClick = { appendTargetBankId = bank.id }
+                                        )
+                                    }
+                                }
+                                ActionPillButton(
+                                    icon = Icons.Rounded.Add,
+                                    text = "追加到选中题库",
+                                    primary = true,
+                                    enabled = appendTargetBank != null,
+                                    onClick = {
+                                        val target = appendTargetBank ?: return@ActionPillButton
+                                        val oldCount = target.questions.size
+                                        val success = QuizRepository.appendQuestionsToBank(context, target.id, editableQuestions)
+                                        statusText = if (success) {
+                                            "已追加到：${bankDisplayPath(target.groupName, target.name)}，新增 ${editableQuestions.size} 题，当前共 ${oldCount + editableQuestions.size} 题。"
+                                        } else {
+                                            "追加失败：没有找到目标题库。"
+                                        }
+                                        isStatusWarn = !success
+                                        if (success) onImportSaved()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
 
                 NativeImportPreview(
@@ -3501,6 +3609,20 @@ private fun ImportStepHeroCard() {
     }
 }
 
+private enum class ImportSaveMode {
+    NEW_BANK,
+    APPEND_TO_BANK
+}
+
+private fun defaultImportBankName(fileName: String): String {
+    return fileName
+        .takeIf { it.isNotBlank() && it != "未选择文件" }
+        ?.substringBeforeLast('.')
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?: "导入题库"
+}
+
 @Composable
 private fun ImportStepPill(
     index: String,
@@ -3533,4 +3655,3 @@ private fun ImportStepPill(
         }
     }
 }
-

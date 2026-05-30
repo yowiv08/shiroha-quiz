@@ -11,9 +11,7 @@ object QuestionImageBinder {
 
     fun attach(result: ImportResult, images: List<QuestionImportAssetExtractor.ExtractedImportImage>): ImportResult {
         if (images.isEmpty()) return result
-        val markerToImage = images.mapNotNull { extracted ->
-            QuestionImageMarker.canonicalFromMarker(extracted.marker)?.let { marker -> marker to extracted.image }
-        }.toMap()
+        val markerToImage = images.associate { (QuestionImageMarker.markerId(it.marker) ?: it.marker) to it.image }
         val usedMarkers = mutableSetOf<String>()
         val attached = result.questions.map { question ->
             val markers = markersInQuestion(question)
@@ -28,9 +26,7 @@ object QuestionImageBinder {
 
         val boundCount = attached.sumOf { it.images.size }
         val uniqueBound = attached.flatMap { it.images }.map { it.localPath }.distinct().size
-        val unboundCount = images.count { extracted ->
-            QuestionImageMarker.canonicalFromMarker(extracted.marker)?.let { it !in usedMarkers } ?: true
-        }
+        val unboundCount = images.count { (QuestionImageMarker.markerId(it.marker) ?: it.marker) !in usedMarkers }
         val imageWarnings = buildList {
             add(
                 ImportWarning(
@@ -61,9 +57,9 @@ object QuestionImageBinder {
 
     private fun markersInQuestion(question: Question): List<String> {
         return buildList {
-            addAll(QuestionImageMarker.canonicalMarkersIn(question.question))
-            question.options.forEach { option -> addAll(QuestionImageMarker.canonicalMarkersIn(option.text)) }
-            addAll(QuestionImageMarker.canonicalMarkersIn(question.analysis))
+            addAll(QuestionImageMarker.idsIn(question.question))
+            question.options.forEach { option -> addAll(QuestionImageMarker.idsIn(option.text)) }
+            addAll(QuestionImageMarker.idsIn(question.analysis))
         }.distinct()
     }
 
@@ -76,7 +72,10 @@ object QuestionImageBinder {
     }
 
     private fun cleanText(text: String): String {
-        return QuestionImageMarker.clean(text)
+        return text
+            .let(QuestionImageMarker::removeAll)
+            .replace(Regex("""\n{3,}"""), "\n\n")
+            .trim()
     }
 
     private fun mergeImages(existing: List<QuestionImage>, incoming: List<QuestionImage>): List<QuestionImage> {
