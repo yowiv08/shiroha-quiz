@@ -3862,19 +3862,80 @@ function exitPracticeFocus(){
 
 
 function hasQuestionImageContent(s){return /!\[[^\]]*\]\(data:image\//.test(String(s||''))}
+function ensureRichQuestionContentStylesV55(){
+  if(typeof document==='undefined'||document.getElementById('shiroha-rich-question-style-v55'))return;
+  const style=document.createElement('style');
+  style.id='shiroha-rich-question-style-v55';
+  style.textContent=`
+    .q-table-wrap{width:100%;max-width:100%;overflow-x:auto;margin:12px 0;border:1px solid var(--line,rgba(79,124,255,.16));border-radius:16px;background:var(--card,#fff);box-shadow:0 8px 22px rgba(15,23,42,.05);}
+    .q-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:.94em;line-height:1.55;white-space:normal;}
+    .q-table th,.q-table td{padding:9px 12px;border-right:1px solid var(--line,rgba(79,124,255,.14));border-bottom:1px solid var(--line,rgba(79,124,255,.14));vertical-align:top;min-width:72px;}
+    .q-table th{font-weight:700;background:rgba(79,124,255,.08);}
+    .q-table tr:last-child td{border-bottom:0;}
+    .q-table th:last-child,.q-table td:last-child{border-right:0;}
+    .q-table .question-media{margin:6px 0;}
+    .question-rich-media{display:block;margin:12px 0;}
+    .question-media img,.question-image{max-width:100%;height:auto;border-radius:14px;}
+    @media(max-width:640px){.q-table-wrap{margin:10px 0;border-radius:14px}.q-table th,.q-table td{padding:8px 10px;min-width:66px}.question-media img,.question-image{border-radius:12px}}
+  `;
+  document.head.appendChild(style);
+}
 function renderQuestionContent(s){
+  ensureRichQuestionContentStylesV55();
   const raw=String(s||'');
-  const re=/!\[([^\]]{0,80})\]\((data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[^)]+)\)/g;
+  const tableRe=/【DOCX表格开始】[\s\S]*?【DOCX表格结束】/g;
+  let out='',last=0,m;
+  while((m=tableRe.exec(raw))){
+    out+=renderQuestionInlineRichTextV55(raw.slice(last,m.index));
+    out+=renderDocxTableBlockV55(m[0]);
+    last=tableRe.lastIndex;
+  }
+  out+=renderQuestionInlineRichTextV55(raw.slice(last));
+  return out;
+}
+function renderQuestionInlineRichTextV55(raw){
+  raw=String(raw||'');
+  const re=/!\[([^\]]{0,120})\]\((data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[^)]+)\)/g;
   let out='',last=0,m;
   while((m=re.exec(raw))){
     out+=esc(raw.slice(last,m.index)).replace(/\n/g,'<br>');
     const alt=m[1]||'题目图片';
     const src=m[2];
-    out+=`<figure class="question-media"><img class="question-image" src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></figure>`;
+    out+=`<figure class="question-media question-rich-media"><img class="question-image" src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></figure>`;
     last=re.lastIndex;
   }
   out+=esc(raw.slice(last)).replace(/\n/g,'<br>');
   return out;
+}
+function renderDocxTableBlockV55(block){
+  const rows=parseDocxMarkdownTableBlockV55(block);
+  if(!rows.length)return renderQuestionInlineRichTextV55(block);
+  const head=rows[0];
+  const body=rows.slice(1);
+  const th=head.map(c=>`<th>${renderQuestionInlineRichTextV55(c)}</th>`).join('');
+  const trs=(body.length?body:[]).map(r=>`<tr>${r.map(c=>`<td>${renderQuestionInlineRichTextV55(c)}</td>`).join('')}</tr>`).join('');
+  return `<div class="q-table-wrap" role="region" aria-label="DOCX 表格"><table class="q-table"><thead><tr>${th}</tr></thead>${trs?`<tbody>${trs}</tbody>`:''}</table></div>`;
+}
+function parseDocxMarkdownTableBlockV55(block){
+  const lines=String(block||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const tableLines=lines.filter(line=>line!=='【DOCX表格开始】'&&line!=='【DOCX表格结束】'&&/^\|.*\|$/.test(line));
+  const rows=[];
+  tableLines.forEach(line=>{
+    const cells=splitDocxMarkdownTableRowV55(line);
+    if(!cells.length)return;
+    const isSeparator=cells.every(c=>/^:?-{3,}:?$/.test(String(c||'').trim()));
+    if(isSeparator)return;
+    rows.push(cells.map(c=>String(c||'').replace(/<br\s*\/?>(?![^<]*>)/gi,'\n').trim()));
+  });
+  if(!rows.length)return [];
+  const maxCols=Math.max(...rows.map(r=>r.length));
+  return rows.map(r=>Array.from({length:maxCols},(_,i)=>r[i]||''));
+}
+function splitDocxMarkdownTableRowV55(line){
+  let s=String(line||'').trim();
+  if(s.startsWith('|'))s=s.slice(1);
+  if(s.endsWith('|'))s=s.slice(0,-1);
+  return s.split('|').map(c=>c.trim());
 }
 
 function questionImageDataUriRegexV83(){return /^data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[A-Za-z0-9+/=\r\n]+$/i}
@@ -3954,7 +4015,7 @@ function questionHtml(q,examMode,idx=0){
     const input=q.type==='short'?`<textarea class="text-answer" data-qid="${esc(q.id)}" placeholder="${placeholder}"></textarea>`:`<input class="text-answer" data-qid="${esc(q.id)}" placeholder="${placeholder}" />`;
     return meta+`<div class="answer-input-wrap">${input}</div>`;
   }
-  return meta+`<div class="options">${q.options.map(o=>`<label class="option" data-key="${esc(o.key)}"><input type="${q.type==='multiple'?'checkbox':'radio'}" name="q_${esc(q.id)}" value="${esc(o.key)}"><span class="option-key">${esc(o.key)}.</span><span>${esc(o.text)}</span></label>`).join('')}</div>`;
+  return meta+`<div class="options">${q.options.map(o=>`<label class="option" data-key="${esc(o.key)}"><input type="${q.type==='multiple'?'checkbox':'radio'}" name="q_${esc(q.id)}" value="${esc(o.key)}"><span class="option-key">${esc(o.key)}.</span><span class="option-text">${renderQuestionContent(o.text)}</span></label>`).join('')}</div>`;
 }
 function bindOptionSelect(root,q){$$(root+' .option').forEach(opt=>{opt.onclick=()=>setTimeout(()=>{$$(root+' .option').forEach(o=>o.classList.toggle('selected',o.querySelector('input').checked))},0)})}
 function selectedKeys(root){return $$(root+' input:checked').map(x=>x.value).sort()}
@@ -4345,13 +4406,13 @@ function submitPractice(q,reveal){
 }
 function showAnsweredStateV26(q,st){
   markOptions('#practice-card',q,st.chosen||[]);
-  $('#p-feedback').innerHTML=`<div class="feedback ${st.revealed?'warn':st.correct?'ok':'bad'}">${st.revealed?'已显示参考答案':st.correct?'✓ 回答正确':'✕ 这题要再看一遍'}｜你的答案：${esc((st.chosen||[]).join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+esc(q.analysis):''}</div>`;
+  $('#p-feedback').innerHTML=`<div class="feedback ${st.revealed?'warn':st.correct?'ok':'bad'}">${st.revealed?'已显示参考答案':st.correct?'✓ 回答正确':'✕ 这题要再看一遍'}｜你的答案：${esc((st.chosen||[]).join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}</div>`;
   const sub=$('#p-submit'),rev=$('#p-reveal');if(sub)sub.disabled=true;if(rev)rev.disabled=true;
 }
 function showSubjectiveFeedback(q,chosen,reveal){
   const user=chosen.join('；')||'未填写';
   setPracticeAnswerStateV26(q.id,{chosen,revealed:!!reveal});
-  $('#p-feedback').innerHTML=`<div class="feedback warn">你的作答：${esc(user)}<br>参考答案：${esc(q.answer.join('；')||'未提供')}${q.analysis?'<br>解析：'+esc(q.analysis):''}<br><div class="actions"><button class="primary" id="p-self-right">判为正确</button><button class="danger" id="p-self-wrong">判为错误</button></div></div>`;
+  $('#p-feedback').innerHTML=`<div class="feedback warn">你的作答：${esc(user)}<br>参考答案：${esc(q.answer.join('；')||'未提供')}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}<br><div class="actions"><button class="primary" id="p-self-right">判为正确</button><button class="danger" id="p-self-wrong">判为错误</button></div></div>`;
   $('#p-submit').disabled=true;$('#p-reveal').disabled=true;
   $('#p-self-right').onclick=()=>{recordPracticeAnswer(q,chosen,true);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()};
   $('#p-self-wrong').onclick=()=>{recordPracticeAnswer(q,chosen,false);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()};
@@ -4585,7 +4646,7 @@ function submitExam(auto){
 function renderExamResult(rec){
   const typeRows=Object.entries(rec.byType||{}).map(([t,v])=>`<tr><td>${label(t)}</td><td>${v.correct}/${v.total}</td><td>${Number(v.score.toFixed? v.score.toFixed(1):v.score)}/${v.fullScore}</td></tr>`).join('');
   let html=`<div class="exam-focus-head"><div><b>考试结果</b><span>${esc(rec.name||'模拟考试')}</span></div><div class="exam-head-actions"><button class="primary focus-mini-btn" id="exam-back-setup" type="button">返回考试设置</button></div></div><div class="score-card"><div class="metric"><span>得分</span><b>${rec.score}/${rec.totalScore}</b></div><div class="metric"><span>结果</span><b>${rec.passed?'合格':'未合格'}</b></div><div class="metric"><span>正确率</span><b>${rec.accuracy}%</b></div><div class="metric"><span>用时</span><b>${rec.duration}秒</b></div></div><div class="notice ${rec.passed?'ok':'warn'}">${esc(rec.name||'模拟考试')}：及格线 ${rec.passScore} 分，${rec.autoSubmitted?'系统已自动交卷。':'已交卷。'}</div>${typeRows?`<div class="table-wrap"><table><thead><tr><th>题型</th><th>正确</th><th>得分</th></tr></thead><tbody>${typeRows}</tbody></table></div>`:''}`;
-  exam.items.forEach((q,i)=>{const ans=exam.answers[q.id]||[];html+=`<div class="exam-q" data-result-qid="${esc(q.id)}">${questionHtml(q,true,i+1)}<div class="feedback ${sameAnswerForQuestion(q,ans,q.answer)?'ok':'bad'}">你的答案：${esc(ans.join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+esc(q.analysis):''}</div></div>`});
+  exam.items.forEach((q,i)=>{const ans=exam.answers[q.id]||[];html+=`<div class="exam-q" data-result-qid="${esc(q.id)}">${questionHtml(q,true,i+1)}<div class="feedback ${sameAnswerForQuestion(q,ans,q.answer)?'ok':'bad'}">你的答案：${esc(ans.join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}</div></div>`});
   $('#exam-card').innerHTML=html;
   $('#exam-back-setup').onclick=()=>exitExamFocus();
   exam.items.forEach(q=>markOptions(`#exam-card [data-result-qid="${CSS.escape(q.id)}"]`,q,exam.answers[q.id]||[]));
