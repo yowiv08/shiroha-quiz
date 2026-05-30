@@ -1044,40 +1044,65 @@ function bytesToBase64(bytes){
 }
 function utf8(u8){return new TextDecoder('utf-8').decode(u8)}
 function docxXmlToText(xml,imageMap={}){
-  // v50: 保留原有 DOCX 图片提取能力，并识别 Word run 里的上标/下标样式。
-  // 只有在 w:vertAlign 明确标记为 superscript/subscript 时才转换，避免误伤 C1、B2、2026 等普通编号。
-  xml=String(xml||'').replace(/<w:tab\b[^>]*\/>/g,'\t').replace(/<w:br\b[^>]*\/>/g,'\n');
-  const paras=xml.match(/<w:p\b[\s\S]*?<\/w:p>/g)||[];
-  const lines=[];
-  for(const p of paras){
-    const parts=[];
-    const re=/<w:r\b[\s\S]*?<\/w:r>|<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:drawing\b[\s\S]*?<\/w:drawing>|<w:pict\b[\s\S]*?<\/w:pict>/g;
-    let m;
-    while((m=re.exec(p))){
-      const token=m[0];
-      if(token.startsWith('<w:r')){
-        parts.push(docxRunToText(token,imageMap));
-      }else if(token.startsWith('<w:t')){
-        const tm=token.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
-        if(tm)parts.push(decodeXml(tm[1]));
-      }else if(/^<w:tab/i.test(token))parts.push('\t');
-      else if(/^<w:br/i.test(token))parts.push('\n');
-      else parts.push(docxImageRefsToText(token,imageMap));
-    }
-    const text=parts.join('').replace(/[\t ]+/g,' ').replace(/\n[ \t]+/g,'\n').replace(/[ \t]+\n/g,'\n').trim();
-    if(text)lines.push(text);
+  // v54 / 内部 v30：DOCX 富文本块识别。
+  // 从“全局抽段落”调整为按 document body 顺序识别段落、表格、图片和 OMML 公式，
+  // 先保证结构不丢、不乱序；表格精细显示与公式渲染留给后续版本。
+  const raw=String(xml||'');
+  const body=(raw.match(/<w:body\b[\s\S]*?<\/w:body>/)||[])[0]||raw;
+  const blocks=docxBodyToTextBlocks(body,imageMap);
+  return blocks.map(x=>String(x||'').trim()).filter(Boolean).join('\n');
+}
+
+function docxBodyToTextBlocks(xml,imageMap={}){
+  const blocks=[];
+  const re=/<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p\b[\s\S]*?<\/w:p>|<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[\s\S]*?<\/m:oMath>/g;
+  let m;
+  while((m=re.exec(String(xml||'')))){
+    const token=m[0];
+    let text='';
+    if(/^<w:tbl/i.test(token))text=docxTableToText(token,imageMap);
+    else if(/^<w:p/i.test(token))text=docxParagraphToText(token,imageMap);
+    else text=docxMathToText(token);
+    text=String(text||'').trim();
+    if(text)blocks.push(text);
   }
-  return lines.join('\n');
+  return blocks;
+}
+
+function docxParagraphToText(p,imageMap={}){
+  const parts=[];
+  const re=/<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[\s\S]*?<\/m:oMath>|<w:hyperlink\b[\s\S]*?<\/w:hyperlink>|<w:r\b[\s\S]*?<\/w:r>|<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:drawing\b[\s\S]*?<\/w:drawing>|<w:pict\b[\s\S]*?<\/w:pict>/g;
+  let m;
+  while((m=re.exec(String(p||'')))){
+    parts.push(docxInlineTokenToText(m[0],imageMap));
+  }
+  return docxCleanBlockText(parts.join(''));
+}
+
+function docxInlineTokenToText(token,imageMap={}){
+  token=String(token||'');
+  if(/^<m:oMath/i.test(token))return docxMathToText(token);
+  if(/^<w:hyperlink/i.test(token))return docxParagraphToText(token,imageMap);
+  if(/^<w:r/i.test(token))return docxRunToText(token,imageMap);
+  if(/^<w:t/i.test(token)){
+    const tm=token.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
+    return tm?decodeXml(tm[1]):'';
+  }
+  if(/^<w:tab/i.test(token))return '\t';
+  if(/^<w:br/i.test(token))return '\n';
+  if(/^<w:drawing/i.test(token)||/^<w:pict/i.test(token))return docxImageRefsToText(token,imageMap);
+  return '';
 }
 
 function docxRunToText(run,imageMap={}){
   const mode=getDocxRunVerticalMode(run);
   const parts=[];
-  const re=/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:drawing\b[\s\S]*?<\/w:drawing>|<w:pict\b[\s\S]*?<\/w:pict>/g;
+  const re=/<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[\s\S]*?<\/m:oMath>|<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:drawing\b[\s\S]*?<\/w:drawing>|<w:pict\b[\s\S]*?<\/w:pict>/g;
   let m;
   while((m=re.exec(String(run||'')))){
     const token=m[0];
-    if(token.startsWith('<w:t')){
+    if(/^<m:oMath/i.test(token))parts.push(docxMathToText(token));
+    else if(token.startsWith('<w:t')){
       const tm=token.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
       if(tm)parts.push(convertDocxScriptText(decodeXml(tm[1]),mode));
     }else if(/^<w:tab/i.test(token))parts.push('\t');
@@ -1085,6 +1110,122 @@ function docxRunToText(run,imageMap={}){
     else parts.push(docxImageRefsToText(token,imageMap));
   }
   return parts.join('');
+}
+
+function docxTableToText(tbl,imageMap={}){
+  const rows=[];
+  const rowRe=/<w:tr\b[\s\S]*?<\/w:tr>/g;
+  let rm;
+  while((rm=rowRe.exec(String(tbl||'')))){
+    const row=rm[0];
+    const cells=[];
+    const cellRe=/<w:tc\b[\s\S]*?<\/w:tc>/g;
+    let cm;
+    while((cm=cellRe.exec(row))){
+      cells.push(docxTableCellToText(cm[0],imageMap));
+    }
+    if(cells.some(x=>String(x||'').trim()))rows.push(cells);
+  }
+  if(!rows.length)return '';
+  return docxRowsToMarkdownTable(rows);
+}
+
+function docxTableCellToText(cell,imageMap={}){
+  const parts=docxBodyToTextBlocks(cell,imageMap);
+  return docxCleanTableCellText(parts.join(' / '));
+}
+
+function docxRowsToMarkdownTable(rows){
+  const maxCols=Math.max(1,...rows.map(r=>r.length||0));
+  const padded=rows.map(r=>Array.from({length:maxCols},(_,i)=>docxMarkdownTableCell(r[i]||'')));
+  const lines=['【DOCX表格开始】'];
+  const first=padded[0]||[];
+  lines.push('| '+first.join(' | ')+' |');
+  lines.push('| '+Array.from({length:maxCols},()=> '---').join(' | ')+' |');
+  padded.slice(1).forEach(r=>lines.push('| '+r.join(' | ')+' |'));
+  lines.push('【DOCX表格结束】');
+  return lines.join('\n');
+}
+
+function docxMarkdownTableCell(text){
+  return String(text||'').replace(/\|/g,'｜').replace(/\s*\n+\s*/g,'<br>').replace(/\s{2,}/g,' ').trim();
+}
+function docxCleanTableCellText(text){
+  return String(text||'').replace(/[\t ]+/g,' ').replace(/\s*\n+\s*/g,' / ').replace(/\s{2,}/g,' ').trim();
+}
+function docxCleanBlockText(text){
+  return String(text||'')
+    .replace(/[\t ]+/g,' ')
+    .replace(/\n[ \t]+/g,'\n')
+    .replace(/[ \t]+\n/g,'\n')
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
+}
+
+function docxMathToText(xml){
+  const plain=docxOmmlToPlainText(xml).replace(/\s{2,}/g,' ').trim();
+  return plain?`【DOCX公式OMML：${plain}】`:'【DOCX公式OMML】';
+}
+
+function docxOmmlToPlainText(xml){
+  let s=String(xml||'');
+  if(!s)return '';
+  const replaceStruct=(re,fn)=>{s=s.replace(re,fn)};
+  for(let i=0;i<4;i++){
+    replaceStruct(/<m:f\b[\s\S]*?<\/m:f>/g,(m)=>{
+      const num=docxInnerXmlOfTag(m,'m:num');
+      const den=docxInnerXmlOfTag(m,'m:den');
+      const a=docxOmmlToPlainText(num),b=docxOmmlToPlainText(den);
+      return a||b?`(${a})/(${b})`:docxOmmlFallbackText(m);
+    });
+    replaceStruct(/<m:sSup\b[\s\S]*?<\/m:sSup>/g,(m)=>{
+      const e=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:e'));
+      const sup=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sup'));
+      return sup?`${e}^{${sup}}`:e;
+    });
+    replaceStruct(/<m:sSub\b[\s\S]*?<\/m:sSub>/g,(m)=>{
+      const e=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:e'));
+      const sub=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sub'));
+      return sub?`${e}_{${sub}}`:e;
+    });
+    replaceStruct(/<m:sSubSup\b[\s\S]*?<\/m:sSubSup>/g,(m)=>{
+      const e=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:e'));
+      const sub=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sub'));
+      const sup=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sup'));
+      return `${e}${sub?`_{${sub}}`:''}${sup?`^{${sup}}`:''}`;
+    });
+    replaceStruct(/<m:rad\b[\s\S]*?<\/m:rad>/g,(m)=>{
+      const deg=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:deg'));
+      const e=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:e'));
+      return deg?`√[${deg}](${e})`:`√(${e})`;
+    });
+    replaceStruct(/<m:nary\b[\s\S]*?<\/m:nary>/g,(m)=>{
+      const chr=docxOmmlChr(m)||'∑';
+      const sub=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sub'));
+      const sup=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:sup'));
+      const e=docxOmmlToPlainText(docxInnerXmlOfTag(m,'m:e'));
+      return `${chr}${sub?`_{${sub}}`:''}${sup?`^{${sup}}`:''}${e?` ${e}`:''}`;
+    });
+  }
+  return docxOmmlFallbackText(s);
+}
+
+function docxOmmlFallbackText(xml){
+  let s=String(xml||'');
+  s=s.replace(/<m:chr\b[^>]*>/g,(m)=>docxOmmlChr(m));
+  s=s.replace(/<m:br\b[^>]*\/>/g,'\n');
+  s=s.replace(/<(?:m|w):t(?:\s[^>]*)?>([\s\S]*?)<\/(?:m|w):t>/g,(_,v)=>decodeXml(v));
+  s=s.replace(/<[^>]+>/g,'');
+  return decodeXml(s).replace(/\s+/g,' ').trim();
+}
+function docxOmmlChr(xml){
+  const m=String(xml||'').match(/m:val=["']([^"']+)["']/i);
+  return m?decodeXml(m[1]):'';
+}
+function docxInnerXmlOfTag(xml,tag){
+  const re=new RegExp('<'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/'+tag+'>','i');
+  const m=String(xml||'').match(re);
+  return m?m[1]:'';
 }
 
 function getDocxRunVerticalMode(run){
