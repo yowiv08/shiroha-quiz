@@ -103,7 +103,7 @@ object QuestionImportAssetExtractor {
                 val mediaName = normalizeWordTarget(target)
                 val imageBytes = mediaByName[mediaName]?.bytes ?: return@forEach
                 order += 1
-                val marker = "[[SHIROHA_IMAGE:img_${order.toString().padStart(4, '0')}]]"
+                val marker = QuestionImageMarker.canonical("img_${order.toString().padStart(4, '0')}")
                 val image = saveQuestionImage(
                     dir = sessionDir,
                     sourceName = File(mediaName).name,

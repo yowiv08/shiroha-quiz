@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.importer.parser
 
+import com.yiqiu.shirohaquiz.importer.assets.QuestionImageMarker
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
@@ -14,7 +15,6 @@ object StandardQuestionParser {
     private val bracketAnswerRegex = Regex("""[\[【\(（]\s*(?:$answerLabelPattern)$answerSeparatorPattern([^\]】\)）]+)\s*[\]】\)）]""")
     private val embeddedChoiceAnswerRegex = Regex("""[\(（]\s*([A-Ga-g]{1,7}|对|错|正确|错误|是|否|√|×|True|False)\s*[\)）]""", RegexOption.IGNORE_CASE)
     private val blankKeywords = Regex("""(填空|填入|补全|补充完整|空白处|空白|空格|横线|横线上|括号内|括号里|_{2,}|[\(（]\s*[\)）])""")
-    private val shirohaImageMarkerRegex = Regex("""\[\[SHIROHA_IMAGE:img_\d{4}]]""")
     private val solutionChoiceRegex = Regex(
         """^\s*(?:(?:本题)?(?:答案|正确答案|参考答案|标准答案|正确选项)\s*(?:为|是)|(?:本题)?(?:应选|故选))\s*($objectiveAnswerValuePattern)\b[.。,:：，、;；]?\s*(.*)$""",
         RegexOption.IGNORE_CASE
@@ -300,7 +300,7 @@ object StandardQuestionParser {
             )
         }
 
-        val imageRanges = shirohaImageMarkerRegex.findAll(line).map { it.range }.toList()
+        val imageRanges = QuestionImageMarker.rangesIn(line)
         return markers
             .filterNot { marker -> imageRanges.any { range -> marker.markerStart in range } }
             .filterNot { marker -> looksLikeInlineEnumerationMarker(line, marker) }
@@ -314,10 +314,7 @@ object StandardQuestionParser {
         val previous = line.getOrNull(marker.markerStart - 1)
         val next = line.getOrNull(marker.contentStart)
         if (previous != null && (previous in 'A'..'G' || previous in 'a'..'g')) return true
-        if (next != null && (next in 'A'..'G' || next in 'a'..'g')) {
-            val tail = line.substring(marker.contentStart).trimStart()
-            if (Regex("""^[A-Ga-g]\s*[.、．:：)）]""").containsMatchIn(tail)) return true
-        }
+        if (next != null && (next in 'A'..'G' || next in 'a'..'g')) return true
         val prefix = line.take(marker.markerStart)
         if (Regex("""[A-Ga-g]\s*、\s*$""").containsMatchIn(prefix)) return true
         if (marker.markerStart > 0 && previous != null && previous.toString().matches(Regex("""[\u4e00-\u9fa5A-Za-z0-9]"""))) {

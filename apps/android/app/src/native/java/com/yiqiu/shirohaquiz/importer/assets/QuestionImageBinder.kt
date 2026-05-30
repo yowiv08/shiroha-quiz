@@ -7,12 +7,13 @@ import com.yiqiu.shirohaquiz.importer.model.QuestionImage
 import com.yiqiu.shirohaquiz.importer.model.WarningLevel
 
 object QuestionImageBinder {
-    private val markerRegex = Regex("""\[\[SHIROHA_IMAGE:img_\d{4}]]""")
     private val materialRangeRegex = Regex("""回答\s*(\d+)\s*[~～\-—至到]\s*(\d+)\s*题""")
 
     fun attach(result: ImportResult, images: List<QuestionImportAssetExtractor.ExtractedImportImage>): ImportResult {
         if (images.isEmpty()) return result
-        val markerToImage = images.associate { it.marker to it.image }
+        val markerToImage = images.mapNotNull { extracted ->
+            QuestionImageMarker.canonicalFromMarker(extracted.marker)?.let { marker -> marker to extracted.image }
+        }.toMap()
         val usedMarkers = mutableSetOf<String>()
         val attached = result.questions.map { question ->
             val markers = markersInQuestion(question)
@@ -27,7 +28,9 @@ object QuestionImageBinder {
 
         val boundCount = attached.sumOf { it.images.size }
         val uniqueBound = attached.flatMap { it.images }.map { it.localPath }.distinct().size
-        val unboundCount = images.count { it.marker !in usedMarkers }
+        val unboundCount = images.count { extracted ->
+            QuestionImageMarker.canonicalFromMarker(extracted.marker)?.let { it !in usedMarkers } ?: true
+        }
         val imageWarnings = buildList {
             add(
                 ImportWarning(
@@ -58,9 +61,9 @@ object QuestionImageBinder {
 
     private fun markersInQuestion(question: Question): List<String> {
         return buildList {
-            addAll(markerRegex.findAll(question.question).map { it.value })
-            question.options.forEach { option -> addAll(markerRegex.findAll(option.text).map { it.value }) }
-            addAll(markerRegex.findAll(question.analysis).map { it.value })
+            addAll(QuestionImageMarker.canonicalMarkersIn(question.question))
+            question.options.forEach { option -> addAll(QuestionImageMarker.canonicalMarkersIn(option.text)) }
+            addAll(QuestionImageMarker.canonicalMarkersIn(question.analysis))
         }.distinct()
     }
 
@@ -73,10 +76,7 @@ object QuestionImageBinder {
     }
 
     private fun cleanText(text: String): String {
-        return text
-            .replace(markerRegex, "")
-            .replace(Regex("""\n{3,}"""), "\n\n")
-            .trim()
+        return QuestionImageMarker.clean(text)
     }
 
     private fun mergeImages(existing: List<QuestionImage>, incoming: List<QuestionImage>): List<QuestionImage> {

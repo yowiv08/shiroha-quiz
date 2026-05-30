@@ -1,13 +1,12 @@
 package com.yiqiu.shirohaquiz.importer.validate
 
+import com.yiqiu.shirohaquiz.importer.assets.QuestionImageMarker
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.importer.model.WarningLevel
 
 object ImportValidator {
-    private val imageMarkerRegex = Regex("""\[\[SHIROHA_IMAGE:img_\d{4}]]""")
-
     fun validate(questions: List<Question>): List<ImportWarning> {
         val warnings = mutableListOf<ImportWarning>()
 
@@ -47,9 +46,9 @@ object ImportValidator {
 
     private fun isImageChoiceQuestion(question: Question): Boolean {
         if (question.images.isNotEmpty()) return true
-        if (imageMarkerRegex.containsMatchIn(question.question)) return true
-        if (imageMarkerRegex.containsMatchIn(question.analysis)) return true
-        return question.options.any { imageMarkerRegex.containsMatchIn(it.text) }
+        if (QuestionImageMarker.contains(question.question)) return true
+        if (QuestionImageMarker.contains(question.analysis)) return true
+        return question.options.any { QuestionImageMarker.contains(it.text) }
     }
 
     private fun validateChoiceAnswer(question: Question, warnings: MutableList<ImportWarning>) {

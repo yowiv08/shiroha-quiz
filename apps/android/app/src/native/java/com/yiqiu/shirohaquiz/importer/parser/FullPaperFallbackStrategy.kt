@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.importer.parser
 
+import com.yiqiu.shirohaquiz.importer.assets.QuestionImageMarker
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
@@ -59,7 +60,6 @@ object FullPaperFallbackStrategy {
     private val tableRowLikeRegex = Regex(
         """^\s*\d+(?:\.\d+)?\s+(?:\d+(?:\.\d+)?\s+){1,}|^\s*\d+(?:\.\d+)?\s*(?:第一|第二|第三|固定资产|社会消费|地方财政|实际利用|进出口|指标|占全国|增长速度|产业产值)"""
     )
-    private val imageMarkerRegex = Regex("""\[\[SHIROHA_IMAGE:img_\d{4}]]""")
 
     fun shouldTry(text: String, standardQuestions: List<Question>): Boolean {
         if (!looksLikeFullPaper(text)) return false
@@ -233,7 +233,7 @@ object FullPaperFallbackStrategy {
         val stem = question.question.trim()
         if (stem.isBlank()) return false
         if (paperFrontMatterRegex.containsMatchIn(stem)) return false
-        if (imageMarkerRegex.containsMatchIn(stem)) return true
+        if (QuestionImageMarker.contains(stem)) return true
         if (tableRowLikeRegex.containsMatchIn(stem)) return false
         if (Regex("""^\d+\s*表\d*""").containsMatchIn(stem)) return false
         if (stem.contains("表") && stem.contains("指标")) return false
