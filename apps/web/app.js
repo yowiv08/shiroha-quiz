@@ -1,5 +1,5 @@
 (function(){
-const APP_VERSION='Web v34.4 / 标准优先兜底保护版';
+const APP_VERSION='V33富文本导入优化版';
 const RICH_CONTENT_VERSION_V57='shiroha-web-rich-v1';
 const BANK_DEFAULT_GROUP_V58='未分组';
 const CURRENT_SCHEMA_VERSION=1;
@@ -4771,7 +4771,24 @@ function setBackupPreviewV23(text){const out=$('#export-output');if(out)out.valu
    v27: 收藏题与错题本补强
    v28: App WebView 导出兜底与移动端加固
 */
-function init(){upgradeState();ensureDefaultBank();ensureBankGroupUiV58();bindNav();bindEvents();bindV25ToV28Events();ensureV25ToV28Panels();setupSidebarCollapse();renderBankSelect();renderAll();setupEnhancedDataToolsV23();updateShellLayoutByView();}
+
+function syncHomeVersionPromptV586(){
+  const label=APP_VERSION;
+  try{
+    const root=document.querySelector('#dashboard')||document.body||document;
+    if(document.title&&/V\s*29|基本完成版/i.test(document.title))document.title=document.title.replace(/V\s*29\s*[:：]?\s*基本完成版/g,label);
+    const nodes=[...root.querySelectorAll('h1,h2,h3,h4,b,strong,span,p,div')];
+    nodes.forEach(el=>{
+      if(!el||/^(SCRIPT|STYLE|INPUT|TEXTAREA|SELECT|OPTION)$/i.test(el.tagName||''))return;
+      const txt=(el.textContent||'').trim();
+      if(!txt)return;
+      const leaf=el.children.length===0;
+      if(leaf && /^V\s*29\s*[:：]?\s*基本完成版$/.test(txt))el.textContent=label;
+      else if(leaf && /^V\s*\d+\s*[:：]\s*基本完成版$/.test(txt))el.textContent=label;
+    });
+  }catch(e){}
+}
+function init(){upgradeState();ensureDefaultBank();ensureBankGroupUiV58();bindNav();bindEvents();bindV25ToV28Events();ensureV25ToV28Panels();setupSidebarCollapse();renderBankSelect();renderAll();setupEnhancedDataToolsV23();updateShellLayoutByView();syncHomeVersionPromptV586();setTimeout(syncHomeVersionPromptV586,80);setTimeout(syncHomeVersionPromptV586,300);}
 function defaultBank(){
   const qb=window.questionBank||{meta:{title:'内置题库（按需加载）'},questions:[]};
   const qs=Array.isArray(qb.questions)?qb.questions:[];
@@ -4800,7 +4817,7 @@ function upgradeState(){
   }
 }
 function serializeState(){return JSON.stringify({...state,schemaVersion:CURRENT_SCHEMA_VERSION,favorites:state.favorites||{}})}
-function renderAll(){ensureBankGroupUiV58();renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderRecords();renderFavoritePanelV27();renderBankInputs();renderBuiltInPanelV252();if(typeof renderExportBankSelectorV23==='function')renderExportBankSelectorV23();}
+function renderAll(){ensureBankGroupUiV58();renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderRecords();renderFavoritePanelV27();renderBankInputs();renderBuiltInPanelV252();if(typeof renderExportBankSelectorV23==='function')renderExportBankSelectorV23();syncHomeVersionPromptV586();}
 function bindV25ToV28Events(){
   ['#load-built-in-bank-btn','#load-built-in-bank-btn-banks'].forEach(sel=>{const btn=$(sel);if(btn)btn.onclick=()=>loadBuiltInBankV252();});
 }
