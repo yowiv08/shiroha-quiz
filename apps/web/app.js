@@ -1,5 +1,5 @@
 (function(){
-const APP_VERSION='Web v34 / 二级题库分组支持';
+const APP_VERSION='Web v34.1 / 二级题库分组修正版';
 const RICH_CONTENT_VERSION_V57='shiroha-web-rich-v1';
 const BANK_DEFAULT_GROUP_V58='未分组';
 const CURRENT_SCHEMA_VERSION=1;
@@ -1634,6 +1634,8 @@ function parseAnswerEntries(text){
     const heading=getHeadingType(raw);
     if(heading){group=heading;pendingNumber='';continue}
     let line=raw.replace(/^[-•●]\s*/,'').trim();
+    // v58.1：修复答案表中“28 B29 B”这类缺少空格的紧凑粘连。
+    line=line.replace(/(\d{1,4})\s*([A-Ga-g])(?=\d{1,4}\s*[A-Ga-g])/g,'$1$2 ');
     // 1-10：D A A B C D A C B D
     let range=line.match(/^\s*(\d+)\s*[-~—至到]\s*(\d+)\s*[:：]\s*(.+)$/);
     if(range){
@@ -1641,7 +1643,12 @@ function parseAnswerEntries(text){
       const toks=range[3].trim().split(/\s+/).filter(Boolean);
       if(toks.length===end-start+1){toks.forEach((t,i)=>push(start+i,t));continue}
     }
-    // 一行多个：1.D 2.A 3.A 4.B 5.C
+    // 一行多个：1B 2C 3B ... / 1.D 2.A 3.A 4.B 5.C
+    // v58.1：优先识别“题号 + 字母答案”的紧凑答案表，避免把 28 B 误拆成 2:8。
+    const compactLetterPairs=[];let cm;
+    const compactLetterRe=/(?:^|\s)(\d{1,4})\s*([A-Ga-g])(?=\s*(?:\d{1,4}\s*[A-Ga-g]|$))/g;
+    while((cm=compactLetterRe.exec(line)))compactLetterPairs.push({number:cm[1],ans:cm[2]});
+    if(compactLetterPairs.length>=2){compactLetterPairs.forEach(h=>push(h.number,h.ans));continue}
     const pairRe=/(?:第\s*)?(\d+)\s*(?:题)?\s*[\.、．:：]?\s*(?:答案|正确答案|参考答案)?\s*[:：]?\s*([A-Ga-g]{1,7}|[1-9]{1,7}|对|错|正确|错误|√|✓|✔|×|X|x|v|V|T|F|True|False)(?=\s|$|\d+[\.、．:：])/g;
     let hits=[];let m;
     while((m=pairRe.exec(line)))hits.push({number:m[1],ans:m[2]});
@@ -1789,7 +1796,9 @@ function mergeQuestionAnswers(questions,answers,mode){
   return {questions:qs.map((q,i)=>normalizeQuestion(q,i)),warnings};
 }
 function parseTextQuestionsBaseDetailed(text){
-  text=normalizeImportText(text);
+  const protectedPack=protectDocxImageMarkdownForParser(text);
+  const restore=protectedPack.restore||((x)=>x);
+  text=normalizeImportText(protectedPack.text);
   text=preSplitVolumeAndCompactQuestions(text);
   if(!text.trim())return {questions:[],blocks:[],pairs:[]};
   const blocks=splitQuestionBlocks(text);
@@ -1797,7 +1806,8 @@ function parseTextQuestionsBaseDetailed(text){
   blocks.forEach((block,idx)=>{
     const q=parseBlock(block,idx);
     if(q&&q.question&&(q.options.length||q.answer.length||q.type==='judge'||isTextType(q.type))){
-      const nq=normalizeQuestion({...q,volume:block.volume||q.volume||'',group:block.group||q.group||''},questions.length);
+      const restored={...q,question:restore(q.question||''),analysis:restore(q.analysis||''),options:(q.options||[]).map(o=>({...o,text:restore(o.text||'')}))};
+      const nq=normalizeQuestion({...restored,volume:block.volume||restored.volume||'',group:block.group||restored.group||''},questions.length);
       questions.push(nq);pairs.push({question:nq,block,blockIndex:idx});
     }
   });
@@ -1828,6 +1838,12 @@ function formatAnswerAnalysisForReview(answer,analysis=''){
 function visibleQuestionTextForRisk(s){
   return String(s||'').replace(/!\[[^\]]{0,80}\]\(data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[^)]+\)/g,'[图片]');
 }
+function visibleOptionTextForRisk(s){
+  return visibleQuestionTextForRisk(s)
+    .replace(/data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[A-Za-z0-9+/=\r\n]+/g,'[图片]')
+    .replace(/!\[[^\]]{0,80}\]\([^)]{0,120}\)/g,'[图片]')
+    .replace(/\[?【SHIROHA_IMAGE:[^】]+】\]?/g,'[图片]');
+}
 function isCivilServiceLongStemAllowed(q,profile={}){
   const question=visibleQuestionTextForRisk(q?.question||'');
   const group=String(q?.group||q?.category||profile?.group||'');
@@ -1850,7 +1866,7 @@ function localRepairRiskStatus(q,profile){
   if(status!=='正常' && !(!profile?.inlineAnswerLikely && /缺少答案|缺少参考答案/.test(status)))return status;
   const question=visibleQuestionTextForRisk(q.question||'');
   const options=q.options||[];
-  if((options||[]).some(o=>String(o.text||'').length>220||/【\s*(?:答案|正确答案)|\b\d{1,4}\s*[、.．:：].+【\s*答案/.test(o.text||'')))return'选项疑似粘连';
+  if((options||[]).some(o=>{const text=visibleOptionTextForRisk(o.text||'');return text.length>220||/【\s*(?:答案|正确答案)|\b\d{1,4}\s*[、.．:：].+【\s*答案/.test(text);} ))return'选项疑似粘连';
   if(/【\s*(?:答案|正确答案|参考答案)|(?:答案|正确答案|参考答案)\s*[:：]/.test(question))return'题干残留答案标记';
   if(question.length>260&&!isCivilServiceLongStemAllowed(q,profile))return'题干过长';
   if(['single','multiple'].includes(q.type)){
@@ -2624,13 +2640,40 @@ function scoreRecruitmentImageCandidate(qs,profile){
   const expected=(profile&&profile.expectedByHeadings)||0;if(expected)score-=Math.min(500,Math.abs(arr.length-expected)*20);
   return score+1600;
 }
+
+function repairDocxTablePromptSplitQuestions(questions){
+  const src=(questions||[]).map(q=>({...q,options:[...(q.options||[])],answer:[...(q.answer||[])]}));
+  const out=[];
+  for(let i=0;i<src.length;i++){
+    const q=src[i];
+    const next=src[i+1];
+    const hasDocxTable=/【DOCX表格开始】/.test(String(q.question||''));
+    const weakOptions=(q.options||[]).length<2;
+    const nextHasOptions=next && (next.options||[]).length>=2;
+    const nextLooksPrompt=next && !/【DOCX表格开始】/.test(String(next.question||'')) && String(next.question||'').length<=180;
+    if(hasDocxTable && weakOptions && nextHasOptions && nextLooksPrompt){
+      const merged={...q};
+      merged.question=[q.question,next.question].map(x=>String(x||'').trim()).filter(Boolean).join('\n');
+      merged.options=[...(next.options||[])];
+      if(!(merged.answer||[]).length && (next.answer||[]).length)merged.answer=[...(next.answer||[])];
+      if(!merged.analysis && next.analysis)merged.analysis=next.analysis;
+      out.push(merged);
+      i++;
+      continue;
+    }
+    out.push(q);
+  }
+  return out;
+}
+
 function parseTextQuestions(text,strategy='auto'){
   const original=String(text||'');
   const profile=analyzeQuestionTextProfile(original);
   const candidates=[];
   const addCandidate=(name,fn)=>{
     try{
-      const qs=fn().map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
+      let qs=fn().map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
+      qs=repairDocxTablePromptSplitQuestions(qs).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
       candidates.push({name,questions:qs,score:scoreParsedQuestions(qs,profile),warnings:collectImportWarnings(qs)});
     }catch(e){candidates.push({name,questions:[],score:-9999,warnings:['解析失败：'+e.message]});}
   };
@@ -2756,7 +2799,8 @@ function parseTextQuestions(text,strategy='auto'){
     }
   }
 
-  const stats=countTypes(best.questions||[]);
+  const finalQuestions=repairDocxTablePromptSplitQuestions(best.questions||[]).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
+  const stats=countTypes(finalQuestions||[]);
   const profileBits=[];
   if(profile.hasVolumeHeading)profileBits.push('检测到分卷');
   if(profile.hasTypeSections)profileBits.push('检测到题型分区');
@@ -2765,10 +2809,10 @@ function parseTextQuestions(text,strategy='auto'){
   if(profile.inlineAnswerLikely)profileBits.push('存在题尾答案标记');
   if(profile.hasAnswerAnalysisSection)profileBits.push('检测到答案解析区');
   const candidateLine=candidates.map(c=>`${c.name}${c.questions.length}题/质量${c.score}${c.segments?.length?'（局部修复'+c.segments.length+'处）':''}`).join('；');
-  const expected=profile.expectedByHeadings?`；标题预期约${profile.expectedByHeadings}题，实际${best.questions.length}题，差值${best.questions.length-profile.expectedByHeadings}`:'';
-  importReport=`解析模式：${strategyLabel}；采用策略：${best.name}。${profileBits.length?'格式画像：'+profileBits.join('、')+'。':''}候选结果：${candidateLine}。最终识别：${best.questions.length}题（单选${stats.single||0}、多选${(stats.multiple||0)+(stats.multi||0)}、判断${stats.judge||0}、填空${stats.blank||0}、简答${stats.short||0}）${expected}。`;
-  importDiagnostics={mode:strategyLabel,strategy:best.name,profile,candidates:candidates.map(c=>({name:c.name,questions:c.questions.length,score:c.score,warnings:c.warnings||[],segments:c.segments||[]})),expected:{total:profile.expectedByHeadings||0,types:profile.expectedByType||{}},stats,warnings:best.warnings||[]};
-  return best.questions;
+  const expected=profile.expectedByHeadings?`；标题预期约${profile.expectedByHeadings}题，实际${finalQuestions.length}题，差值${finalQuestions.length-profile.expectedByHeadings}`:'';
+  importReport=`解析模式：${strategyLabel}；采用策略：${best.name}。${profileBits.length?'格式画像：'+profileBits.join('、')+'。':''}候选结果：${candidateLine}。最终识别：${finalQuestions.length}题（单选${stats.single||0}、多选${(stats.multiple||0)+(stats.multi||0)}、判断${stats.judge||0}、填空${stats.blank||0}、简答${stats.short||0}）${expected}。`;
+  importDiagnostics={mode:strategyLabel,strategy:best.name,profile,candidates:candidates.map(c=>({name:c.name,questions:c.questions.length,score:c.score,warnings:c.warnings||[],segments:c.segments||[]})),expected:{total:profile.expectedByHeadings||0,types:profile.expectedByType||{}},stats,warnings:collectImportWarnings(finalQuestions)};
+  return finalQuestions;
 }
 
 function analyzeQuestionTextProfile(text){
@@ -2818,6 +2862,21 @@ function estimateExpectedQuestionTypeCounts(text){
   while((m=range.exec(text))){const t=map[m[1]],a=Number(m[2]),b=Number(m[3]);if(t&&b>=a&&b-a<2000)out[t]=Math.max(out[t]||0,b-a+1)}
   return out;
 }
+
+function scoreQuestionNumberContinuity(qs){
+  const nums=(qs||[]).map(q=>Number(String(q.number||'').match(/\d+/)?.[0]||0)).filter(n=>n>0&&n<10000);
+  if(nums.length<5)return 0;
+  const unique=[...new Set(nums)].sort((a,b)=>a-b);
+  const min=unique[0],max=unique[unique.length-1];
+  const span=max-min+1;
+  const gaps=Math.max(0,span-unique.length);
+  const dups=Math.max(0,nums.length-unique.length);
+  let score=unique.length*5 - gaps*80 - dups*45;
+  if(min===1 && max===unique.length && gaps===0 && dups===0)score+=360;
+  if(gaps>0)score-=Math.min(300,gaps*60);
+  return score;
+}
+
 function scoreParsedQuestions(qs,profile){
   const arr=qs||[];let score=arr.length*10;
   const warnings=collectImportWarnings(arr);
@@ -2833,6 +2892,7 @@ function scoreParsedQuestions(qs,profile){
   });
   score-=suspicious*30;
   if(profile.expectedByHeadings){const diff=Math.abs(arr.length-profile.expectedByHeadings);score-=Math.min(300,diff*12);}
+  score+=scoreQuestionNumberContinuity(arr);
   return score;
 }
 function forceSplitCompactText(text){
@@ -3133,6 +3193,7 @@ function splitQuestionBlocks(text,inheritedGroup=''){
   const curHasContent=()=>cur.length>0;
   const curHasRealQuestion=()=>cur.some(l=>!isOptionLine(l)&&!isAnswerLine(l)&&!isAnalysisLine(l)&&!getHeadingType(l));
   const curHasAnsweredStem=()=>cur.some(l=>hasInlineAnswerTag(l)||hasEmbeddedAnswerStem(l,curGroup||group));
+  const curHasDocxTable=()=>cur.some(l=>/^【DOCX表格开始】$/.test(String(l||'').trim()))&&!cur.some(l=>isOptionLine(l)||isAnswerLine(l));
   for(const raw of lines){
     if(isVolumeHeading(raw)){flush();volume=getVolumeLabel(raw);curVolume=volume;continue}
     if(isImportNoiseLine(raw))continue
@@ -3145,7 +3206,10 @@ function splitQuestionBlocks(text,inheritedGroup=''){
       const hasPrevOptions=cur.some(isOptionLine)||cur.some(l=>extractInlineOptionsRich(l)?.options?.length>=2);
       const hasPrevAnswer=cur.some(isAnswerLine)||curHasAnsweredStem();
       const hasEmbeddedBoundary=hasEmbeddedAnswerStem(line,group);
-      const shouldStartNew=newQuestion && (hasPrevOptions||hasPrevAnswer||curHasRealQuestion()&&hasStrongQuestionNo(line)||(hasInlineAnswerTag(line)||hasEmbeddedBoundary)&&curHasRealQuestion());
+      let shouldStartNew=newQuestion && (hasPrevOptions||hasPrevAnswer||curHasRealQuestion()&&hasStrongQuestionNo(line)||(hasInlineAnswerTag(line)||hasEmbeddedBoundary)&&curHasRealQuestion());
+      // v58.1：DOCX 表格常作为题干材料出现，真正的提问句和选项可能在表格之后。
+      // 表格后紧跟的非强题号句（如“根据上表计算……”）不能被切成新题；只有遇到新的强题号才切题。
+      if(shouldStartNew && curHasDocxTable() && !hasPrevOptions && !hasPrevAnswer && !hasStrongQuestionNo(line))shouldStartNew=false;
       if(shouldStartNew)flush();
     }
     if(!cur.length){curGroup=group;curVolume=volume}
@@ -3242,9 +3306,32 @@ function splitTrailingFirstOptionFromQuestion(line,nextLine){
   return null;
 }
 
+
+function extractImplicitLeadingAOptions(line){
+  const s=String(line||'').trim();
+  if(!s || /^[A-Ga-g]\s*[、.．:：，,]/.test(s))return null;
+  if(/^(?:答案|解析|正确答案|参考答案|标准答案)\s*[:：]/.test(s))return null;
+  const hits=[];let m;
+  const re=/([B-Gb-g])\s*[、.．:：，,]\s*/g;
+  while((m=re.exec(s)))hits.push({idx:m.index,len:m[0].length,key:normalizeOptionKey(m[1])});
+  if(hits.length<2 || hits[0].key!=='B')return null;
+  const keys=hits.map(h=>h.key).join('');
+  if(!/^BC/.test(keys))return null;
+  const firstText=s.slice(0,hits[0].idx).trim();
+  if(!firstText || firstText.length>120)return null;
+  const options=[{key:'A',text:firstText}];
+  for(let i=0;i<hits.length;i++){
+    const start=hits[i].idx+hits[i].len;
+    const end=i+1<hits.length?hits[i+1].idx:s.length;
+    const txt=s.slice(start,end).trim();
+    if(txt)options.push({key:hits[i].key,text:txt});
+  }
+  return options.length>=3?options:null;
+}
+
 function parseBlock(block,idx){
   const lines=(Array.isArray(block)?block:block.lines||String(block).split('\n')).map(x=>String(x).trim()).filter(Boolean);
-  const group=block.group||'';let type=mapType(group)||'';let answer=[];let analysis='';let options=[];let qlines=[];let collectingAnalysis=false;let unkeyedMode=false;let seenQuestion=false;let number=idx+1;
+  const group=block.group||'';let type=mapType(group)||'';let answer=[];let analysis='';let options=[];let qlines=[];let collectingAnalysis=false;let unkeyedMode=false;let pendingOptionKey='';let seenQuestion=false;let number=idx+1;
   const full=lines.join('\n');const inlineType=detectType(full);if(inlineType)type=inlineType;
   for(let li=0;li<lines.length;li++){
     let line=lines[li].trim();
@@ -3323,16 +3410,40 @@ function parseBlock(block,idx){
       continue;
     }
 
+    // v58.1：兼容 Word/DOCX 中“选项标号单独一行，公式或图片在下一行”的场景。
+    // 例如：A．\n![DOCX图片] 或 A．\n【DOCX公式OMML：...】。旧逻辑会把空选项丢掉，导致全公式/全图片选项题被跳过。
+    if(pendingOptionKey && !isOptionLine(line) && !isAnswerLine(line) && !isAnalysisLine(line) && !getHeadingType(line)){
+      const pendingText=line.trim();
+      if(pendingText)options.push({key:pendingOptionKey,text:pendingText});
+      pendingOptionKey='';collectingAnalysis=false;unkeyedMode=false;seenQuestion=true;
+      continue;
+    }
+    const labelOnlyOption=line.match(/^\s*(?:[oOxXuUyYvV√✔✓]\s*)?(?:[（(]\s*([A-Ga-g1-90])\s*[）)]|([A-Ga-g0])\s*[、.．:：，,]?)\s*$/);
+    if(labelOnlyOption && (seenQuestion||qlines.length)){
+      pendingOptionKey=normalizeOptionKey(labelOnlyOption[1]||labelOnlyOption[2]);
+      collectingAnalysis=false;unkeyedMode=false;seenQuestion=true;
+      continue;
+    }
+
     const firstOpt=splitTrailingFirstOptionFromQuestion(line,lines[li+1]||'');
     if(firstOpt && !options.length){
-      qlines.push(firstOpt.question);seenQuestion=true;collectingAnalysis=false;unkeyedMode=false;
+      qlines.push(firstOpt.question);seenQuestion=true;collectingAnalysis=false;unkeyedMode=false;pendingOptionKey='';
       options.push({key:firstOpt.key,text:firstOpt.text});
+      continue;
+    }
+
+    // v58.1：兼容首个 A 选项标号在 Word 提取中丢失，但 B/C/D 仍在同一行的情况。
+    // 例如：0.9005 B．0.9521 C．0.8573 D．0.9232，应恢复为 A/B/C/D 四个选项。
+    const implicitAOptions=extractImplicitLeadingAOptions(line);
+    if(implicitAOptions && implicitAOptions.length>=3 && (seenQuestion||qlines.length) && !options.length){
+      collectingAnalysis=false;unkeyedMode=false;pendingOptionKey='';
+      implicitAOptions.forEach(o=>{if(o.text)options.push(o)});
       continue;
     }
 
     const richInline=extractInlineOptionsRich(line);
     if(richInline && richInline.options.length>=2){
-      collectingAnalysis=false;unkeyedMode=false;
+      collectingAnalysis=false;unkeyedMode=false;pendingOptionKey='';
       if(richInline.prefix && !options.length){qlines.push(richInline.prefix);seenQuestion=true;}
       for(const it of richInline.options){
         let key=normalizeOptionKey(it.key);let txt=(it.text||'').trim();
@@ -3430,6 +3541,10 @@ function repairEmbeddedOptions(options){
   const keyCode=k=>String(k||'A').toUpperCase().charCodeAt(0);
   for(const opt of (options||[])){
     const txt=String(opt.text||'');
+    if(/data:image\//i.test(txt)||/!\[[^\]]*\]\(data:image\//i.test(txt)||/\[\[DOCX_IMAGE_\d+\]\]/.test(txt)){
+      out.push(opt);
+      continue;
+    }
     const hits=[];
     const base=keyCode(opt.key);
     for(let i=1;i<txt.length;i++){
@@ -3905,7 +4020,7 @@ function validateQuestion(q){
   if(q.type==='multiple'&&q.answer.length===1)return'多选题只有一个答案';
   if(['single','multiple','judge'].includes(q.type)&&/(?:^|[\s。？！?])A\s*[^\s]{1,40}$/.test(q.question||'')&&q.options.some(o=>o.key==='B')&&!q.options.some(o=>o.key==='A'))return'题干疑似混入A选项';
   if(/【?\s*(?:答案|正确答案|参考答案)|(?:答案|正确答案|参考答案)\s*(?:\:|：)/.test(q.question||''))return'题干残留答案标记';
-  if((q.options||[]).some(o=>String(o.text||'').length>240||/【?\s*(?:答案|正确答案)|\b\d{1,3}\s*[、.．:：].+【?\s*答案/.test(o.text||'')))return'选项疑似粘连';
+  if((q.options||[]).some(o=>{const text=visibleOptionTextForRisk(o.text||'');return text.length>240||/【?\s*(?:答案|正确答案)|\b\d{1,3}\s*[、.．:：].+【?\s*答案/.test(text);} ))return'选项疑似粘连';
   return'正常';
 }
 function openEditQuestion(i){
