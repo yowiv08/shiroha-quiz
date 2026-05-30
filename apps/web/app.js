@@ -1,5 +1,6 @@
 (function(){
-const APP_VERSION='v28.8';
+const APP_VERSION='Web v33 / v30 富文本增强版';
+const RICH_CONTENT_VERSION_V57='shiroha-web-rich-v1';
 const CURRENT_SCHEMA_VERSION=1;
 const KEY='shiroha_quiz_state_v28_4_c1';
 const LEGACY_KEYS=[];
@@ -177,16 +178,24 @@ function normalizeQuestion(q,i=0){
   let rawAnswer=q.answer??q.answerKeys??q.correctAnswer??q.correct??q.rightAnswer??q.referenceAnswer??q.standardAnswer??[];
   let answer=Array.isArray(rawAnswer)?rawAnswer:(isTextType(type)?splitTextAnswer(rawAnswer):splitAnswer(rawAnswer));
   let options=[];
+  const richFieldsV57=q&&q.richContent&&typeof q.richContent==='object'?(q.richContent.fields&&typeof q.richContent.fields==='object'?q.richContent.fields:q.richContent):null;
+  const richOptionsV57=richFieldsV57&&Array.isArray(richFieldsV57.options)?richFieldsV57.options:[];
   if(Array.isArray(q.options)){
-    options=q.options.map((o,j)=>typeof o==='string'?{key:String.fromCharCode(65+j),text:o}:{key:normalizeOptionKey(o.key||o.label||o.value||String.fromCharCode(65+j)),text:String(o.text||o.content||o.label||'').trim()}).filter(o=>o.text);
+    options=q.options.map((o,j)=>typeof o==='string'?{key:String.fromCharCode(65+j),text:o}:{key:normalizeOptionKey(o.key||o.label||o.value||String.fromCharCode(65+j)),text:pickRichOptionTextV57(q,j,o).trim()}).filter(o=>o.text);
   }else if(Array.isArray(q.choices)){
-    options=q.choices.map((o,j)=>typeof o==='string'?{key:String.fromCharCode(65+j),text:o}:{key:normalizeOptionKey(o.key||o.label||o.value||String.fromCharCode(65+j)),text:String(o.text||o.content||o.label||'').trim()}).filter(o=>o.text);
+    options=q.choices.map((o,j)=>typeof o==='string'?{key:String.fromCharCode(65+j),text:o}:{key:normalizeOptionKey(o.key||o.label||o.value||String.fromCharCode(65+j)),text:pickRichOptionTextV57(q,j,o).trim()}).filter(o=>o.text);
+  }else if(richOptionsV57.length){
+    options=richOptionsV57.map((o,j)=>{
+      const text=typeof o==='string'?o:String((o&&(o.text??o.markdown??o.sourceText??o.fallbackText??o.plainText))??'');
+      const key=typeof o==='object'&&o?normalizeOptionKey(o.key||o.label||o.value||String.fromCharCode(65+j)):String.fromCharCode(65+j);
+      return {key,text:text.trim()};
+    }).filter(o=>o.text);
   }else{
     const keys='ABCDEFG';
     for(const k of keys){ if(q[k]!=null||q[k.toLowerCase()]!=null) options.push({key:k,text:String(q[k]??q[k.toLowerCase()]??'').trim()}); }
   }
   options=repairStandaloneOptionLabels(mergeDuplicateOptions(repairEmbeddedOptions(options.filter(o=>o.text))));
-  let questionText=String(q.question||q.title||q.stem||'').trim();
+  let questionText=pickRichTextFieldV57(q,'question',q.question||q.title||q.stem||'').trim();
   const pureJudge=extractPureJudgeStemAnswer(questionText);
   if(pureJudge && !options.length && (!type||type==='single'||type==='judge')){
     type='judge';
@@ -216,7 +225,7 @@ function normalizeQuestion(q,i=0){
   }else{
     answer=normalizeAnswer(answer,options,type);
   }
-  let analysisText=String(q.analysis||q.explanation||q.explain||'').trim();
+  let analysisText=pickRichTextFieldV57(q,'analysis',q.analysis||q.explanation||q.explain||'').trim();
   if(analysisText&&answer.length&&!/^\s*(?:答案|【\s*答案\s*】|正确答案|参考答案)/.test(analysisText)){
     const ansLabel=answer.join('');
     if(ansLabel&&!new RegExp('^\\s*(?:【?答案】?\\s*[:：]?\\s*)?'+ansLabel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:[。．.、，,：:；;]|\\s)').test(analysisText)){
@@ -248,6 +257,8 @@ function serializeQuestionForCrossExportV53(q){
   out.type=toNativeQuestionType(out.type||out.questionType||out.kind);
   out.question=media.question;
   if(media.images.length)out.images=media.images;else delete out.images;
+  const rich=buildQuestionRichContentV57(out);
+  if(rich)out.richContent=rich;else delete out.richContent;
   return out;
 }
 function serializeBankForCrossExportV53(bank){
@@ -4067,6 +4078,75 @@ function splitDocxMarkdownTableRowV55(line){
   return s.split('|').map(c=>c.trim());
 }
 
+function pickRichTextFieldV57(q,field,fallback=''){
+  const rich=q&&q.richContent;
+  const candidates=[];
+  if(rich&&typeof rich==='object'){
+    const fields=rich.fields&&typeof rich.fields==='object'?rich.fields:rich;
+    const item=fields&&fields[field];
+    if(typeof item==='string')candidates.push(item);
+    else if(item&&typeof item==='object')candidates.push(item.text,item.markdown,item.sourceText,item.fallbackText,item.plainText);
+  }
+  candidates.push(fallback);
+  const found=candidates.find(v=>v!=null&&String(v).trim());
+  return String(found||'');
+}
+function pickRichOptionTextV57(q,index,opt){
+  const fallback=opt&&(opt.text??opt.content??opt.label??'');
+  const rich=q&&q.richContent;
+  if(rich&&typeof rich==='object'){
+    const fields=rich.fields&&typeof rich.fields==='object'?rich.fields:rich;
+    const options=fields&&fields.options;
+    if(Array.isArray(options)){
+      const item=options[index];
+      if(typeof item==='string'&&item.trim())return item;
+      if(item&&typeof item==='object'){
+        const value=item.text??item.markdown??item.sourceText??item.fallbackText??item.plainText;
+        if(value!=null&&String(value).trim())return String(value);
+      }
+    }
+  }
+  return String(fallback||'');
+}
+function detectRichFeaturesV57(text,extraImages){
+  const s=String(text||'');
+  const features=[];
+  if(/【DOCX表格开始】[\s\S]*?【DOCX表格结束】/.test(s))features.push('docx_table');
+  if(/【DOCX公式OMML(?::|】)/.test(s))features.push('docx_omml_formula');
+  if(/\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|theta|vartheta|lambda|mu|sigma|Sigma|pi|rho|bar|hat|sqrt|sum|frac|begin\{cases\})\b|\\\(|\\\[|\$[^\n$]{1,280}\$/.test(s))features.push('latex_formula');
+  if(markdownImageRegexV83().test(s)||((extraImages||[]).length>0))features.push('image');
+  return [...new Set(features)];
+}
+function buildRichContentFieldV57(text,source,extraImages){
+  const value=String(text||'');
+  const features=detectRichFeaturesV57(value,extraImages);
+  if(!features.length)return null;
+  return {text:value,source:source||'web',features};
+}
+function buildQuestionRichContentV57(q){
+  if(!q||typeof q!=='object')return null;
+  const fields={};
+  const questionField=buildRichContentFieldV57(q.question,'question',q.images);
+  if(questionField)fields.question=questionField;
+  const analysisField=buildRichContentFieldV57(q.analysis,'analysis',[]);
+  if(analysisField)fields.analysis=analysisField;
+  const optionFields=(q.options||[]).map(o=>buildRichContentFieldV57(o&&o.text,'option',[]));
+  if(optionFields.some(Boolean))fields.options=optionFields.map(x=>x||null);
+  const allFeatures=[...new Set(Object.values(fields).flatMap(v=>Array.isArray(v)?v.filter(Boolean).flatMap(x=>x.features||[]):(v.features||[])))];
+  if(!allFeatures.length)return null;
+  return {schema:RICH_CONTENT_VERSION_V57,features:allFeatures,fields};
+}
+function buildRichContentCapabilitiesV57(banks){
+  const caps={schema:RICH_CONTENT_VERSION_V57,exportedBy:'web-v33',fallback:'plain_text_with_safe_unknown_fields',features:[]};
+  const set=new Set();
+  (banks||[]).forEach(bank=>(bank.questions||[]).forEach(q=>{
+    const rich=q&&q.richContent;
+    (rich&&Array.isArray(rich.features)?rich.features:[]).forEach(f=>set.add(f));
+  }));
+  caps.features=[...set].sort();
+  return caps;
+}
+
 function questionImageDataUriRegexV83(){return /^data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[A-Za-z0-9+/=\r\n]+$/i}
 function markdownImageRegexV83(){return /!\[([^\]]{0,120})\]\((data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[^)]+)\)/gi}
 function dataUriMimeExtV83(dataUri){const m=String(dataUri||'').match(/^data:image\/([^;]+);base64,/i);const t=(m&&m[1]||'webp').toLowerCase();if(t==='jpeg'||t==='jpg')return'jpg';if(t==='svg+xml')return'svg';return t.replace(/[^a-z0-9]+/g,'')||'webp'}
@@ -4574,7 +4654,8 @@ function buildBackupPayloadV23(banks,exportType='selected_banks',includeAll=fals
   const bankIds=new Set((banks||[]).map(b=>b.id));
   const wrongBook={};Object.keys(state.wrongBook||{}).forEach(id=>{if(includeAll||bankIds.has(id))wrongBook[id]=state.wrongBook[id]});
   const favorites={};Object.keys(state.favorites||{}).forEach(id=>{if(includeAll||bankIds.has(id))favorites[id]=state.favorites[id]});
-  return {app:'Shiroha Quiz',schemaVersion:CURRENT_SCHEMA_VERSION,exportType,exportedAt:now(),banks:(banks||[]).map(serializeBankForCrossExportV53),wrongBook,favorites,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
+  const exportedBanks=(banks||[]).map(serializeBankForCrossExportV53);
+  return {app:'Shiroha Quiz',appVersion:APP_VERSION,schemaVersion:CURRENT_SCHEMA_VERSION,richContentVersion:RICH_CONTENT_VERSION_V57,richContentCapabilities:buildRichContentCapabilitiesV57(exportedBanks),exportType,exportedAt:now(),banks:exportedBanks,wrongBook,favorites,records:includeAll?(state.records||[]):[],settings:includeAll?(state.settings||{}):{},activeBankId:includeAll?state.activeBankId:((banks&&banks[0]&&banks[0].id)||'')};
 }
 function normalizeBackupPayloadV23(data,fileName){
   if(!data||typeof data!=='object')throw new Error('JSON 根节点不是对象');
