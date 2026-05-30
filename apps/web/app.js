@@ -3876,7 +3876,11 @@ function ensureRichQuestionContentStylesV55(){
     .q-table .question-media{margin:6px 0;}
     .question-rich-media{display:block;margin:12px 0;}
     .question-media img,.question-image{max-width:100%;height:auto;border-radius:14px;}
-    @media(max-width:640px){.q-table-wrap{margin:10px 0;border-radius:14px}.q-table th,.q-table td{padding:8px 10px;min-width:66px}.question-media img,.question-image{border-radius:12px}}
+    .q-formula-inline,.q-formula-omml{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;vertical-align:middle;padding:0 2px;}
+    .q-formula-block{display:block;width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:10px 0;padding:8px 0;}
+    .q-formula-omml{border-radius:8px;background:rgba(79,124,255,.06);}
+    mjx-container{max-width:100%;overflow-x:auto;overflow-y:hidden;}
+    @media(max-width:640px){.q-table-wrap{margin:10px 0;border-radius:14px}.q-table th,.q-table td{padding:8px 10px;min-width:66px}.question-media img,.question-image{border-radius:12px}.q-formula-block{margin:8px 0;padding:6px 0}}
   `;
   document.head.appendChild(style);
 }
@@ -3898,14 +3902,139 @@ function renderQuestionInlineRichTextV55(raw){
   const re=/!\[([^\]]{0,120})\]\((data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,[^)]+)\)/g;
   let out='',last=0,m;
   while((m=re.exec(raw))){
-    out+=esc(raw.slice(last,m.index)).replace(/\n/g,'<br>');
+    out+=renderInlineMathTextV56(raw.slice(last,m.index));
     const alt=m[1]||'题目图片';
     const src=m[2];
     out+=`<figure class="question-media question-rich-media"><img class="question-image" src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></figure>`;
     last=re.lastIndex;
   }
-  out+=esc(raw.slice(last)).replace(/\n/g,'<br>');
+  out+=renderInlineMathTextV56(raw.slice(last));
+  scheduleMathJaxTypesetV56();
   return out;
+}
+
+function renderInlineMathTextV56(raw){
+  const text=String(raw||'');
+  if(!text)return '';
+  const segments=extractFormulaSegmentsV56(text);
+  if(!segments.length)return esc(text).replace(/\n/g,'<br>');
+  let out='',last=0;
+  segments.forEach(seg=>{
+    if(seg.index<last)return;
+    out+=esc(text.slice(last,seg.index)).replace(/\n/g,'<br>');
+    out+=renderFormulaSegmentV56(seg);
+    last=seg.index+seg.raw.length;
+  });
+  out+=esc(text.slice(last)).replace(/\n/g,'<br>');
+  return out;
+}
+
+function extractFormulaSegmentsV56(text){
+  const source=String(text||'');
+  const candidates=[];
+  const addMatches=(re,build)=>{
+    re.lastIndex=0;
+    let m;
+    while((m=re.exec(source))){
+      if(!m[0]){re.lastIndex++;continue;}
+      const seg=build(m);
+      if(seg&&seg.raw)candidates.push({...seg,index:m.index});
+    }
+  };
+  addMatches(/【DOCX公式OMML：([\s\S]*?)】/g,m=>({raw:m[0],tex:docxPlainFormulaToTexV56(m[1]||''),source:'omml'}));
+  addMatches(/【DOCX公式OMML】/g,m=>({raw:m[0],tex:'\\text{DOCX formula}',source:'omml'}));
+  addMatches(/\\\[[\s\S]{1,800}?\\\]|\\\([\s\S]{1,600}?\\\)|\$\$[\s\S]{1,800}?\$\$|\$[^\n$]{1,280}\$/g,m=>({raw:m[0],explicit:true,source:'latex'}));
+  addMatches(/\\begin\{cases\}[\s\S]{1,800}?\\end\{cases\}/g,m=>({raw:m[0],tex:m[0],display:true,source:'latex'}));
+  addMatches(/(?:[A-Za-z]\s*)?\\\{[^\n]{1,120}?\\\}\s*=\s*\\frac\s*\{[^{}]{1,120}\}\s*\{[^{}]{1,120}\}(?:\s*[A-Za-z0-9\\_^{}\-+*/=().,! ]{0,120})?/g,m=>({raw:m[0],tex:m[0],source:'latex'}));
+  addMatches(/\\frac\s*\{[^{}]{1,120}\}\s*\{[^{}]{1,120}\}(?:\s*[A-Za-z0-9\\_^{}\-+*/=().,! ]{0,120})?/g,m=>({raw:m[0],tex:m[0],source:'latex'}));
+  addMatches(/\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|theta|vartheta|lambda|mu|sigma|Sigma|pi|rho|bar|hat|sqrt|sum|leq|geq|neq|times|pm|cdot)\b(?:\s*(?:=|\+|\-|\*|\/|<|>|\\leq|\\geq)\s*[A-Za-z0-9.\\_^{}\-+*/=()]+)?/g,m=>({raw:m[0],tex:m[0],source:'latex'}));
+  if(!candidates.length)return [];
+  candidates.sort((a,b)=>a.index-b.index||b.raw.length-a.raw.length);
+  const out=[];let end=-1;
+  candidates.forEach(c=>{
+    const cEnd=c.index+c.raw.length;
+    if(c.index<end)return;
+    out.push(c);end=cEnd;
+  });
+  return out;
+}
+
+function renderFormulaSegmentV56(seg){
+  if(!seg)return '';
+  if(seg.explicit){
+    const block=/^(\\\[|\$\$)/.test(seg.raw);
+    return `<span class="${block?'q-formula-block':'q-formula-inline'}" data-formula-source="latex">${esc(seg.raw)}</span>`;
+  }
+  let tex=String(seg.tex||'').trim();
+  if(!tex)return esc(seg.raw||'');
+  tex=sanitizeFormulaTexV56(tex);
+  const block=!!seg.display||/\\begin\{cases\}/.test(tex)||tex.length>90;
+  const cls=(block?'q-formula-block':'q-formula-inline')+(seg.source==='omml'?' q-formula-omml':'');
+  const wrapped=block?`\\[${tex}\\]`:`\\(${tex}\\)`;
+  return `<span class="${cls}" data-formula-source="${esc(seg.source||'latex')}">${esc(wrapped)}</span>`;
+}
+
+function sanitizeFormulaTexV56(tex){
+  return String(tex||'')
+    .replace(/\u00a0/g,' ')
+    .replace(/≤/g,'\\le ')
+    .replace(/≥/g,'\\ge ')
+    .replace(/≠/g,'\\ne ')
+    .replace(/×/g,'\\times ')
+    .replace(/±/g,'\\pm ')
+    .replace(/∑/g,'\\sum ')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
+
+function docxPlainFormulaToTexV56(text){
+  let s=String(text||'').trim();
+  if(!s)return '';
+  s=s.replace(/\(([^()]{1,120})\)\/\(([^()]{1,120})\)/g,(_,a,b)=>`\\frac{${a.trim()}}{${b.trim()}}`);
+  s=s.replace(/√\[([^\]]{1,80})\]\(([^()]{1,160})\)/g,(_,a,b)=>`\\sqrt[${a.trim()}]{${b.trim()}}`);
+  s=s.replace(/√\(([^()]{1,160})\)/g,(_,a)=>`\\sqrt{${a.trim()}}`);
+  return sanitizeFormulaTexV56(s);
+}
+
+function ensureMathJaxV56(){
+  if(typeof window==='undefined'||typeof document==='undefined')return Promise.resolve(null);
+  if(window.MathJax&&typeof window.MathJax.typesetPromise==='function')return Promise.resolve(window.MathJax);
+  if(window.__shirohaMathJaxFailedV56)return Promise.resolve(null);
+  if(window.__shirohaMathJaxLoadingV56)return window.__shirohaMathJaxLoadingV56;
+  window.MathJax=window.MathJax||{};
+  window.MathJax.startup=window.MathJax.startup||{};
+  window.MathJax.loader=window.MathJax.loader||{load:['[tex]/ams','[tex]/noerrors','[tex]/noundefined']};
+  window.MathJax.tex=Object.assign({
+    inlineMath:[['\\(','\\)'],['$','$']],
+    displayMath:[['\\[','\\]'],['$$','$$']],
+    processEscapes:true,
+    packages:{'[+]':['ams','noerrors','noundefined']}
+  },window.MathJax.tex||{});
+  window.MathJax.options=Object.assign({skipHtmlTags:['script','noscript','style','textarea','pre','code']},window.MathJax.options||{});
+  const sources=['./libs/mathjax/tex-mml-chtml.js','https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'];
+  const loadAt=(i)=>new Promise(resolve=>{
+    if(i>=sources.length){window.__shirohaMathJaxFailedV56=true;resolve(null);return;}
+    const script=document.createElement('script');
+    script.src=sources[i];
+    script.async=true;
+    script.onload=()=>resolve(window.MathJax||null);
+    script.onerror=()=>{script.remove();loadAt(i+1).then(resolve)};
+    document.head.appendChild(script);
+  });
+  window.__shirohaMathJaxLoadingV56=loadAt(0);
+  return window.__shirohaMathJaxLoadingV56;
+}
+
+function scheduleMathJaxTypesetV56(scope){
+  if(typeof window==='undefined'||typeof document==='undefined')return;
+  clearTimeout(window.__shirohaMathJaxTimerV56);
+  window.__shirohaMathJaxTimerV56=setTimeout(()=>{
+    ensureMathJaxV56().then(mj=>{
+      if(mj&&typeof mj.typesetPromise==='function'){
+        mj.typesetPromise(scope?[scope]:[document.body]).catch(err=>warnDev&&warnDev('MathJax 渲染失败',err));
+      }
+    });
+  },80);
 }
 function renderDocxTableBlockV55(block){
   const rows=parseDocxMarkdownTableBlockV55(block);
