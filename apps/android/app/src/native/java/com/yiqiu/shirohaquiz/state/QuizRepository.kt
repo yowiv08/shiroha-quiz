@@ -2570,7 +2570,7 @@ object QuizRepository {
     }
 
     private fun normalizeBlankAnswer(value: String): String {
-        return value
+        val compactAnswer = value
             .trim()
             .lowercase(Locale.ROOT)
             .replace('，', ',')
@@ -2579,8 +2579,14 @@ object QuizRepository {
             .replace('：', ':')
             .replace('（', '(')
             .replace('）', ')')
+            .replace('！', '!')
+            .replace('？', '?')
             .replace(Regex("[\\s　]+"), "")
+
+        return compactAnswer.trim { it in blankAnswerBoundaryPunctuation }
     }
+
+    private val blankAnswerBoundaryPunctuation = setOf('.', ',', ';', ':', '!', '?', '。', '，', '；', '：', '！', '？', '、')
 
     private fun recordPracticeResult(bank: QuizBank?, question: Question, result: QuestionCheckResult) {
         studyRecords.add(
