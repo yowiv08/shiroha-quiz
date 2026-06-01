@@ -271,8 +271,9 @@ fun PracticeScreen(
     val isPracticeRunning = QuizRepository.practiceQuestions.isNotEmpty()
     var isPracticeProgressExpanded by rememberSaveable(practiceQuestions.size) { mutableStateOf(true) }
     val practiceAnsweredCount = QuizRepository.practiceAnsweredCount()
+    val practiceAutoScoredAnsweredCount = QuizRepository.practiceAutoScoredAnsweredCount()
     val practiceCorrectCount = QuizRepository.practiceCorrectCount()
-    val practiceAccuracy = if (practiceAnsweredCount == 0) 0 else practiceCorrectCount * 100 / practiceAnsweredCount
+    val practiceAccuracy = if (practiceAutoScoredAnsweredCount == 0) 0 else practiceCorrectCount * 100 / practiceAutoScoredAnsweredCount
 
     val screenScrollState = rememberScrollState()
     LaunchedEffect(isPracticeRunning, bank?.id) {
@@ -436,7 +437,8 @@ fun PracticeScreen(
                 question = question,
                 userAnswer = saved.userAnswer,
                 correct = saved.correct,
-                answerText = saved.answerText
+                answerText = saved.answerText,
+                autoScored = saved.autoScored
             )
         }
         val isSubmitted = effectiveResult != null
@@ -542,6 +544,7 @@ fun PracticeScreen(
                 PracticeProgressCard(
                     total = if (isBatchPractice) batchGroupTotal else practiceQuestions.size,
                     answered = if (isBatchBeforeSubmit) batchDraftAnsweredCount else if (isBatchSubmitted) QuizRepository.practiceCurrentBatchSubmittedCount() else practiceAnsweredCount,
+                    scoredAnswered = if (isBatchSubmitted) QuizRepository.practiceCurrentBatchAutoScoredSubmittedCount() else practiceAutoScoredAnsweredCount,
                     correct = if (isBatchSubmitted) QuizRepository.practiceCurrentBatchCorrectCount() else practiceCorrectCount,
                     batchBeforeSubmit = isBatchBeforeSubmit,
                     batchSubmitted = isBatchSubmitted,
@@ -573,6 +576,7 @@ fun PracticeScreen(
                 PracticeCompletionCard(
                     total = practiceQuestions.size,
                     answered = QuizRepository.practiceAnsweredCount(),
+                    scoredAnswered = QuizRepository.practiceAutoScoredAnsweredCount(),
                     correct = QuizRepository.practiceCorrectCount(),
                     onRestart = {
                         QuizRepository.completePracticeSession()
@@ -680,7 +684,16 @@ fun PracticeScreen(
 
                 QuestionType.BLANK,
                 QuestionType.SHORT -> {
-                    NoticeCard("这道题属于 ${typeLabel(question.type)}，当前先展示参考答案和解析。")
+                    if (isReciteMode) {
+                        NoticeCard("背题模式下直接查看参考答案和解析。")
+                    } else {
+                        SubjectiveAnswerEditor(
+                            type = question.type,
+                            value = displayedSelection.firstOrNull().orEmpty(),
+                            enabled = !isSubmitted && !isBatchSubmitted,
+                            onValueChange = { QuizRepository.updatePracticeTextAnswer(it) }
+                        )
+                    }
                 }
             }
 
@@ -842,10 +855,15 @@ fun PracticeScreen(
                 val answerText = effectiveResult?.answerText ?: question.answer.joinToString(" / ").ifBlank { "未识别答案" }
                 Spacer(Modifier.height(16.dp))
                 if (!isReciteMode && effectiveResult != null) {
-                    AnswerResultCapsule(correct = effectiveResult.correct)
+                    if (effectiveResult.autoScored) {
+                        AnswerResultCapsule(correct = effectiveResult.correct)
+                    } else {
+                        SubjectiveSubmittedCapsule()
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
-                NoticeCard("正确答案：$answerText", warning = false)
+                val answerLabel = if (question.type == QuestionType.SHORT) "参考答案" else "正确答案"
+                NoticeCard("$answerLabel：$answerText", warning = false)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "解析",
@@ -1755,12 +1773,13 @@ private fun CompactExitPracticeButton(onClick: () -> Unit) {
 private fun PracticeCompletionCard(
     total: Int,
     answered: Int,
+    scoredAnswered: Int,
     correct: Int,
     onRestart: () -> Unit,
     onOpenRecords: () -> Unit,
     onExit: () -> Unit
 ) {
-    val accuracy = if (answered == 0) 0 else correct * 100 / answered
+    val accuracy = if (scoredAnswered == 0) 0 else correct * 100 / scoredAnswered
     GlassCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1774,7 +1793,11 @@ private fun PracticeCompletionCard(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "共 $total 题 · 已提交 $answered 题 · 正确 $correct 题 · 正确率 $accuracy%",
+                    text = if (scoredAnswered == answered) {
+                        "共 $total 题 · 已提交 $answered 题 · 正确 $correct 题 · 正确率 $accuracy%"
+                    } else {
+                        "共 $total 题 · 已提交 $answered 题 · 自动判分 $scoredAnswered 题 · 正确率 $accuracy%"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1840,6 +1863,70 @@ private fun practiceOptionResultStyle(
 }
 
 @Composable
+private fun SubjectiveAnswerEditor(
+    type: QuestionType,
+    value: String,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit
+) {
+    val isShortAnswer = type == QuestionType.SHORT
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = if (isShortAnswer) 132.dp else 58.dp),
+            label = { Text(if (isShortAnswer) "你的作答" else "你的答案") },
+            placeholder = { Text(if (isShortAnswer) "写下你的作答，提交后对照参考答案。" else "请输入填空内容") },
+            singleLine = !isShortAnswer,
+            minLines = if (isShortAnswer) 4 else 1,
+            maxLines = if (isShortAnswer) 8 else 1,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = if (isShortAnswer) ImeAction.Default else ImeAction.Done
+            )
+        )
+        Text(
+            text = if (isShortAnswer) "简答题提交后只展示参考答案和解析，不自动判分。" else "填空题提交后会与参考答案自动比对。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SubjectiveSubmittedCapsule() {
+    val accent = MaterialTheme.colorScheme.primary
+    Surface(
+        shape = RoundedCornerShape(ShirohaRadius.Pill),
+        color = ShirohaColors.BrandPrimarySoft.copy(alpha = if (ShirohaColors.isDarkMode) 0.82f else 0.72f),
+        border = BorderStroke(ShirohaDimens.Hairline, accent.copy(alpha = 0.34f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.EditNote,
+                contentDescription = "已提交作答",
+                modifier = Modifier.size(15.dp),
+                tint = accent
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = "已提交作答",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = accent
+            )
+        }
+    }
+}
+
+@Composable
 private fun AnswerResultCapsule(correct: Boolean) {
     val accent = if (correct) ShirohaColors.StateSuccess else ShirohaColors.StateDanger
     val background = if (correct) ShirohaColors.StateSuccessSoft else ShirohaColors.StateDangerSoft
@@ -1884,6 +1971,7 @@ private fun AnswerResultCapsule(correct: Boolean) {
 private fun PracticeProgressCard(
     total: Int,
     answered: Int,
+    scoredAnswered: Int,
     correct: Int,
     batchBeforeSubmit: Boolean,
     batchSubmitted: Boolean,
@@ -1898,7 +1986,7 @@ private fun PracticeProgressCard(
     onToggleWrongOnly: (() -> Unit)?,
     onToggle: () -> Unit
 ) {
-    val accuracy = if (answered == 0) 0 else correct * 100 / answered
+    val accuracy = if (scoredAnswered == 0) 0 else correct * 100 / scoredAnswered
     if (!expanded) return
 
     GlassCard {
@@ -1944,7 +2032,11 @@ private fun PracticeProgressCard(
                     if (!batchBeforeSubmit) {
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "已提交 $answered / $total 题 · 正确率 $accuracy%",
+                            text = if (scoredAnswered == answered) {
+                                "已提交 $answered / $total 题 · 正确率 $accuracy%"
+                            } else {
+                                "已提交 $answered / $total 题 · 自动判分 $scoredAnswered 题 · 正确率 $accuracy%"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

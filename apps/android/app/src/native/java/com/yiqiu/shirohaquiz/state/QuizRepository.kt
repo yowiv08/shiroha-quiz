@@ -100,7 +100,8 @@ data class StudyQuestionResult(
     val correct: Boolean,
     val answerText: String,
     val earnedScore: Double? = null,
-    val maxScore: Double? = null
+    val maxScore: Double? = null,
+    val autoScored: Boolean = true
 )
 
 data class StudyRecord(
@@ -124,7 +125,8 @@ data class QuestionCheckResult(
     val question: Question,
     val userAnswer: List<String>,
     val correct: Boolean,
-    val answerText: String
+    val answerText: String,
+    val autoScored: Boolean = true
 )
 
 object QuizRepository {
@@ -1109,14 +1111,23 @@ object QuizRepository {
         } else {
             listOf(key)
         }
-        selectedAnswer = nextAnswer
+        updateCurrentPracticeAnswer(nextAnswer)
+    }
+
+    fun updatePracticeTextAnswer(text: String) {
+        updateCurrentPracticeAnswer(listOf(text))
+    }
+
+    private fun updateCurrentPracticeAnswer(answer: List<String>) {
+        selectedAnswer = answer
         if (practiceMode == PRACTICE_MODE_BATCH && !practiceBatchSubmitted) {
             val question = currentPracticeQuestion()
             if (question != null) {
-                if (nextAnswer.isEmpty()) {
+                val normalizedAnswer = answer.map { it.trim() }.filter { it.isNotBlank() }
+                if (normalizedAnswer.isEmpty()) {
                     practiceDraftAnswers.remove(question.id)
                 } else {
-                    practiceDraftAnswers[question.id] = nextAnswer
+                    practiceDraftAnswers[question.id] = normalizedAnswer
                 }
             }
         }
@@ -1423,13 +1434,14 @@ object QuizRepository {
             question = question,
             userAnswer = result.userAnswer,
             correct = result.correct,
-            answerText = result.answerText
+            answerText = result.answerText,
+            autoScored = result.autoScored
         )
 
         val bank = bankForPracticeQuestion(question)
-        if (result.correct) {
+        if (result.autoScored && result.correct) {
             markWrongQuestionRight(bank = bank, question = question)
-        } else {
+        } else if (result.autoScored) {
             addWrongQuestion(
                 bank = bank,
                 question = question,
@@ -1451,12 +1463,13 @@ object QuizRepository {
                 question = question,
                 userAnswer = result.userAnswer,
                 correct = result.correct,
-                answerText = result.answerText
+                answerText = result.answerText,
+                autoScored = result.autoScored
             )
             val bank = bankForPracticeQuestion(question)
-            if (result.correct) {
+            if (result.autoScored && result.correct) {
                 markWrongQuestionRight(bank = bank, question = question)
-            } else {
+            } else if (result.autoScored) {
                 addWrongQuestion(
                     bank = bank,
                     question = question,
@@ -1481,15 +1494,23 @@ object QuizRepository {
         return practiceCurrentBatchQuestions().count { question -> practiceAnswerResults.containsKey(question.id) }
     }
 
+    fun practiceCurrentBatchAutoScoredSubmittedCount(): Int {
+        return practiceCurrentBatchQuestions().count { question -> practiceAnswerResults[question.id]?.autoScored == true }
+    }
+
     fun practiceCurrentBatchCorrectCount(): Int {
-        return practiceCurrentBatchQuestions().count { question -> practiceAnswerResults[question.id]?.correct == true }
+        return practiceCurrentBatchQuestions().count { question ->
+            val result = practiceAnswerResults[question.id]
+            result?.autoScored == true && result.correct
+        }
     }
 
     fun practiceWrongQuestionIndexes(): List<Int> {
         val indexes = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchIndexes() else practiceQuestions.indices.toList()
         return indexes.mapNotNull { index ->
             val question = practiceQuestions.getOrNull(index) ?: return@mapNotNull null
-            if (practiceAnswerResults[question.id]?.correct == false) index else null
+            val result = practiceAnswerResults[question.id]
+            if (result?.autoScored == true && !result.correct) index else null
         }
     }
 
@@ -1670,6 +1691,16 @@ object QuizRepository {
         examAnswers[question.id] = updated
     }
 
+    fun updateExamTextAnswer(text: String) {
+        val question = currentExamQuestion() ?: return
+        val cleanAnswer = text.trim()
+        if (cleanAnswer.isBlank()) {
+            examAnswers.remove(question.id)
+        } else {
+            examAnswers[question.id] = listOf(cleanAnswer)
+        }
+    }
+
     fun submitExam(autoSubmitted: Boolean = false) {
         if (examQuestions.isEmpty() || examFinished) return
         examFinished = true
@@ -1688,8 +1719,9 @@ object QuizRepository {
                 userAnswer = userAnswer,
                 correct = result.correct,
                 answerText = result.answerText,
-                earnedScore = if (result.correct) maxScore else 0.0,
-                maxScore = maxScore
+                earnedScore = if (result.autoScored) { if (result.correct) maxScore else 0.0 } else null,
+                maxScore = if (result.autoScored) maxScore else null,
+                autoScored = result.autoScored
             )
         }
         studyRecords.add(
@@ -1715,9 +1747,9 @@ object QuizRepository {
         examQuestions.forEach { question ->
             val userAnswer = examAnswers[question.id].orEmpty()
             val result = evaluateQuestion(question, userAnswer)
-            if (result.correct) {
+            if (result.autoScored && result.correct) {
                 markWrongQuestionRight(bank = bank, question = question)
-            } else {
+            } else if (result.autoScored) {
                 addWrongQuestion(
                     bank = bank,
                     question = question,
@@ -1742,7 +1774,8 @@ object QuizRepository {
     fun examAnsweredCount(): Int = examQuestions.count { examAnswers[it.id].orEmpty().isNotEmpty() }
 
     fun examCorrectCount(): Int = examQuestions.count { question ->
-        evaluateQuestion(question, examAnswers[question.id].orEmpty()).correct
+        val result = evaluateQuestion(question, examAnswers[question.id].orEmpty())
+        result.autoScored && result.correct
     }
 
     fun examSummary(): ExamSummary {
@@ -1758,10 +1791,13 @@ object QuizRepository {
         )
     }
 
-    fun examTotalScore(): Double = examQuestions.sumOf { scoreForExamQuestion(it) }
+    fun examTotalScore(): Double = examQuestions.sumOf { question ->
+        if (isAutoScoredQuestionType(question.type)) scoreForExamQuestion(question) else 0.0
+    }
 
     fun examEarnedScore(): Double = examQuestions.sumOf { question ->
-        if (evaluateQuestion(question, examAnswers[question.id].orEmpty()).correct) scoreForExamQuestion(question) else 0.0
+        val result = evaluateQuestion(question, examAnswers[question.id].orEmpty())
+        if (result.autoScored && result.correct) scoreForExamQuestion(question) else 0.0
     }
 
 
@@ -2267,7 +2303,7 @@ object QuizRepository {
         val startedAt = practiceStartedAt ?: now
         val orderedResults = practiceQuestions.mapNotNull { question -> practiceAnswerResults[question.id] }
         if (orderedResults.isEmpty()) return
-        val correctCount = orderedResults.count { it.correct }
+        val correctCount = orderedResults.count { it.autoScored && it.correct }
         val involvedBankIds = practiceQuestions.mapNotNull { practiceQuestionBankIds[it.id] }.distinct()
         val recordBank = involvedBankIds.singleOrNull()?.let { bankId -> banks.firstOrNull { it.id == bankId } }
         val recordSource = when (practiceSourceLabel) {
@@ -2339,7 +2375,8 @@ object QuizRepository {
                     question = question,
                     userAnswer = result.userAnswer,
                     correct = result.correct,
-                    answerText = result.answerText
+                    answerText = result.answerText,
+                    autoScored = result.autoScored
                 )
             }
         } else {
@@ -2360,7 +2397,9 @@ object QuizRepository {
 
     fun practiceAnsweredCount(): Int = practiceSessionResults.size
 
-    fun practiceCorrectCount(): Int = practiceSessionResults.values.count { it }
+    fun practiceAutoScoredAnsweredCount(): Int = practiceAnswerResults.values.count { it.autoScored }
+
+    fun practiceCorrectCount(): Int = practiceAnswerResults.values.count { it.autoScored && it.correct }
 
     private fun sanitizeBank(bank: QuizBank): QuizBank {
         return bank.copy(
@@ -2483,22 +2522,64 @@ object QuizRepository {
     )
 
     private fun evaluateQuestion(question: Question, userAnswer: List<String>): QuestionCheckResult {
-        val correctAnswer = question.answer.sorted()
-        val normalizedUserAnswer = userAnswer.sorted()
-        val isObjective = question.type == QuestionType.SINGLE ||
-            question.type == QuestionType.MULTIPLE ||
-            question.type == QuestionType.JUDGE
-
-        val correct = isObjective &&
-            normalizedUserAnswer.isNotEmpty() &&
-            normalizedUserAnswer == correctAnswer
+        val answerText = question.answer.joinToString(" / ").ifBlank { "未识别答案" }
+        val normalizedUserAnswer = userAnswer.map { it.trim() }.filter { it.isNotBlank() }
+        val correct = when (question.type) {
+            QuestionType.SINGLE,
+            QuestionType.MULTIPLE,
+            QuestionType.JUDGE -> normalizedUserAnswer.sorted() == question.answer.sorted() && normalizedUserAnswer.isNotEmpty()
+            QuestionType.BLANK -> isBlankAnswerCorrect(
+                userAnswer = normalizedUserAnswer.joinToString(" "),
+                acceptedAnswers = question.answer
+            )
+            QuestionType.SHORT -> false
+        }
 
         return QuestionCheckResult(
             question = question,
-            userAnswer = userAnswer,
+            userAnswer = normalizedUserAnswer,
             correct = correct,
-            answerText = question.answer.joinToString(" / ").ifBlank { "未识别答案" }
+            answerText = answerText,
+            autoScored = isAutoScoredQuestionType(question.type)
         )
+    }
+
+    private fun isAutoScoredQuestionType(type: QuestionType): Boolean {
+        return type == QuestionType.SINGLE ||
+            type == QuestionType.MULTIPLE ||
+            type == QuestionType.JUDGE ||
+            type == QuestionType.BLANK
+    }
+
+    private fun isBlankAnswerCorrect(userAnswer: String, acceptedAnswers: List<String>): Boolean {
+        val normalizedUserAnswer = normalizeBlankAnswer(userAnswer)
+        if (normalizedUserAnswer.isBlank()) return false
+        return acceptedAnswers
+            .flatMap(::splitAcceptedBlankAnswers)
+            .map(::normalizeBlankAnswer)
+            .filter { it.isNotBlank() }
+            .any { it == normalizedUserAnswer }
+    }
+
+    private fun splitAcceptedBlankAnswers(answer: String): List<String> {
+        return answer
+            .split("/", "／", "|", "｜")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(answer.trim()) }
+    }
+
+    private fun normalizeBlankAnswer(value: String): String {
+        return value
+            .trim()
+            .lowercase(Locale.ROOT)
+            .replace('，', ',')
+            .replace('。', '.')
+            .replace('；', ';')
+            .replace('：', ':')
+            .replace('（', '(')
+            .replace('）', ')')
+            .replace(Regex("[\\s　]+"), "")
     }
 
     private fun recordPracticeResult(bank: QuizBank?, question: Question, result: QuestionCheckResult) {
@@ -2948,6 +3029,7 @@ object QuizRepository {
             item.put("answerText", result.answerText)
             item.put("earnedScore", result.earnedScore)
             item.put("maxScore", result.maxScore)
+            item.put("autoScored", result.autoScored)
             array.put(item)
         }
         return array
@@ -3122,7 +3204,8 @@ object QuizRepository {
                         correct = item.optBoolean("correct"),
                         answerText = item.optString("answerText"),
                         earnedScore = if (item.has("earnedScore") && !item.isNull("earnedScore")) item.optDouble("earnedScore") else null,
-                        maxScore = if (item.has("maxScore") && !item.isNull("maxScore")) item.optDouble("maxScore") else null
+                        maxScore = if (item.has("maxScore") && !item.isNull("maxScore")) item.optDouble("maxScore") else null,
+                        autoScored = item.optBoolean("autoScored", true)
                     )
                 )
             }
