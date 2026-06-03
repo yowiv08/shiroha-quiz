@@ -45,7 +45,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.TextSnippet
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EditNote
@@ -93,6 +92,7 @@ import com.yiqiu.shirohaquiz.ui.components.NoticeCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionCard
 import com.yiqiu.shirohaquiz.ui.components.QuizOptionResultStyle
 import com.yiqiu.shirohaquiz.ui.components.QuestionImagesBlock
+import com.yiqiu.shirohaquiz.ui.components.QuizSessionExitIconButton
 import com.yiqiu.shirohaquiz.ui.components.ShirohaHeader
 import com.yiqiu.shirohaquiz.ui.components.StatusChip
 import com.yiqiu.shirohaquiz.ui.theme.ShirohaSpacing
@@ -811,26 +811,6 @@ fun PracticeScreen(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(Modifier.weight(1f))
-                ActionPillButton(
-                    Icons.Rounded.Alarm,
-                    "退出练习",
-                    primary = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    fillWidthContent = true,
-                    onClick = { showExitPracticeConfirm = true }
-                )
-            }
-
-
 
             if (showExitPracticeConfirm) {
                 PracticeExitConfirmDialog(
@@ -909,6 +889,16 @@ fun PracticeScreen(
                     onDismiss = { showBatchAnswerSheet = false }
                 )
             }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            QuizSessionExitIconButton(
+                contentDescription = "退出练习",
+                onClick = { showExitPracticeConfirm = true }
+            )
         }
     }
     }
@@ -1731,40 +1721,6 @@ private fun CompactPracticeActionChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-
-@Composable
-private fun CompactExitPracticeButton(onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .defaultMinSize(minHeight = 34.dp)
-            .practiceNoRipplePillClick(onClick = onClick),
-        shape = RoundedCornerShape(ShirohaRadius.Pill),
-        color = ShirohaColors.CardWhite86,
-        border = BorderStroke(ShirohaDimens.Hairline, ShirohaColors.LineStrong)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "退出练习",
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = "退出",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }
 

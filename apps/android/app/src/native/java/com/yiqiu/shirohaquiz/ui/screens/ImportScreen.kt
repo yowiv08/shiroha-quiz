@@ -677,12 +677,12 @@ fun ImportScreen(
                 val rawTextTitle = when {
                     useDualImport -> "题目文本"
                     hasRawText || hasSelectedFile -> "原始文本"
-                    else -> "手动粘贴"
+                    else -> "粘贴导入"
                 }
                 val rawTextHint = when {
                     useDualImport -> "题库文件内容，可在解析前核对调整。"
                     hasRawText || hasSelectedFile -> "可在解析前核对或调整导入文本。"
-                    else -> "也可以直接粘贴题库文本后解析。"
+                    else -> "粘贴题库文本后解析。"
                 }
                 val rawTextActionButtonWidth = 128.dp
                 val rawTextActionButtonHeight = ShirohaDimens.ActionButtonMinHeight

@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -883,7 +884,7 @@ private fun ActiveExamPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ActionPillButton(
-                Icons.Rounded.Timer,
+                Icons.AutoMirrored.Rounded.ExitToApp,
                 "结束本场",
                 primary = false,
                 modifier = Modifier
