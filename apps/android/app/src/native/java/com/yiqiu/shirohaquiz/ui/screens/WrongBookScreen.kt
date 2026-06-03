@@ -57,7 +57,7 @@ private enum class WrongBookFilter(val label: String) {
 private enum class WrongBookSort(val label: String) {
     RECENT_WRONG("最近错"),
     WRONG_COUNT("错误次数"),
-    MASTERY("未掌握优先")
+    MASTERY("掌握程度")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
