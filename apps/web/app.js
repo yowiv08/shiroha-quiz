@@ -3468,6 +3468,10 @@ function splitQuestionBlocks(text,inheritedGroup=''){
   }
   flush();
   if(blocks.length<2){
+    const hasDocxRichBlock=/\[\[DOCX_IMAGE_\d+\]\]|!\[[^\]]{0,120}\]\(data:image\/(?:png|jpeg|jpg|gif|webp|bmp);base64,|【DOCX表格开始】|【DOCX公式OMML：/.test(String(text||''));
+    // v58.9.4：DOCX 图片/表格/公式常会在同一道题内部形成空行。
+    // 只有一道题时不能再按空行拆段，否则会把“题干 + 图片 + A/B/C/D选项”拆成两块，导致图片丢失、选项丢失并误判为填空题。
+    if(hasDocxRichBlock)return blocks;
     return text.split(/\n\s*\n+/).map(x=>({group:'',volume:'',lines:x.split('\n').map(y=>y.trim()).filter(Boolean)})).filter(b=>b.lines.length);
   }
   return blocks;
