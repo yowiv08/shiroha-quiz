@@ -253,12 +253,13 @@ fun BankListScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Start
         ) {
             ActionPillButton(
                 icon = Icons.Rounded.ArrowBack,
                 text = "返回首页",
                 primary = false,
+                modifier = Modifier.height(44.dp),
                 onClick = onBack
             )
         }
