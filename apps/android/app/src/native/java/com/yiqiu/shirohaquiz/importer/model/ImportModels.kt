@@ -12,7 +12,18 @@ data class Question(
     val analysis: String = "",
     val category: String = "",
     val images: List<QuestionImage> = emptyList(),
-    val score: Double? = null
+    val score: Double? = null,
+    val subject: String = "",
+    val grade: String = "",
+    val difficulty: String = "",
+    val knowledgePoints: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val source: String = "",
+    val sourceFileId: String = "",
+    val version: Int = 1,
+    val reviewStatus: String = "approved",
+    val aiConfidence: Double? = null,
+    val warnings: List<String> = emptyList()
 )
 
 data class Option(
