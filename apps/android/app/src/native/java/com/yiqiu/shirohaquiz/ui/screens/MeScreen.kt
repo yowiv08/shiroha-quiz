@@ -854,10 +854,17 @@ fun PracticePreferenceScreen(
             )
             Spacer(Modifier.height(12.dp))
             PreferenceSwitchRow(
-                title = "选择题打乱选项顺序",
+                title = "练习时打乱选项顺序",
                 desc = "固定显示 A/B/C/D，仅随机对应的选项内容；本次练习内顺序固定，不影响题库原始答案。",
                 checked = QuizRepository.practiceOptionShuffleEnabled,
                 onCheckedChange = { enabled -> QuizRepository.setPracticeOptionShuffleEnabled(context, enabled) }
+            )
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "考试时打乱选项顺序",
+                desc = "固定显示 A/B/C/D，仅随机对应的选项内容；同一场考试内顺序固定，不影响题库原始答案和考试记录。",
+                checked = QuizRepository.examOptionShuffleEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setExamOptionShuffleEnabled(context, enabled) }
             )
             Spacer(Modifier.height(12.dp))
             Text(

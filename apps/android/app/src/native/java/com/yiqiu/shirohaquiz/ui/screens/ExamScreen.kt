@@ -59,6 +59,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.state.ExamSummary
 import com.yiqiu.shirohaquiz.state.QuizRepository
@@ -724,6 +725,18 @@ private fun ActiveExamPanel(
     var showExitConfirm by remember { mutableStateOf(false) }
     val answeredCount = QuizRepository.examAnsweredCount()
     val unansweredCount = QuizRepository.examQuestions.size - answeredCount
+    val displayOptions = remember(
+        examQuestion.id,
+        examQuestion.options,
+        QuizRepository.examOptionShuffleSessionEnabled,
+        QuizRepository.examOptionShuffleSeed
+    ) {
+        examDisplayOptions(
+            question = examQuestion,
+            shuffleEnabled = QuizRepository.examOptionShuffleSessionEnabled,
+            sessionSeed = QuizRepository.examOptionShuffleSeed
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(if (examStatusExpanded) 8.dp else 6.dp)) {
     if (examStatusExpanded) {
@@ -830,14 +843,16 @@ private fun ActiveExamPanel(
             QuestionType.MULTIPLE,
             QuestionType.JUDGE -> {
                 val currentAnswer = QuizRepository.examAnswers[examQuestion.id].orEmpty()
-                examQuestion.options.forEach { option ->
+                displayOptions.forEach { option ->
                     QuizOptionCard(
-                        label = option.key,
+                        label = option.displayKey,
                         text = option.text,
-                        selected = currentAnswer.contains(option.key),
+                        selected = currentAnswer.any { answer ->
+                            answer.trim().equals(option.originalKey, ignoreCase = true)
+                        },
                         onClick = {
                             QuizRepository.toggleExamAnswer(
-                                key = option.key,
+                                key = option.originalKey,
                                 multiple = examQuestion.type == QuestionType.MULTIPLE
                             )
                         }
@@ -955,6 +970,43 @@ private fun ActiveExamPanel(
             }
         )
     }
+}
+
+
+private data class ExamDisplayOption(
+    val displayKey: String,
+    val originalKey: String,
+    val text: String
+)
+
+private fun examDisplayOptions(
+    question: Question,
+    shuffleEnabled: Boolean,
+    sessionSeed: Long
+): List<ExamDisplayOption> {
+    val canShuffle = shuffleEnabled &&
+        (question.type == QuestionType.SINGLE || question.type == QuestionType.MULTIPLE) &&
+        question.options.size > 1
+    val orderedOptions = if (canShuffle) {
+        val seedSource = "${question.id}|${question.number}|${question.question}"
+        val seed = sessionSeed xor seedSource.hashCode().toLong()
+        question.options.toMutableList().also { options ->
+            java.util.Collections.shuffle(options, java.util.Random(seed))
+        }
+    } else {
+        question.options
+    }
+    return orderedOptions.mapIndexed { index, option ->
+        ExamDisplayOption(
+            displayKey = if (canShuffle) examDisplayKey(index) else option.key,
+            originalKey = option.key,
+            text = option.text
+        )
+    }
+}
+
+private fun examDisplayKey(index: Int): String {
+    return if (index in 0..25) ('A'.code + index).toChar().toString() else (index + 1).toString()
 }
 
 
