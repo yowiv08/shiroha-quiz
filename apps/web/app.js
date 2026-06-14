@@ -5777,11 +5777,14 @@ function setBackupPreviewV23(text){const out=$('#export-output');if(out)out.valu
    v28: App WebView 导出兜底与移动端加固
 */
 
+/* SHIROHA_WEB_V58_9_12_1_HOME_VERSION_SYNC_FIX */
 function syncHomeVersionPromptV586(){
   const label=APP_VERSION;
   try{
     const root=document.querySelector('#dashboard')||document.body||document;
-    if(document.title&&/V\s*29|基本完成版/i.test(document.title))document.title=document.title.replace(/V\s*29\s*[:：]?\s*基本完成版/g,label);
+    document.title=`Shiroha Quiz - ${label}`;
+    const homeVersionLabel=document.querySelector('#home-version-label');
+    if(homeVersionLabel)homeVersionLabel.textContent=label;
     const nodes=[...root.querySelectorAll('h1,h2,h3,h4,b,strong,span,p,div')];
     nodes.forEach(el=>{
       if(!el||/^(SCRIPT|STYLE|INPUT|TEXTAREA|SELECT|OPTION)$/i.test(el.tagName||''))return;
