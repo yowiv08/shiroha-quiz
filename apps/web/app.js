@@ -3196,7 +3196,8 @@ function parseStructuredExamText(text){
       });
       continue;
     }
-    const om=line.match(/^\s*([oOxXuUyYvV√✔✓])?\s*(?:[（(]\s*([A-Ga-g1-90])\s*[）)]|([A-Ga-g0])\s*(?:[、.．:：，,]|\s+))\s*(.*)$/);
+    const bareEnglishStemWithoutQuestionV5982=!(current.questionLines||[]).length && !(current.options||[]).length && isBareEnglishStemStartV5982(line);
+    const om=bareEnglishStemWithoutQuestionV5982?null:line.match(/^\s*([oOxXuUyYvV√✔✓])?\s*(?:[（(]\s*([A-Ga-g1-90])\s*[）)]|([A-Ga-g0])\s*(?:[、.．:：，,]|\s+))\s*(.*)$/);
     if(om){
       let key=normalizeOptionKey(om[2]||om[3]); let txt=(om[4]||'').trim();
       if(om[1]||hasCorrectMark(txt)){current.answer.push(key);txt=removeCorrectMark(txt);}
@@ -3568,7 +3569,16 @@ function isQuestionStart(line){
   if(hasInlineAnswerTag(line))return true;
   return hasStrongQuestionNo(line)||!!detectType(line)||/[（(]\s*[）)]/.test(line)&&/[。？?]?\s*\*?$/.test(line)||/[。？?]\s*\*?$/.test(line)&&line.length>8||/\*\s*$/.test(line)&&line.length>8;
 }
-function isOptionLine(line){return /^\s*(?:[oOxXuUyYvV√✔✓]\s*)?(?:[（(]\s*[A-Ga-g1-9]\s*[）)]|[A-Ga-g]\s*(?:[、.．:：，,]|\s+|(?=[\u4e00-\u9fa5]))|0\s*[.．、:：]\s+(?=\S))(?![+＋])/.test(line)}
+// v58.9.8.2：英文题干可能以冠词 A/a 或小写字母开头，例如“17. A vowel...”。
+// 这类裸字母 + 空格不是可靠的选项标号；真正的无标点英文选项只在已有题干上下文中识别。
+function isBareEnglishStemStartV5982(line){
+  const raw=String(line||'').trim().replace(/^(?:第\s*)?\d{1,4}\s*(?:题)?[.、．:：]?\s*/, '');
+  return /^(?:A|[a-g])\s+[A-Za-z][A-Za-z'’-]*/.test(raw);
+}
+function isOptionLine(line){
+  if(isBareEnglishStemStartV5982(line))return false;
+  return /^\s*(?:[oOxXuUyYvV√✔✓]\s*)?(?:[（(]\s*[A-Ga-g1-9]\s*[）)]|[A-Ga-g]\s*(?:[、.．:：，,]|\s+|(?=[\u4e00-\u9fa5]))|0\s*[.．、:：]\s+(?=\S))(?![+＋])/.test(line);
+}
 function isAnswerLine(line){return /^\s*(?:【|\[)?\s*(?:正确答案|参考答案|标准答案|答案|答|参考要点|参考思路|答题要点|答题思路|作答思路|评分要点|参考作答|Answer|Correct\s*answer)\s*(?:】|\])?\s*(?:[:：,，、.．;；]|\s+|[（(])\s*\S+/i.test(line)}
 function isAnalysisLine(line){return /^(?:【|\[)?\s*(?:解析|答案解析|试题解析|说明|考点)\s*(?:】|\])?\s*[:：]?/i.test(line)}
 function detectType(text){
@@ -3826,7 +3836,8 @@ function parseBlock(block,idx){
     }
     // 支持”题号 答案 题目”格式，如：15. B 以下何者…… / 1. AD 下列何者……
     const pre=line.match(/^\s*(?:第\s*)?(\d+)\s*(?:题)?[\.、．:：]?\s+([A-Ga-g]{1,7}|[对错正确错误√×XxTtFf])(?:\s+(.+))?$/);
-    if(pre && (!seenQuestion || !options.length) && !isOptionLine(line)){
+    const englishArticleStemV5982=!!(pre && /^[Aa]$/.test(pre[2]||'') && /^[A-Za-z][A-Za-z'’-]*/.test(String(pre[3]||'').trim()));
+    if(pre && !englishArticleStemV5982 && (!seenQuestion || !options.length) && !isOptionLine(line)){
       const maybeCode=/^[A-Ga-g]{2,7}$/.test(pre[2]||'') && /^\s*\d/.test(pre[3]||'');
       if(!maybeCode && !/【解析】/.test(pre[3]||'')){
         number=pre[1]; answer.push(...splitAnswerByType(pre[2],type));
@@ -3938,7 +3949,8 @@ function parseBlock(block,idx){
       continue;
     }
 
-    const om=line.match(/^\s*([oOxXuUyYvV√✔✓])?\s*(?:[（(]\s*([A-Ga-g1-90])\s*[）)]|([A-Ga-g0])\s*(?:[、.．:：，,]|\s+|(?=[\u4e00-\u9fa5])))\s*(.*)$/);
+    const bareEnglishStemWithoutQuestionV5982=!seenQuestion && !qlines.length && !options.length && isBareEnglishStemStartV5982(line);
+    const om=bareEnglishStemWithoutQuestionV5982?null:line.match(/^\s*([oOxXuUyYvV√✔✓])?\s*(?:[（(]\s*([A-Ga-g1-90])\s*[）)]|([A-Ga-g0])\s*(?:[、.．:：，,]|\s+|(?=[\u4e00-\u9fa5])))\s*(.*)$/);
     if(om){
       collectingAnalysis=false;unkeyedMode=false;
       let key=normalizeOptionKey(om[2]||om[3]);let txt=(om[4]||'').trim();
