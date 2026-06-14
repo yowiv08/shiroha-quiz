@@ -358,7 +358,7 @@ apps/android/app/build/outputs/
 
 最新版本请以 [GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases) 为准。当前仓库文档记录的主要版本线为：
 
-- 统一发布版：`v2.3.0-beta`
+- 统一发布版：`v2.4.0-beta`
 - Web 版：`v0.6.0-alpha`
 - 原生 Compose 版：`v0.8.0-native`
 
