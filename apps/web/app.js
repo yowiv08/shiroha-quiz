@@ -2018,25 +2018,62 @@ function scoreLocalSegment(qs,profile){
 }
 function parseLocalRepairCandidates(text){
   const arr=[];
-  const push=(name,fn)=>{try{const qs=fn().map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);arr.push({name,questions:qs});}catch(err){warnDev('局部解析候选失败：'+name,err)}}; 
+  const push=(name,fn)=>{try{const qs=fn().map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);arr.push({name,questions:qs});}catch(err){warnDev('局部解析候选失败：'+name,err)}};
   push('标准试卷段落解析',()=>parseStructuredExamText(text));
   push('局部标准解析',()=>parseTextQuestionsBase(text));
   push('局部紧凑解析',()=>parseTextQuestionsBase(forceSplitCompactText(text)));
   push('局部分卷分区解析',()=>parseByVolumeAndSections(text));
   return arr.filter(c=>c.questions.length);
 }
+function localVisibleContentV599(qs){
+  return normalizeText((qs||[]).map(q=>[
+    visibleQuestionTextForRisk(q.question||''),
+    ...(q.options||[]).map(o=>visibleOptionTextForRisk(o.text||''))
+  ].join('\n')).join('\n'));
+}
+function localSequenceAlignedV599(base,pairs){
+  if(!base.length||base.length!==pairs.length)return false;
+  let textMatched=0;
+  for(let i=0;i<base.length;i++){
+    const pairQ=pairs[i]?.question;
+    if(!pairQ||String(base[i].number)!==String(pairQ.number))return false;
+    const a=normalizeText(visibleQuestionTextForRisk(base[i].question||''));
+    const b=normalizeText(visibleQuestionTextForRisk(pairQ.question||''));
+    if(!a||!b)continue;
+    const aHead=a.slice(0,24),bHead=b.slice(0,24);
+    if(a.includes(bHead)||b.includes(aHead))textMatched++;
+  }
+  return textMatched>=Math.max(1,Math.ceil(base.length*0.7));
+}
+function localCandidateCanReplaceV599(originalQs,candidateQs,profile){
+  if(!originalQs.length||candidateQs.length!==originalQs.length)return false;
+  if(!originalQs.every((q,i)=>String(q.number)===String(candidateQs[i]?.number)))return false;
+  const beforeRisk=countLocalRepairWarnings(originalQs,profile);
+  const afterRisk=countLocalRepairWarnings(candidateQs,profile);
+  if(afterRisk>=beforeRisk)return false;
+  const before=localVisibleContentV599(originalQs);
+  const after=localVisibleContentV599(candidateQs);
+  if(before.length){
+    const ratio=after.length/before.length;
+    if(ratio<0.85)return false;
+  }
+  const beforeAnswered=originalQs.filter(q=>(q.answer||[]).length).length;
+  const afterAnswered=candidateQs.filter(q=>(q.answer||[]).length).length;
+  if(afterAnswered<beforeAnswered)return false;
+  return scoreLocalSegment(candidateQs,profile)>scoreLocalSegment(originalQs,profile)+20;
+}
 function repairParsedQuestionsLocally(original,standardQuestions,profile){
   const detailed=parseTextQuestionsBaseDetailed(original);
   const base=(standardQuestions&&standardQuestions.length?standardQuestions:detailed.questions).map((q,i)=>normalizeQuestion(q,i));
   const pairs=detailed.pairs||[];
-  if(!base.length||!pairs.length||Math.abs(base.length-pairs.length)>3)return {questions:base,repaired:0,segments:[]};
+  // v58.9.9：局部替换必须先证明“标准结果索引”和原始块一一对应；漏题/粘题时不再靠数组下标猜测。
+  if(!localSequenceAlignedV599(base,pairs))return {questions:base,repaired:0,segments:[]};
   const risky=[];
   base.forEach((q,i)=>{if(localRepairRiskStatus(q,profile)!=='正常')risky.push(i);});
   if(!risky.length)return {questions:base,repaired:0,segments:[]};
-  // 只有少量风险题时才做局部修复；大量异常仍交给全量候选策略比较，避免局部替换放大错误。
+  // 这里只处理少量“已存在题目的题内异常”。大量异常、漏题和粘题留给后续原文区间机制或整卷最后兜底。
   if(risky.length>Math.max(8,Math.ceil(base.length*0.04)))return {questions:base,repaired:0,segments:[]};
-  const replaced=new Set();
-  const result=[];let repaired=0;const segments=[];
+  const replacements=[];let repaired=0;const segments=[];
   let r=0;
   while(r<risky.length){
     let start=risky[r],end=start;
@@ -2048,33 +2085,37 @@ function repairParsedQuestionsLocally(original,standardQuestions,profile){
       const body=(b.lines||[]).join('\n');
       return [head,body].filter(Boolean).join('\n');
     }).join('\n');
-    const originalQs=base.slice(segStart,segEnd+1);
-    const originalScore=scoreLocalSegment(originalQs,profile);
-    let best={name:'原标准片段',questions:originalQs,score:originalScore};
+    const windowOriginal=base.slice(segStart,segEnd+1);
+    const targetOffset=start-segStart;
+    const targetLength=end-start+1;
+    const originalTarget=base.slice(start,end+1);
+    let best={name:'原标准片段',questions:originalTarget,score:scoreLocalSegment(originalTarget,profile)};
     parseLocalRepairCandidates(segmentText).forEach(c=>{
-      if(c.questions.length<Math.max(1,originalQs.length-1)||c.questions.length>originalQs.length+2)return;
-      const sc=scoreLocalSegment(c.questions,profile);
-      if(sc>best.score+40)best={...c,score:sc};
+      // 前后正常题只作为边界锚点，不允许被候选一起替换。
+      if(c.questions.length!==windowOriginal.length)return;
+      if(!c.questions.every((q,i)=>String(q.number)===String(windowOriginal[i].number)))return;
+      const candidateTarget=c.questions.slice(targetOffset,targetOffset+targetLength);
+      if(!localCandidateCanReplaceV599(originalTarget,candidateTarget,profile))return;
+      const sc=scoreLocalSegment(candidateTarget,profile);
+      if(sc>best.score)best={name:c.name,questions:candidateTarget,score:sc};
     });
     if(best.name!=='原标准片段'){
-      for(let i=segStart;i<=segEnd;i++)replaced.add(i);
-      result.push({insertAt:segStart,questions:best.questions,from:originalQs.length,to:best.questions.length,name:best.name});
-      repaired+=Math.max(1,countLocalRepairWarnings(originalQs,profile)-countLocalRepairWarnings(best.questions,profile));
-      segments.push(`第${segStart+1}-${segEnd+1}题：${best.name}，${originalQs.length}题→${best.questions.length}题`);
+      replacements.push({start,end,questions:best.questions,name:best.name});
+      const delta=countLocalRepairWarnings(originalTarget,profile)-countLocalRepairWarnings(best.questions,profile);
+      repaired+=Math.max(1,delta);
+      segments.push(`第${start+1}-${end+1}题：${best.name}，仅替换异常题，前后题保持锁定`);
     }
     r++;
   }
-  if(!result.length)return {questions:base,repaired:0,segments:[]};
-  const out=[];let ins=0;
-  for(let i=0;i<base.length;i++){
-    const rep=result.find(x=>x.insertAt===i);
-    if(rep){rep.questions.forEach(q=>out.push(q));ins++;}
-    if(replaced.has(i))continue;
-    out.push(base[i]);
+  if(!replacements.length)return {questions:base,repaired:0,segments:[]};
+  const out=[];
+  for(let i=0;i<base.length;){
+    const rep=replacements.find(x=>x.start===i);
+    if(rep){rep.questions.forEach(q=>out.push(q));i=rep.end+1;continue;}
+    out.push(base[i]);i++;
   }
   return {questions:out.map((q,i)=>normalizeQuestion(q,i)),repaired,segments};
 }
-
 
 function isAnswerAnalysisEntryLine(line){
   const s=String(line||'').trim();
@@ -2778,6 +2819,113 @@ function repairDocxTablePromptSplitQuestions(questions){
   return out;
 }
 
+
+/* SHIROHA_WEB_V58_9_9_STANDARD_MAINLINE_LOCAL_REPAIR_GUARD */
+function standardHardLimitV599(count){
+  const n=Math.max(0,Number(count)||0);
+  if(n<=20)return 0;
+  if(n<=100)return 1;
+  return Math.max(1,Math.ceil(n*0.015));
+}
+function answerNeedsLocalRepairV599(q){
+  const ans=(q?.answer||[]).map(x=>String(x||'').trim().toUpperCase()).filter(Boolean);
+  if(!ans.length)return true;
+  if(q?.type==='judge')return ans.some(a=>!['A','B'].includes(a));
+  if(['single','multiple'].includes(q?.type)){
+    const keys=new Set((q.options||[]).map(o=>String(o.key||'').trim().toUpperCase()).filter(Boolean));
+    if(!keys.size)return true;
+    return ans.some(a=>!keys.has(a));
+  }
+  return false;
+}
+function answerCompatibleWithQuestionV599(q,answer,options=q?.options||[]){
+  const ans=(answer||[]).map(x=>String(x||'').trim().toUpperCase()).filter(Boolean);
+  if(!ans.length)return false;
+  if(q?.type==='judge')return ans.every(a=>['A','B'].includes(a));
+  if(['single','multiple'].includes(q?.type)){
+    const keys=new Set((options||[]).map(o=>String(o.key||'').trim().toUpperCase()).filter(Boolean));
+    return keys.size>0&&ans.every(a=>keys.has(a));
+  }
+  return true;
+}
+function mergeAnswerEntriesOntoLockedMainlineV599(questions,entries){
+  const base=(questions||[]).map((q,i)=>normalizeQuestion(q,i));
+  if(!base.length||!(entries||[]).length)return {questions:base,changed:0,segments:[]};
+  const merged=mergeAnswerAnalysisEntries(base,entries).questions||[];
+  let changed=0;const segments=[];
+  const out=base.map((q,i)=>{
+    const mq=merged[i];
+    if(!mq||String(q.number)!==String(mq.number)||!answerNeedsLocalRepairV599(q))return q;
+    let options=[...(q.options||[])];
+    if(options.length<2&&(mq.options||[]).length>=2)options=(mq.options||[]).map(o=>({...o}));
+    const answer=normalizeAnswer(mq.answer||[],options,q.type);
+    if(!answerCompatibleWithQuestionV599(q,answer,options))return q;
+    changed++;
+    segments.push(`第${i+1}题：仅回填答案${options.length>(q.options||[]).length?'与缺失选项':''}`);
+    return normalizeQuestion({...q,options,answer,analysis:mq.analysis||q.analysis||''},i);
+  });
+  return {questions:out,changed,segments};
+}
+function lockedSequenceAlignedV599(base,candidate){
+  if(!base.length||base.length!==candidate.length)return false;
+  let textMatched=0;
+  for(let i=0;i<base.length;i++){
+    if(String(base[i].number)!==String(candidate[i].number))return false;
+    const a=normalizeText(stripInlineImageTokensV589(base[i].question||''));
+    const b=normalizeText(stripInlineImageTokensV589(candidate[i].question||''));
+    if(!a||!b)continue;
+    const ah=a.slice(0,24),bh=b.slice(0,24);
+    if(a.includes(bh)||b.includes(ah))textMatched++;
+  }
+  return textMatched>=Math.max(1,Math.ceil(base.length*0.7));
+}
+function mergeImageCandidateOntoLockedMainlineV599(questions,imageQuestions,profile){
+  const base=(questions||[]).map((q,i)=>normalizeQuestion(q,i));
+  const candidate=(imageQuestions||[]).map((q,i)=>normalizeQuestion(q,i));
+  if(!lockedSequenceAlignedV599(base,candidate))return {questions:base,changed:0,segments:[]};
+  let changed=0;const segments=[];
+  const out=base.map((q,i)=>{
+    const cq=candidate[i];
+    const beforeRisk=localRepairRiskStatus(q,profile);
+    const baseImages=extractInlineImageTokensV589(q.question||'');
+    const candidateImages=extractInlineImageTokensV589(cq.question||'');
+    let question=q.question||'';
+    let options=(q.options||[]).map(o=>({...o}));
+    let answer=[...(q.answer||[])];
+    let analysis=q.analysis||'';
+    let touched=false;
+    if(!baseImages.length&&candidateImages.length){
+      const unique=candidateImages.filter(x=>!question.includes(x));
+      if(unique.length){question=[question,...unique].filter(Boolean).join('\n');touched=true;}
+    }
+    if(options.length<2&&(cq.options||[]).length>=2){options=(cq.options||[]).map(o=>({...o}));touched=true;}
+    if(answerNeedsLocalRepairV599({...q,options,answer})&&answerCompatibleWithQuestionV599({...q,options},cq.answer||[],options)){
+      answer=normalizeAnswer(cq.answer||[],options,q.type);touched=true;
+    }
+    if(!analysis&&cq.analysis){analysis=cq.analysis;touched=true;}
+    if(!touched)return q;
+    const next=normalizeQuestion({...q,question,options,answer,analysis},i);
+    const afterRisk=localRepairRiskStatus(next,profile);
+    const addedImage=!baseImages.length&&candidateImages.length;
+    if(afterRisk!== '正常' && beforeRisk==='正常' && !addedImage)return q;
+    changed++;
+    segments.push(`第${i+1}题：局部补全${addedImage?'图片':''}${options.length>(q.options||[]).length?'选项':''}${answer.length>(q.answer||[]).length?'答案':''}`);
+    return next;
+  });
+  return {questions:out,changed,segments};
+}
+function standardMainlineSeverelyFailedV599(candidate,ev,profile){
+  const qs=candidate?.questions||[];
+  if(!qs.length)return true;
+  const expected=Number(profile?.expectedByHeadings||0);
+  if(expected){
+    const ratio=qs.length/expected;
+    if(ratio<0.6||ratio>1.4)return true;
+  }
+  if(ev?.hardCount>Math.max(8,Math.ceil(qs.length*0.30)))return true;
+  if(!ev?.typeOk&&expected&&qs.length<Math.max(3,Math.floor(expected*0.6)))return true;
+  return false;
+}
 function parseTextQuestions(text,strategy='auto'){
   const original=String(text||'');
   const profile=analyzeQuestionTextProfile(original);
@@ -2791,7 +2939,7 @@ function parseTextQuestions(text,strategy='auto'){
   };
   const evaluateCandidate=(candidate)=>{
     if(!candidate||!candidate.questions||!candidate.questions.length){
-      return {qtyOk:false, warnOk:false, typeOk:false, hardCount:9999, warnings:[]};
+      return {qtyOk:false,warnOk:false,typeOk:false,hardCount:9999,allowedHard:0,localRisk:9999,warnings:[]};
     }
     const warnings=importWarningsForStrategy(candidate.questions,profile);
     const hard=warnings.filter(w=>!/缺少答案|缺少参考答案|多选题只有一个答案/.test(w));
@@ -2800,10 +2948,30 @@ function parseTextQuestions(text,strategy='auto'){
     const typeExpected=profile.expectedByType||{};
     const st=countTypes(candidate.questions||[]);
     const typeOk=(!typeExpected.judge||st.judge>=Math.max(0,typeExpected.judge-2)) && (!typeExpected.single||st.single+st.multiple+st.multi+st.judge+st.blank+st.short>=candidate.questions.length*0.9);
-    const warnOk=hard.length<=Math.max(2,Math.ceil(candidate.questions.length*0.02));
-    return {qtyOk,warnOk,typeOk,hardCount:hard.length,warnings};
+    const allowedHard=standardHardLimitV599(candidate.questions.length);
+    const warnOk=hard.length<=allowedHard;
+    const localRisk=countLocalRepairWarnings(candidate.questions,profile);
+    return {qtyOk,warnOk,typeOk,hardCount:hard.length,allowedHard,localRisk,warnings};
+  };
+  const expectedDiff=(candidate)=>profile.expectedByHeadings?Math.abs((candidate.questions||[]).length-profile.expectedByHeadings):0;
+  const standardComparator=(a,b)=>{
+    const ae=a.eval||evaluateCandidate(a),be=b.eval||evaluateCandidate(b);
+    const aGood=ae.qtyOk&&ae.typeOk&&ae.warnOk?1:0;
+    const bGood=be.qtyOk&&be.typeOk&&be.warnOk?1:0;
+    const aBase=ae.qtyOk&&ae.typeOk?1:0;
+    const bBase=be.qtyOk&&be.typeOk?1:0;
+    return bGood-aGood || bBase-aBase || ae.hardCount-be.hardCount || ae.localRisk-be.localRisk || expectedDiff(a)-expectedDiff(b) || b.score-a.score;
+  };
+  const fallbackComparator=(a,b)=>{
+    const ae=a.eval||evaluateCandidate(a),be=b.eval||evaluateCandidate(b);
+    const aGood=ae.qtyOk&&ae.typeOk&&ae.warnOk?1:0;
+    const bGood=be.qtyOk&&be.typeOk&&be.warnOk?1:0;
+    const aAnswered=(a.questions||[]).filter(q=>(q.answer||[]).length).length;
+    const bAnswered=(b.questions||[]).filter(q=>(q.answer||[]).length).length;
+    return bGood-aGood || ae.hardCount-be.hardCount || ae.localRisk-be.localRisk || expectedDiff(a)-expectedDiff(b) || bAnswered-aAnswered || b.score-a.score;
   };
   const strategyLabel={auto:'自动推荐',standard:'标准逐行解析',volume:'分卷分区三层解析',compact:'紧凑格式解析'}[strategy]||'自动推荐';
+  let autoBest=null;
   if(strategy==='standard'){
     addCandidate('标准试卷段落解析',()=>parseStructuredExamText(original));
     addCandidate('标准逐行解析',()=>parseTextQuestionsBase(original));
@@ -2811,37 +2979,19 @@ function parseTextQuestions(text,strategy='auto'){
   else if(strategy==='volume')addCandidate('分卷分区三层解析',()=>parseByVolumeAndSections(original));
   else if(strategy==='compact')addCandidate('紧凑题干选项解析',()=>parseTextQuestionsBase(forceSplitCompactText(original)));
   else{
+    // v58.9.9：自动模式先只建立标准主线，复杂整卷解析不再与标准结果同层抢分。
     addCandidate('标准试卷段落解析',()=>parseStructuredExamText(original));
     addCandidate('标准逐行解析',()=>parseTextQuestionsBase(original));
-    if(profile.hasAnswerAnalysisSection||hasAnswerAnalysisSignal(original)){
-      try{
-        const qs=parseDocumentWithAnswerSections(original).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
-        if(qs.length)candidates.push({name:'题目区 + 答案解析区合并解析',questions:qs,score:scoreAnswerSectionCandidate(qs,profile),warnings:collectImportWarnings(qs)});
-      }catch(e){candidates.push({name:'题目区 + 答案解析区合并解析',questions:[],score:-9999,warnings:['解析失败：'+e.message]});}
-    }
-    try{
-      const imgQs=parseRecruitmentImagePostAnswerExam(original).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
-      if(imgQs.length)candidates.push({name:'图片真题 + 后置答案解析',questions:imgQs,score:scoreRecruitmentImageCandidate(imgQs,profile),warnings:collectImportWarnings(imgQs)});
-    }catch(e){candidates.push({name:'图片真题 + 后置答案解析',questions:[],score:-9999,warnings:['解析失败：'+e.message]});}
-
     const baselineCandidates=candidates
       .filter(c=>['标准试卷段落解析','标准逐行解析'].includes(c.name))
       .filter(c=>c.questions&&c.questions.length)
-      .map(c=>({...c,eval:evaluateCandidate(c)}));
-
-    baselineCandidates.sort((a,b)=>{
-      const aStable=(a.eval.qtyOk&&a.eval.typeOk?1:0);
-      const bStable=(b.eval.qtyOk&&b.eval.typeOk?1:0);
-      return bStable-aStable || a.eval.hardCount-b.eval.hardCount || b.questions.length-a.questions.length || b.score-a.score;
-    });
-
-    const primary=baselineCandidates[0]||candidates[0]||{questions:[],warnings:[],score:-9999};
-    const primaryEval=primary.eval||evaluateCandidate(primary);
-    primary.warnings=primaryEval.warnings;
-    primary.score=scoreParsedQuestions(primary.questions||[],profile);
+      .map(c=>({...c,eval:evaluateCandidate(c)}))
+      .sort(standardComparator);
+    let primary=baselineCandidates[0]||candidates[0]||{name:'标准逐行解析',questions:[],warnings:[],score:-9999};
+    primary={...primary,eval:primary.eval||evaluateCandidate(primary)};
 
     const localRisk=countLocalRepairWarnings(primary.questions||[],profile);
-    const localRepairWorthTrying=(primary.questions||[]).length>0 && primaryEval.qtyOk && primaryEval.typeOk && localRisk>0 && localRisk<=Math.max(8,Math.ceil((primary.questions||[]).length*0.04));
+    const localRepairWorthTrying=(primary.questions||[]).length>0 && primary.eval.qtyOk && primary.eval.typeOk && localRisk>0 && localRisk<=Math.max(8,Math.ceil((primary.questions||[]).length*0.04));
     if(localRepairWorthTrying){
       const repaired=repairParsedQuestionsLocally(original,primary.questions,profile);
       if(repaired.repaired>0){
@@ -2852,79 +3002,80 @@ function parseTextQuestions(text,strategy='auto'){
       }
     }
 
-    const stableMainline=candidates
-      .filter(c=>['标准试卷段落解析','标准逐行解析','标准解析 + 异常局部修复','题目区 + 答案解析区合并解析','图片真题 + 后置答案解析'].includes(c.name))
-      .filter(c=>c.questions&&c.questions.length)
+    const standardNames=new Set(['标准试卷段落解析','标准逐行解析','标准解析 + 异常局部修复']);
+    let standardMainline=candidates
+      .filter(c=>standardNames.has(c.name)&&c.questions&&c.questions.length)
       .map(c=>({...c,eval:evaluateCandidate(c)}))
-      .sort((a,b)=>{
-        const aGood=(a.eval.qtyOk&&a.eval.typeOk&&a.eval.warnOk?1:0);
-        const bGood=(b.eval.qtyOk&&b.eval.typeOk&&b.eval.warnOk?1:0);
-        return bGood-aGood || b.score-a.score || a.eval.hardCount-b.eval.hardCount || b.questions.length-a.questions.length;
-      });
+      .sort(standardComparator);
+    let mainlineBest=standardMainline[0]||primary;
 
-    const mainlineBest=stableMainline[0]||primary;
-    const mainlineEval=mainlineBest.eval||evaluateCandidate(mainlineBest);
-    const highRisk=profile.hasVolumeHeading||profile.repeatedQuestionNumbers||profile.inlineOptionLikely||profile.inlineAnswerLikely;
-    const needFullComplex=!(mainlineBest.questions||[]).length || !mainlineEval.qtyOk || !mainlineEval.typeOk || (!mainlineEval.warnOk && mainlineEval.hardCount>Math.max(8,Math.ceil((mainlineBest.questions||[]).length*0.04))) || (highRisk && !localRepairWorthTrying && !primaryEval.warnOk);
-
-    if(needFullComplex){
-      if(profile.hasVolumeHeading||profile.repeatedQuestionNumbers||profile.hasTypeSections)addCandidate('分卷分区三层解析',()=>parseByVolumeAndSections(original));
-      if(profile.inlineOptionLikely||profile.inlineAnswerLikely||!mainlineEval.warnOk||!mainlineEval.qtyOk)addCandidate('紧凑题干选项解析',()=>parseTextQuestionsBase(forceSplitCompactText(original)));
-    }
-  }
-
-  let best=candidates.slice().sort((a,b)=>b.score-a.score)[0]||{name:'标准逐行解析',questions:[],score:0,warnings:[]};
-  if(strategy==='auto'){
-    const stableCandidates=candidates
-      .filter(c=>['标准试卷段落解析','标准逐行解析','标准解析 + 异常局部修复','题目区 + 答案解析区合并解析','图片真题 + 后置答案解析'].includes(c.name))
-      .filter(c=>c.questions&&c.questions.length)
-      .map(c=>({...c,eval:evaluateCandidate(c)}))
-      .sort((a,b)=>{
-        const aGood=(a.eval.qtyOk&&a.eval.typeOk&&a.eval.warnOk?1:0);
-        const bGood=(b.eval.qtyOk&&b.eval.typeOk&&b.eval.warnOk?1:0);
-        return bGood-aGood || b.score-a.score || a.eval.hardCount-b.eval.hardCount || b.questions.length-a.questions.length;
-      });
-    if(stableCandidates.length && stableCandidates[0].eval.qtyOk && stableCandidates[0].eval.typeOk && stableCandidates[0].eval.warnOk){
-      best=stableCandidates[0];
-    }
-    // 有明显答案解析区时，“题目区 + 答案解析区合并解析”不是普通复杂兜底，
-    // 而是结构化解析候选；只要答案命中率明显更高且总评分领先，就允许覆盖标准主线。
-    const answerSectionCandidate=candidates.find(c=>c.name==='题目区 + 答案解析区合并解析'&&c.questions&&c.questions.length);
-    if(answerSectionCandidate){
-      const answered=(answerSectionCandidate.questions||[]).filter(q=>(q.answer||[]).length).length;
-      const answerRate=answerSectionCandidate.questions.length?answered/answerSectionCandidate.questions.length:0;
-      const bestAnswered=(best.questions||[]).filter(q=>(q.answer||[]).length).length;
-      const bestRate=(best.questions||[]).length?bestAnswered/(best.questions||[]).length:0;
-      if(answerRate>=0.35 && answerRate>bestRate+0.25 && answerSectionCandidate.score>best.score+300){
-        best=answerSectionCandidate;
-      }
-    }
-    const imageExamCandidate=candidates.find(c=>c.name==='图片真题 + 后置答案解析'&&c.questions&&c.questions.length);
-    if(imageExamCandidate){
-      const imgCount=(imageExamCandidate.questions||[]).filter(q=>/data:image\//.test(q.question||'')).length;
-      const answered=(imageExamCandidate.questions||[]).filter(q=>(q.answer||[]).length).length;
-      const expected=profile.expectedByHeadings||0;
-      const qtyGood=!expected||Math.abs(imageExamCandidate.questions.length-expected)<=2;
-      if(imgCount>0 && qtyGood && (answered>=Math.max(15,Math.floor(imageExamCandidate.questions.length*0.25)) || imageExamCandidate.questions.length>best.questions.length+3)){
-        best=imageExamCandidate;
-      }
-    }
-    // v58.3：多章节题库中，同一题号会按章节重复。标准逐行解析在章节边界、表格边界处更容易多切 1-3 道；
-    // 若标准试卷段落解析数量接近且评分没有明显落后，优先选择结构化段落解析，避免题目数略大于答案数。
+    // 多章节重复题号时，结构化段落解析在质量相当的情况下仍优先，避免逐行解析多切少量伪题。
     const structuredMain=candidates.find(c=>c.name==='标准试卷段落解析'&&c.questions&&c.questions.length);
     const lineMain=candidates.find(c=>c.name==='标准逐行解析'&&c.questions&&c.questions.length);
-    if(best&&best.name==='标准逐行解析'&&structuredMain&&lineMain&&profile.repeatedQuestionNumbers&&profile.hasTypeSections){
+    if(mainlineBest&&mainlineBest.name==='标准逐行解析'&&structuredMain&&lineMain&&profile.repeatedQuestionNumbers&&profile.hasTypeSections){
       const diff=(lineMain.questions||[]).length-(structuredMain.questions||[]).length;
       const structuredEval=evaluateCandidate(structuredMain);
       const lineEval=evaluateCandidate(lineMain);
-      const structuredNoWorse=structuredEval.hardCount<=lineEval.hardCount && (structuredMain.warnings||[]).length<=(lineMain.warnings||[]).length+2;
-      // v58.4：只在结构化段落解析质量不差时才压过标准逐行解析，避免为凑题量误伤正常格式。
-      if(diff>0 && diff<=3 && lineMain.score-structuredMain.score<=500 && structuredNoWorse){
-        best=structuredMain;
+      const structuredNoWorse=structuredEval.hardCount<=lineEval.hardCount&&structuredEval.localRisk<=lineEval.localRisk;
+      if(diff>0&&diff<=3&&lineMain.score-structuredMain.score<=500&&structuredNoWorse)mainlineBest={...structuredMain,eval:structuredEval};
+    }
+
+    // 答案解析区只对标准主线中缺失或越界的答案做局部映射，不再重建整份题目结构。
+    if((profile.hasAnswerAnalysisSection||hasAnswerAnalysisSignal(original))&&(mainlineBest.questions||[]).length){
+      try{
+        const entries=parseAnswerAnalysisEntries(original);
+        const mapped=mergeAnswerEntriesOntoLockedMainlineV599(mainlineBest.questions,entries);
+        if(mapped.changed>0){
+          const candidate={name:'标准主线 + 答案局部映射',questions:mapped.questions,score:scoreParsedQuestions(mapped.questions,profile)+Math.min(120,mapped.changed*8),warnings:importWarningsForStrategy(mapped.questions,profile),segments:mapped.segments};
+          const ev=evaluateCandidate(candidate),before=mainlineBest.eval||evaluateCandidate(mainlineBest);
+          candidates.push(candidate);
+          if(ev.qtyOk&&ev.typeOk&&ev.hardCount<=before.hardCount&&ev.localRisk<=before.localRisk)mainlineBest={...candidate,eval:ev};
+        }
+      }catch(e){warnDev('标准主线答案局部映射失败。',e)}
+    }
+
+    // 特殊图片真题解析器只提供局部图片/选项/答案补全；标准主线合格时禁止整卷覆盖。
+    let imageWholeQuestions=[];
+    try{imageWholeQuestions=parseRecruitmentImagePostAnswerExam(original).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);}catch(e){warnDev('图片真题候选解析失败。',e)}
+    if(imageWholeQuestions.length&&(mainlineBest.questions||[]).length){
+      const enriched=mergeImageCandidateOntoLockedMainlineV599(mainlineBest.questions,imageWholeQuestions,profile);
+      if(enriched.changed>0){
+        const candidate={name:'标准主线 + 图片答案局部补全',questions:enriched.questions,score:scoreParsedQuestions(enriched.questions,profile)+Math.min(160,enriched.changed*10),warnings:importWarningsForStrategy(enriched.questions,profile),segments:enriched.segments};
+        const ev=evaluateCandidate(candidate),before=mainlineBest.eval||evaluateCandidate(mainlineBest);
+        candidates.push(candidate);
+        if(ev.qtyOk&&ev.typeOk&&ev.hardCount<=before.hardCount&&ev.localRisk<=before.localRisk)mainlineBest={...candidate,eval:ev};
+      }
+    }
+
+    const mainlineEval=mainlineBest.eval||evaluateCandidate(mainlineBest);
+    const needWholeDocumentFallback=standardMainlineSeverelyFailedV599(mainlineBest,mainlineEval,profile);
+    autoBest=mainlineBest;
+
+    // 只有标准主线整体严重失效，才允许复杂解析器生成整卷候选。
+    if(needWholeDocumentFallback){
+      if(profile.hasAnswerAnalysisSection||hasAnswerAnalysisSignal(original)){
+        try{
+          const qs=parseDocumentWithAnswerSections(original).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
+          if(qs.length)candidates.push({name:'整卷兜底：题目区 + 答案解析区',questions:qs,score:scoreAnswerSectionCandidate(qs,profile),warnings:collectImportWarnings(qs)});
+        }catch(e){candidates.push({name:'整卷兜底：题目区 + 答案解析区',questions:[],score:-9999,warnings:['解析失败：'+e.message]});}
+      }
+      if(imageWholeQuestions.length)candidates.push({name:'整卷兜底：图片真题 + 后置答案',questions:imageWholeQuestions,score:scoreRecruitmentImageCandidate(imageWholeQuestions,profile),warnings:collectImportWarnings(imageWholeQuestions)});
+      if(profile.hasVolumeHeading||profile.repeatedQuestionNumbers||profile.hasTypeSections)addCandidate('整卷兜底：分卷分区三层解析',()=>parseByVolumeAndSections(original));
+      if(profile.inlineOptionLikely||profile.inlineAnswerLikely||!mainlineEval.qtyOk||!mainlineEval.typeOk)addCandidate('整卷兜底：紧凑题干选项解析',()=>parseTextQuestionsBase(forceSplitCompactText(original)));
+      const fallbackCandidates=candidates
+        .filter(c=>/^整卷兜底：/.test(c.name)&&c.questions&&c.questions.length)
+        .map(c=>({...c,eval:evaluateCandidate(c)}))
+        .sort(fallbackComparator);
+      const fallbackBest=fallbackCandidates[0];
+      if(fallbackBest){
+        const fallbackGood=fallbackBest.eval.qtyOk&&fallbackBest.eval.typeOk&&fallbackBest.eval.hardCount<mainlineEval.hardCount;
+        const mainlineEmpty=!(mainlineBest.questions||[]).length;
+        if(mainlineEmpty||fallbackGood)autoBest=fallbackBest;
       }
     }
   }
 
+  let best=autoBest||candidates.filter(c=>c.questions&&c.questions.length).map(c=>({...c,eval:evaluateCandidate(c)})).sort(strategy==='auto'?standardComparator:fallbackComparator)[0]||{name:'标准逐行解析',questions:[],score:0,warnings:[]};
   const finalQuestions=repairDocxTablePromptSplitQuestions(best.questions||[]).map(sanitizeQuestionOptionsForDocxBoundariesV583).map((q,i)=>normalizeQuestion(q,i)).filter(q=>q.question);
   const stats=countTypes(finalQuestions||[]);
   const profileBits=[];
@@ -2940,7 +3091,6 @@ function parseTextQuestions(text,strategy='auto'){
   importDiagnostics={mode:strategyLabel,strategy:best.name,profile,candidates:candidates.map(c=>({name:c.name,questions:c.questions.length,score:c.score,warnings:c.warnings||[],segments:c.segments||[]})),expected:{total:profile.expectedByHeadings||0,types:profile.expectedByType||{}},stats,warnings:collectImportWarnings(finalQuestions)};
   return finalQuestions;
 }
-
 function analyzeQuestionTextProfile(text){
   const t=normalizeImportText(text);
   const lines=t.split('\n').map(x=>x.trim()).filter(Boolean);
