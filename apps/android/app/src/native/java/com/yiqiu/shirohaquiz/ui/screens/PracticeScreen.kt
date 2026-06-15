@@ -115,15 +115,17 @@ fun PracticeScreen(
     onOpenQuickEdit: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val bank = QuizRepository.activeBank()
+    val practiceScopeKey = QuizRepository.currentPracticeScopeKey()
+    val practiceScopeLabel = QuizRepository.currentPracticeScopeLabel()
+    val practiceScopeSummary = QuizRepository.currentPracticeScopeSummary()
     val autoNextScope = rememberCoroutineScope()
     val practiceQuestions = QuizRepository.activePracticeQuestions()
     val question = QuizRepository.currentPracticeQuestion()
     val result = QuizRepository.practiceLastResult
     val isReciteMode = QuizRepository.practiceReciteModeEnabled
     val slashedVersion = QuizRepository.slashedQuestions.joinToString("|") { "${it.bankId}:${it.questionKey}" }
-    val practiceCandidateQuestions = remember(bank?.id, bank?.questions, slashedVersion) {
-        QuizRepository.activePracticePoolQuestions(bank)
+    val practiceCandidateQuestions = remember(practiceScopeKey, QuizRepository.banks.toList(), slashedVersion) {
+        QuizRepository.activePracticePoolQuestions()
     }
     val availableCounts = remember(practiceCandidateQuestions) {
         QuizRepository.questionTypeCounts(practiceCandidateQuestions)
@@ -137,7 +139,7 @@ fun PracticeScreen(
             .ifEmpty { QuizRepository.objectiveQuestionTypes() }
     }
     val rememberedPracticeTypes = remember(
-        bank?.id,
+        practiceScopeKey,
         availableTypes,
         QuizRepository.rememberPracticeSettingsEnabled
     ) {
@@ -148,11 +150,11 @@ fun PracticeScreen(
         }
     }
     val initialPracticeTypes = rememberedPracticeTypes.ifEmpty { defaultPracticeTypes }
-    val initialAvailableCount = remember(bank?.id, practiceCandidateQuestions, initialPracticeTypes) {
+    val initialAvailableCount = remember(practiceScopeKey, practiceCandidateQuestions, initialPracticeTypes) {
         practiceCandidateQuestions.count { it.type in initialPracticeTypes }
     }
     val initialQuestionCountMode = remember(
-        bank?.id,
+        practiceScopeKey,
         initialAvailableCount,
         QuizRepository.rememberPracticeSettingsEnabled,
         QuizRepository.preferredPracticeQuestionCountMode
@@ -163,7 +165,7 @@ fun PracticeScreen(
             "custom"
         }
     }
-    var selectedQuestionCount by remember(bank?.id, initialAvailableCount, initialQuestionCountMode) {
+    var selectedQuestionCount by remember(practiceScopeKey, initialAvailableCount, initialQuestionCountMode) {
         mutableIntStateOf(
             resolvePracticeQuestionCount(
                 mode = initialQuestionCountMode,
@@ -172,9 +174,9 @@ fun PracticeScreen(
             )
         )
     }
-    var selectedQuestionCountMode by remember(bank?.id, initialQuestionCountMode) { mutableStateOf(initialQuestionCountMode) }
-    var selectedTypes by remember(bank?.id, initialPracticeTypes) { mutableStateOf(initialPracticeTypes) }
-    var practiceOrderMode by rememberSaveable(bank?.id) {
+    var selectedQuestionCountMode by remember(practiceScopeKey, initialQuestionCountMode) { mutableStateOf(initialQuestionCountMode) }
+    var selectedTypes by remember(practiceScopeKey, initialPracticeTypes) { mutableStateOf(initialPracticeTypes) }
+    var practiceOrderMode by rememberSaveable(practiceScopeKey) {
         mutableStateOf(
             if (QuizRepository.rememberPracticeSettingsEnabled) {
                 QuizRepository.preferredPracticeOrderMode
@@ -183,19 +185,19 @@ fun PracticeScreen(
             }
         )
     }
-    var sequentialStartMode by rememberSaveable(bank?.id) {
+    var sequentialStartMode by rememberSaveable(practiceScopeKey) {
         mutableStateOf(QuizRepository.SEQUENTIAL_START_LAST)
     }
-    var sequentialCustomStartNumber by rememberSaveable(bank?.id) {
+    var sequentialCustomStartNumber by rememberSaveable(practiceScopeKey) {
         mutableIntStateOf(1)
     }
-    var selectedPracticeMode by rememberSaveable(bank?.id, QuizRepository.preferredPracticeMode) {
+    var selectedPracticeMode by rememberSaveable(practiceScopeKey, QuizRepository.preferredPracticeMode) {
         mutableStateOf(QuizRepository.preferredPracticeMode)
     }
-    var selectedBatchGroupSizeMode by rememberSaveable(bank?.id, QuizRepository.preferredPracticeBatchSizeMode) {
+    var selectedBatchGroupSizeMode by rememberSaveable(practiceScopeKey, QuizRepository.preferredPracticeBatchSizeMode) {
         mutableStateOf(QuizRepository.preferredPracticeBatchSizeMode)
     }
-    var selectedBatchGroupSize by remember(bank?.id, selectedBatchGroupSizeMode, selectedQuestionCount) {
+    var selectedBatchGroupSize by remember(practiceScopeKey, selectedBatchGroupSizeMode, selectedQuestionCount) {
         mutableIntStateOf(
             QuizRepository.resolvePracticeBatchGroupSize(
                 mode = selectedBatchGroupSizeMode,
@@ -208,17 +210,17 @@ fun PracticeScreen(
     val selectedAvailable = remember(availableCounts, effectiveSelectedTypes) {
         availableCounts.entries.sumOf { (type, count) -> if (type in effectiveSelectedTypes) count else 0 }
     }
-    val sequentialProgressSnapshot = bank?.id?.let { bankId -> QuizRepository.practiceSequentialProgress[bankId] } ?: 0
+    val sequentialProgressSnapshot = QuizRepository.practiceSequentialProgress[practiceScopeKey] ?: 0
     val sequentialProgressStartNumber = remember(
-        bank?.id,
+        practiceScopeKey,
         selectedTypes,
         selectedAvailable,
         sequentialProgressSnapshot
     ) {
-        QuizRepository.sequentialPracticeProgressIndex(bank, effectiveSelectedTypes) + 1
+        QuizRepository.sequentialPracticeProgressIndex(null, effectiveSelectedTypes) + 1
     }
     val sequentialRangePreview = remember(
-        bank?.id,
+        practiceScopeKey,
         selectedQuestionCount,
         selectedTypes,
         sequentialStartMode,
@@ -231,7 +233,7 @@ fun PracticeScreen(
             allowedTypes = effectiveSelectedTypes,
             startMode = sequentialStartMode,
             customStartNumber = sequentialCustomStartNumber,
-            bank = bank
+            bank = null
         )
     }
     val sequentialRangeText = sequentialRangePreview?.let { (start, end) ->
@@ -239,7 +241,7 @@ fun PracticeScreen(
     }
     val startPracticeWithSettings = {
         val safeTypes = selectedTypes.ifEmpty { QuizRepository.objectiveQuestionTypes() }
-        val available = QuizRepository.activePracticePoolQuestions(bank).count { it.type in safeTypes }
+        val available = QuizRepository.activePracticePoolQuestions().count { it.type in safeTypes }
         if (available > 0) {
             val count = selectedQuestionCount.coerceIn(1, available)
             QuizRepository.rememberPracticeSettings(
@@ -265,7 +267,7 @@ fun PracticeScreen(
                 QuizRepository.startPracticeSession(
                     questionCount = count,
                     allowedTypes = safeTypes,
-                    sourceLabel = "当前题库",
+                    sourceLabel = practiceScopeLabel,
                     randomize = true,
                     practiceMode = if (QuizRepository.practiceReciteModeEnabled) QuizRepository.PRACTICE_MODE_INSTANT else selectedPracticeMode,
                     batchGroupSize = selectedBatchGroupSize.coerceIn(1, count)
@@ -282,7 +284,7 @@ fun PracticeScreen(
     val practiceAccuracy = if (practiceAutoScoredAnsweredCount == 0) 0 else practiceCorrectCount * 100 / practiceAutoScoredAnsweredCount
 
     val screenScrollState = rememberScrollState()
-    LaunchedEffect(isPracticeRunning, bank?.id) {
+    LaunchedEffect(isPracticeRunning, practiceScopeKey) {
         if (!isPracticeRunning) {
             screenScrollState.scrollTo(0)
         }
@@ -337,7 +339,7 @@ fun PracticeScreen(
             CompactPracticeSetupHero()
         }
 
-        if (bank == null || bank.questions.isEmpty()) {
+        if (practiceCandidateQuestions.isEmpty()) {
             GlassCard {
                 NoticeCard("还没有可练习题目。请先在导入页创建题库。")
             }
@@ -346,8 +348,9 @@ fun PracticeScreen(
 
         if (QuizRepository.practiceQuestions.isEmpty()) {
             PracticeSetupPanel(
-                bankName = bank.name,
-                totalQuestions = bank.questions.size,
+                bankName = practiceScopeLabel,
+                scopeSummary = practiceScopeSummary,
+                totalQuestions = practiceCandidateQuestions.size,
                 availableCounts = availableCounts,
                 selectedTypes = effectiveSelectedTypes,
                 selectedQuestionCount = selectedQuestionCount.coerceAtMost(selectedAvailable.coerceAtLeast(1)),
@@ -437,7 +440,8 @@ fun PracticeScreen(
             return
         }
 
-        val savedResult = QuizRepository.practiceAnswerResults[question.id]
+        val currentSessionKey = QuizRepository.currentPracticeSessionKey().orEmpty()
+        val savedResult = QuizRepository.practiceAnswerResults[currentSessionKey]
         val effectiveResult = result ?: savedResult?.let { saved ->
             QuestionCheckResult(
                 question = question,
@@ -466,12 +470,12 @@ fun PracticeScreen(
         }
         val displayedSelection = if (isReciteMode) emptyList() else effectiveResult?.userAnswer ?: QuizRepository.selectedAnswer
         val displayOptions = remember(
-            question.id,
+            currentSessionKey,
             question.options,
             QuizRepository.practiceOptionShuffleEnabled,
             QuizRepository.practiceOptionShuffleSeed
         ) {
-            practiceDisplayOptions(question, QuizRepository.practiceOptionShuffleEnabled, QuizRepository.practiceOptionShuffleSeed)
+            practiceDisplayOptions(question, QuizRepository.practiceOptionShuffleEnabled, QuizRepository.practiceOptionShuffleSeed, currentSessionKey)
         }
         val displayAnswerMap = remember(displayOptions) {
             displayOptions.associate { option -> option.originalKey.trim().uppercase() to option.displayKey }
@@ -520,7 +524,7 @@ fun PracticeScreen(
                 autoNextScope.launch {
                     delay(320)
                     if (QuizRepository.practiceIndex == autoNextIndex &&
-                        QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
+                        QuizRepository.currentPracticeSessionKey() == autoNextQuestionId
                     ) {
                         QuizRepository.nextQuestion()
                     }
@@ -536,7 +540,7 @@ fun PracticeScreen(
                 autoNextScope.launch {
                     delay(180)
                     if (QuizRepository.practiceIndex == autoNextIndex &&
-                        QuizRepository.currentPracticeQuestion()?.id == autoNextQuestionId
+                        QuizRepository.currentPracticeSessionKey() == autoNextQuestionId
                     ) {
                         QuizRepository.nextQuestion()
                     }
@@ -547,9 +551,9 @@ fun PracticeScreen(
             practiceQuestions.isNotEmpty() &&
             if (isBatchPractice) QuizRepository.isAllPracticeBatchGroupsSubmitted() else QuizRepository.practiceAnsweredCount() >= practiceQuestions.size
         val canShowSingleQuestionAiAnalysis = QuizRepository.aiSingleQuestionAnalysisEnabled && (isReciteMode || effectiveResult != null)
-        var singleQuestionAiAnalysis by remember(question.id) { mutableStateOf<AiSingleQuestionAnalysis?>(null) }
-        var singleQuestionAiError by remember(question.id) { mutableStateOf<String?>(null) }
-        var isSingleQuestionAiLoading by remember(question.id) { mutableStateOf(false) }
+        var singleQuestionAiAnalysis by remember(currentSessionKey) { mutableStateOf<AiSingleQuestionAnalysis?>(null) }
+        var singleQuestionAiError by remember(currentSessionKey) { mutableStateOf<String?>(null) }
+        var isSingleQuestionAiLoading by remember(currentSessionKey) { mutableStateOf(false) }
         val runSingleQuestionAiAnalysis = {
             if (!QuizRepository.isAiConfigured()) {
                 singleQuestionAiError = "请先在 我的 → AI 设置 中填写 API 地址、API Key 和模型名称。"
@@ -671,7 +675,7 @@ fun PracticeScreen(
                 if (QuizRepository.practiceQuickEditEnabled) {
                     QuickEditQuestionIconButton(onClick = onOpenQuickEdit)
                 }
-                if (QuizRepository.practiceSlashEnabled && QuizRepository.practiceSourceLabel == "当前题库") {
+                if (QuizRepository.canSlashCurrentPracticeQuestion()) {
                     SlashQuestionRoundButton(
                         onClick = { QuizRepository.slashCurrentPracticeQuestion(context) }
                     )
@@ -721,14 +725,14 @@ fun PracticeScreen(
                                         multiple = question.type == QuestionType.MULTIPLE
                                     )
                                     if (shouldAutoSubmitInstant) {
-                                        val autoNextQuestionId = question.id
+                                        val autoNextQuestionId = currentSessionKey
                                         val autoNextIndex = QuizRepository.practiceIndex
                                         val submitted = QuizRepository.submitPracticeQuestion()
                                         if (submitted != null) {
                                             scheduleInstantAutoNextAfterSubmit(autoNextQuestionId, autoNextIndex, submitted.correct)
                                         }
                                     } else if (shouldBatchAutoNext) {
-                                        scheduleBatchAutoNextAfterSelect(question.id, QuizRepository.practiceIndex)
+                                        scheduleBatchAutoNextAfterSelect(currentSessionKey, QuizRepository.practiceIndex)
                                     }
                                 }
                             }
@@ -785,7 +789,7 @@ fun PracticeScreen(
                         fillWidthContent = true,
                         onClick = {
                             if (!isSubmitted) {
-                                val autoNextQuestionId = question.id
+                                val autoNextQuestionId = currentSessionKey
                                 val autoNextIndex = QuizRepository.practiceIndex
                                 val submitted = QuizRepository.submitPracticeQuestion()
                                 if (submitted != null) {
@@ -804,7 +808,7 @@ fun PracticeScreen(
                         fillWidthContent = true,
                         onClick = {
                             if (!isSubmitted) {
-                                val autoNextQuestionId = question.id
+                                val autoNextQuestionId = currentSessionKey
                                 val autoNextIndex = QuizRepository.practiceIndex
                                 val submitted = QuizRepository.submitPracticeQuestion()
                                 if (submitted != null) {
@@ -980,6 +984,7 @@ fun PracticeQuickEditScreen(
     onBack: () -> Unit
 ) {
     val question = QuizRepository.currentPracticeQuestion()
+    val currentSessionKey = QuizRepository.currentPracticeSessionKey().orEmpty()
 
     Column(
         modifier = Modifier
@@ -1005,11 +1010,11 @@ fun PracticeQuickEditScreen(
             return
         }
 
-        var questionText by remember(question.id) { mutableStateOf(question.question) }
-        var answerText by remember(question.id) { mutableStateOf(question.answer.joinToString(" / ")) }
-        var analysisText by remember(question.id) { mutableStateOf(question.analysis) }
-        var optionDrafts by remember(question.id) { mutableStateOf(initialQuickEditOptions(question)) }
-        var savedNotice by remember(question.id) { mutableStateOf("") }
+        var questionText by remember(currentSessionKey) { mutableStateOf(question.question) }
+        var answerText by remember(currentSessionKey) { mutableStateOf(question.answer.joinToString(" / ")) }
+        var analysisText by remember(currentSessionKey) { mutableStateOf(question.analysis) }
+        var optionDrafts by remember(currentSessionKey) { mutableStateOf(initialQuickEditOptions(question)) }
+        var savedNotice by remember(currentSessionKey) { mutableStateOf("") }
         val isObjective = question.type == QuestionType.SINGLE ||
             question.type == QuestionType.MULTIPLE ||
             question.type == QuestionType.JUDGE
@@ -1197,6 +1202,7 @@ fun PracticeQuickEditScreen(
 @Composable
 private fun PracticeSetupPanel(
     bankName: String,
+    scopeSummary: String,
     totalQuestions: Int,
     availableCounts: Map<QuestionType, Int>,
     selectedTypes: Set<QuestionType>,
@@ -1250,7 +1256,7 @@ private fun PracticeSetupPanel(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "共 $totalQuestions 题 · 选范围后开始",
+                    text = "$scopeSummary · 选范围后开始",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -2615,13 +2621,14 @@ private data class PracticeDisplayOption(
 private fun practiceDisplayOptions(
     question: Question,
     shuffleEnabled: Boolean,
-    sessionSeed: Long
+    sessionSeed: Long,
+    sessionKey: String
 ): List<PracticeDisplayOption> {
     val canShuffle = shuffleEnabled &&
         (question.type == QuestionType.SINGLE || question.type == QuestionType.MULTIPLE) &&
         question.options.size > 1
     val orderedOptions = if (canShuffle) {
-        val seedSource = "${question.id}|${question.number}|${question.question}"
+        val seedSource = "$sessionKey|${question.number}|${question.question}"
         val seed = sessionSeed xor seedSource.hashCode().toLong()
         question.options.toMutableList().also { options ->
             java.util.Collections.shuffle(options, java.util.Random(seed))

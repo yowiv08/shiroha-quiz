@@ -196,6 +196,14 @@ private fun QuestionResultCard(
             }
             StatusChip(if (result.correct) "正确" else "错误", selected = result.correct)
         }
+        result.sourceBankName?.takeIf { it.isNotBlank() }?.let { sourceBankName ->
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "来源：$sourceBankName",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         Spacer(Modifier.height(10.dp))
         Text(
             text = question.question,

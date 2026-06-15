@@ -64,7 +64,9 @@ fun HomeScreen(
 ) {
     val activeBank = QuizRepository.activeBank()
     val bankCount = QuizRepository.banks.size
-    val bankName = activeBank?.name ?: "尚未导入题库"
+    val practiceScopeTitle = if (QuizRepository.isGroupPracticeScope()) "当前练习范围" else "当前题库"
+    val practiceScopeName = QuizRepository.currentPracticeScopeLabel()
+    val practiceScopeSummary = QuizRepository.currentPracticeScopeSummary()
     val todayPracticeCount = QuizRepository.studyRecords
         .filter { record ->
             record.source in listOf("练习", "错题练习", "今日复习", "收藏练习") && isToday(record.timestamp)
@@ -114,10 +116,13 @@ fun HomeScreen(
             Spacer(Modifier.height(homeSectionGap))
 
             TodayStatusCard(
-                bankName = bankName,
+                scopeTitle = practiceScopeTitle,
+                scopeName = practiceScopeName,
+                scopeSummary = practiceScopeSummary,
                 todayPracticeCount = todayPracticeCount,
                 pendingReviewTitle = pendingReviewTitle,
                 pendingReviewCount = pendingReviewCount,
+                examButtonText = if (QuizRepository.isGroupPracticeScope()) "当前题库考试" else "模拟考试",
                 onGoPractice = onGoPractice,
                 onGoExam = onGoExam
             )
@@ -164,10 +169,13 @@ fun HomeScreen(
 
 @Composable
 private fun TodayStatusCard(
-    bankName: String,
+    scopeTitle: String,
+    scopeName: String,
+    scopeSummary: String,
     todayPracticeCount: Int,
     pendingReviewTitle: String,
     pendingReviewCount: Int,
+    examButtonText: String,
     onGoPractice: () -> Unit,
     onGoExam: () -> Unit
 ) {
@@ -185,8 +193,8 @@ private fun TodayStatusCard(
         )
         Spacer(Modifier.height(8.dp))
         MiniStatusCard(
-            title = "当前题库",
-            value = bankName,
+            title = scopeTitle,
+            value = "$scopeName · $scopeSummary",
             modifier = Modifier
                 .fillMaxWidth()
                 .height(currentBankHeight)
@@ -220,7 +228,7 @@ private fun TodayStatusCard(
             )
             CompactHomeActionButton(
                 icon = Icons.Rounded.Timer,
-                text = "模拟考试",
+                text = examButtonText,
                 modifier = Modifier
                     .weight(1f)
                     .height(actionButtonHeight),

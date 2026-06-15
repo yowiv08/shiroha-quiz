@@ -64,6 +64,8 @@ fun BankListScreen(
 ) {
     val context = LocalContext.current
     val activeBank = QuizRepository.activeBank()
+    val practiceScopeType = QuizRepository.practiceScopeType
+    val practiceScopeValue = QuizRepository.practiceScopeValue
     var editTarget by remember { mutableStateOf<QuizBank?>(null) }
     var editGroupText by remember { mutableStateOf(DEFAULT_BANK_GROUP_NAME) }
     var editNameText by remember { mutableStateOf("") }
@@ -141,8 +143,23 @@ fun BankListScreen(
         ShirohaHeader(
             kicker = "Banks",
             title = "题库管理",
-            subtitle = "管理分组与题库，快速切换和编辑。"
+            subtitle = "管理当前题库与默认练习范围。"
         )
+
+        GlassCard(contentPadding = 16.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "当前题库：${activeBank?.name ?: "尚未选择"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "练习范围：${QuizRepository.currentPracticeScopeLabel()} · ${QuizRepository.currentPracticeScopeSummary()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         GlassCard(
             modifier = Modifier.shirohaNoRippleClickable(onClick = onOpenQuestionSearch),
@@ -221,9 +238,15 @@ fun BankListScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    activeBank?.takeIf { active -> banksInGroup.any { it.id == active.id } }?.let {
-                        StatusChip("当前分组", selected = true)
-                    }
+                    CompactBankStateChip(
+                        text = if (practiceScopeType == QuizRepository.PRACTICE_SCOPE_GROUP && practiceScopeValue == groupName) "当前练习范围" else "设为练习范围",
+                        selected = practiceScopeType == QuizRepository.PRACTICE_SCOPE_GROUP && practiceScopeValue == groupName,
+                        onClick = {
+                            if (!(practiceScopeType == QuizRepository.PRACTICE_SCOPE_GROUP && practiceScopeValue == groupName)) {
+                                QuizRepository.setPracticeGroupScope(context, groupName)
+                            }
+                        }
+                    )
                 }
 
                 if (isExpanded) {
@@ -232,6 +255,7 @@ fun BankListScreen(
                         BankCard(
                             bank = bank,
                             isActive = bank.id == activeBank?.id,
+                            isPracticeScope = practiceScopeType == QuizRepository.PRACTICE_SCOPE_BANK && practiceScopeValue == bank.id,
                             onOpenBankDetail = onOpenBankDetail,
                             onSetActive = { QuizRepository.setActiveBank(context, bank.id) },
                             onEdit = {
@@ -271,6 +295,7 @@ fun BankListScreen(
 private fun BankCard(
     bank: QuizBank,
     isActive: Boolean,
+    isPracticeScope: Boolean,
     onOpenBankDetail: (String) -> Unit,
     onSetActive: () -> Unit,
     onEdit: () -> Unit,
@@ -295,9 +320,13 @@ private fun BankCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 StatusChip("${bank.questions.size} 题", selected = true)
+                if (isPracticeScope) {
+                    Spacer(Modifier.width(6.dp))
+                    StatusChip("练习范围", selected = true)
+                }
                 Spacer(Modifier.weight(1f))
                 CompactBankStateChip(
-                    text = if (isActive) "当前" else "设为当前",
+                    text = if (isActive) "当前题库" else "设为当前",
                     selected = isActive,
                     onClick = {
                         if (!isActive) onSetActive()
@@ -337,7 +366,7 @@ private fun BankCard(
                 )
                 ActionPillButton(
                     icon = Icons.Rounded.Edit,
-                    text = "编辑",
+                    text = "编辑/移动",
                     primary = false,
                     modifier = Modifier
                         .weight(1f)
