@@ -7402,3 +7402,39 @@ body.practice-focus.practice-rail-collapsed-v34 #practice-card > .practice-side-
     min-width:0 !important;
   }
 }
+
+
+/* SHIROHA_WEB_V89_16_GROUP_PRACTICE_SCOPE */
+.practice-scope-summary-v8916,
+.bank-scope-status-v8916{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 12px;
+  margin:12px 0 16px;
+  padding:12px 14px;
+  border:1px solid rgba(79,124,255,.18);
+  border-radius:14px;
+  background:rgba(245,249,255,.86);
+}
+.practice-scope-summary-v8916 span,
+.bank-scope-status-v8916 span{font-size:.8rem;color:var(--muted);}
+.practice-scope-summary-v8916 b,
+.bank-scope-status-v8916 b{font-size:.96rem;}
+.practice-scope-summary-v8916 small,
+.bank-scope-status-v8916 small{color:var(--muted);}
+.home-practice-scope-v8916{max-width:540px;background:rgba(255,255,255,.7);}
+.bank-scope-status-v8916>div{display:flex;align-items:center;gap:8px;min-width:min(100%,320px);}
+.practice-scope-badge-v8916{
+  display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;
+  font-size:.72rem;font-weight:700;color:#315fc6;background:rgba(79,124,255,.12);
+}
+.bank-group-actions-v8916{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.practice-group-active-v8916>.bank-group-head-v58{border-color:rgba(79,124,255,.28);background:rgba(79,124,255,.055);}
+.scope-platform-note-v8916{margin:0 0 12px;padding:8px 12px;border-left:3px solid rgba(79,124,255,.4);background:rgba(79,124,255,.045);border-radius:8px;}
+@media (max-width:720px){
+  .bank-group-actions-v8916{width:100%;justify-content:space-between;}
+  .bank-group-head-v58{align-items:flex-start;flex-wrap:wrap;}
+  .practice-scope-summary-v8916,.bank-scope-status-v8916{align-items:flex-start;}
+}
+.record-source-v8916{display:block;margin-top:4px;color:var(--muted);font-size:.76rem;font-weight:500;}

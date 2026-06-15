@@ -10,7 +10,6 @@ const TYPE_LABEL={single:'单选题',multiple:'多选题',multi:'多选题',judg
 const state=loadState();
 let importCache=[];let tableImportResultV49=null;let importWarnings=[];let importReport='';let importDiagnostics=null;let importPreviewFilter='priority';let importSelected=new Set();let bankEditSessionV45=null;let exportBankSelectedV23=new Set();let backupImportModeV23='merge';let practice={items:[],idx:0,answered:0,correct:0,wrong:0,start:0};let exam={items:[],answers:{},start:0,timer:null,deadline:0,submitted:false};
 const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s)];
-init();
 function ensureDefaultBank(){if(!state.banks.length&&!state.settings?.suppressDefaultBank) state.banks.push(defaultBank()); if(!state.activeBankId) state.activeBankId=state.banks[0]?.id||'';}
 function blankState(){return {schemaVersion:CURRENT_SCHEMA_VERSION,banks:[],activeBankId:'',wrongBook:{},favorites:{},records:[],settings:{},crossPlatformMeta:{favoriteQuestions:{}}}}
 function warnDev(message,error){try{console.warn('[Shiroha Quiz]',message,error||'')}catch(_){}}
@@ -45,6 +44,71 @@ function makeId(prefix='id',...parts){
   return [prefix,base,random].filter(Boolean).join('_');
 }
 function activeBank(){return state.banks.find(b=>b.id===state.activeBankId)||state.banks[0]||{questions:[]}}
+const PRACTICE_SCOPE_BANK_V8916='bank';
+const PRACTICE_SCOPE_GROUP_V8916='group';
+function normalizePracticeScopeV8916(scope){
+  const raw=scope&&typeof scope==='object'?scope:{};
+  const type=String(raw.type||'').toLowerCase()===PRACTICE_SCOPE_GROUP_V8916?PRACTICE_SCOPE_GROUP_V8916:PRACTICE_SCOPE_BANK_V8916;
+  return {type,value:String(raw.value||'').trim()};
+}
+function ensurePracticeScopeV8916(){
+  state.settings=state.settings&&typeof state.settings==='object'?state.settings:{};
+  let scope=normalizePracticeScopeV8916(state.settings.practiceScope);
+  if(scope.type===PRACTICE_SCOPE_GROUP_V8916){
+    const group=normalizeBankGroupNameV58(scope.value);
+    if(group&&(state.banks||[]).some(b=>bankGroupNameV58(b)===group))scope={type:PRACTICE_SCOPE_GROUP_V8916,value:group};
+    else scope={type:PRACTICE_SCOPE_BANK_V8916,value:activeBank().id||''};
+  }else{
+    const bank=(state.banks||[]).find(b=>b.id===scope.value)||activeBank();
+    scope={type:PRACTICE_SCOPE_BANK_V8916,value:bank&&bank.id||''};
+  }
+  state.settings.practiceScope=scope;
+  return scope;
+}
+function practiceScopeV8916(){return ensurePracticeScopeV8916()}
+function practiceScopeBanksV8916(scopeOverride){
+  const scope=scopeOverride?normalizePracticeScopeV8916(scopeOverride):practiceScopeV8916();
+  if(scope.type===PRACTICE_SCOPE_GROUP_V8916){const group=normalizeBankGroupNameV58(scope.value);return (state.banks||[]).filter(b=>bankGroupNameV58(b)===group)}
+  const bank=(state.banks||[]).find(b=>b.id===scope.value)||activeBank();return bank&&bank.id?[bank]:[];
+}
+function practiceScopeLabelV8916(scopeOverride){
+  const scope=scopeOverride?normalizePracticeScopeV8916(scopeOverride):practiceScopeV8916();
+  if(scope.type===PRACTICE_SCOPE_GROUP_V8916)return normalizeBankGroupNameV58(scope.value)||BANK_DEFAULT_GROUP_V58;
+  return practiceScopeBanksV8916(scope)[0]?.name||'当前题库';
+}
+function practiceScopeSummaryV8916(scopeOverride){
+  const scope=scopeOverride?normalizePracticeScopeV8916(scopeOverride):practiceScopeV8916();const banks=practiceScopeBanksV8916(scope);const total=banks.reduce((n,b)=>n+(b.questions||[]).length,0);
+  return scope.type===PRACTICE_SCOPE_GROUP_V8916?`${banks.length} 个题库 · ${total} 题`:`${total} 题`;
+}
+function setPracticeBankScopeV8916(bankId,setActive=true){
+  const bank=(state.banks||[]).find(b=>b.id===bankId);if(!bank)return false;
+  if(setActive)state.activeBankId=bank.id;
+  state.settings=state.settings&&typeof state.settings==='object'?state.settings:{};
+  state.settings.practiceScope={type:PRACTICE_SCOPE_BANK_V8916,value:bank.id};return true;
+}
+function setPracticeGroupScopeV8916(groupName){
+  const group=normalizeBankGroupNameV58(groupName);if(!group||(state.banks||[]).every(b=>bankGroupNameV58(b)!==group))return false;
+  state.settings=state.settings&&typeof state.settings==='object'?state.settings:{};
+  state.settings.practiceScope={type:PRACTICE_SCOPE_GROUP_V8916,value:group};return true;
+}
+function practiceSessionItemsForBanksV8916(banks){
+  const used=new Map();const out=[];
+  (banks||[]).forEach(bank=>(bank.questions||[]).forEach(question=>{const base=`${bank.id}#${question.id}`;const n=used.get(base)||0;used.set(base,n+1);out.push({sessionKey:n?`${base}#${n}`:base,bankId:bank.id,bankName:bank.name||'',groupName:bankGroupNameV58(bank),question})}));
+  return out;
+}
+function currentPracticeItemV8916(){return practice&&practice.items&&practice.items[practice.idx]||null}
+function practiceQuestionV8916(item){return item&&item.question||item}
+function practiceItemKeyV8916(item){const q=practiceQuestionV8916(item);return item&&item.sessionKey||`${item&&item.bankId||activeBank().id}#${q&&q.id||''}`}
+function practiceItemBankIdV8916(item){return item&&item.bankId||activeBank().id}
+function practiceItemBankNameV8916(item){return item&&item.bankName||state.banks.find(b=>b.id===practiceItemBankIdV8916(item))?.name||activeBank().name||''}
+function renderPracticeScopeUiV8916(){
+  const scope=practiceScopeV8916();const label=practiceScopeLabelV8916(scope);const summary=practiceScopeSummaryV8916(scope);
+  const home=$('#home-practice-scope-v8916');if(home)home.innerHTML=`<span>${scope.type===PRACTICE_SCOPE_GROUP_V8916?'当前练习范围':'当前题库'}</span><b>${esc(label)}</b><small>${esc(summary)}</small>`;
+  const bank=$('#bank-practice-scope-v8916');if(bank)bank.innerHTML=`<div><span>当前题库</span><b>${esc(activeBank().name||'暂无题库')}</b></div><div><span>练习范围</span><b>${esc(label)}</b><small>${esc(summary)}</small></div>`;
+  const practiceEl=$('#practice-scope-summary-v8916');if(practiceEl)practiceEl.innerHTML=`<span>题目来源</span><b>${esc(label)}</b><small>${esc(summary)}</small>`;
+  const examEl=$('#exam-bank-summary-v8916');if(examEl)examEl.textContent=`考试题库：${activeBank().name||'暂无题库'}（考试仍使用当前具体题库）`;
+}
+
 function resetViewScrollV282(){
   try{
     const main=document.querySelector('.main');
@@ -76,7 +140,7 @@ function bindNav(){ $$('.nav').forEach(btn=>btn.onclick=()=>{
   resetViewScrollV282();
 });}
 function bindEvents(){
-$('#active-bank-select').onchange=e=>{state.activeBankId=e.target.value;saveSilent();renderAll()};const importNameInput=$('#import-bank-name');if(importNameInput)importNameInput.addEventListener('input',()=>{importNameInput.dataset.autoName='0'});$('#save-all-btn').onclick=saveState;
+$('#active-bank-select').onchange=e=>{setPracticeBankScopeV8916(e.target.value,true);saveSilent();renderAll()};const importNameInput=$('#import-bank-name');if(importNameInput)importNameInput.addEventListener('input',()=>{importNameInput.dataset.autoName='0'});$('#save-all-btn').onclick=saveState;
 $('#load-sample-btn').onclick=loadSample;$('#import-file').onchange=readImportFile;$('#parse-import-btn').onclick=parseImport;$('#confirm-import-btn').onclick=confirmImport;const findReplaceBtnV51=$('#find-replace-import-btn');if(findReplaceBtnV51)findReplaceBtnV51.onclick=openImportFindReplaceV51;const dualConfirmBtn=$('#dual-confirm-import-btn');if(dualConfirmBtn)dualConfirmBtn.onclick=confirmImport;const importTextAreaV49=$('#import-text');if(importTextAreaV49)importTextAreaV49.addEventListener('input',()=>{if(importTextAreaV49.dataset.tableImportV49==='1'){tableImportResultV49=null;delete importTextAreaV49.dataset.tableImportV49;}});$('#clear-import-btn').onclick=()=>{$('#import-text').value='';if($('#import-text'))delete $('#import-text').dataset.tableImportV49;tableImportResultV49=null;importCache=[];importSelected.clear();importDiagnostics=null;renderImportPreview([])};
 $('#dual-question-file').onchange=e=>readDualFile(e,'question');$('#dual-answer-file').onchange=e=>readDualFile(e,'answer');$('#parse-dual-import-btn').onclick=parseDualImport;$('#clear-dual-import-btn').onclick=()=>{$('#dual-question-text').value='';$('#dual-answer-text').value='';importCache=[];importSelected.clear();importDiagnostics=null;renderImportPreview([])};$('#dual-load-sample-btn').onclick=loadDualSample;$('#revalidate-import-btn').onclick=()=>renderImportPreview(importCache);
 $('#edit-close-btn').onclick=closeEditModal;$('#edit-save-btn').onclick=saveEditQuestion;$('#edit-delete-btn').onclick=deleteEditQuestion;const pf=$('#import-preview-filter');if(pf)pf.onchange=e=>{importPreviewFilter=e.target.value;renderImportPreview(importCache)};const bid=$('#batch-delete-import-btn');if(bid)bid.onclick=batchDeleteImportSelected;const cis=$('#clear-import-selection-btn');if(cis)cis.onclick=()=>{importSelected.clear();renderImportPreview(importCache)};
@@ -238,22 +302,21 @@ function localDateKeyV36(value){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function renderStats(){
-  const b=activeBank();
-  const rawWrong=state.wrongBook[b.id]||[];
-  const wrongCount=Array.isArray(rawWrong)?rawWrong.length:0;
-  $('#stat-total').textContent=b.questions.length;
-  $('#stat-wrong').textContent=wrongCount;
+  const scopeBanks=practiceScopeBanksV8916();
+  const totalQuestions=scopeBanks.reduce((n,b)=>n+(b.questions||[]).length,0);
+  const activeWrongEntries=scopeBanks.flatMap(b=>getWrongEntries(b.id).filter(e=>e.status!=='已掌握'));
+  $('#stat-total').textContent=totalQuestions;
+  $('#stat-wrong').textContent=activeWrongEntries.length;
   $('#stat-records').textContent=state.records.length;
   const today=localDateKeyV36();
   const practiceRecords=(state.records||[]).filter(r=>r&&r.mode==='练习');
   const todayPractice=practiceRecords.filter(r=>localDateKeyV36(r.date)===today);
   const todayAnswered=todayPractice.reduce((n,r)=>n+Number(r.answered||0),0);
   const todayCorrect=todayPractice.reduce((n,r)=>n+Number(r.correct||0),0);
-  const activeWrong=Array.isArray(rawWrong)?rawWrong.filter(x=>typeof x==='string'||!x||x.status!=='已掌握').length:0;
   const setText=(id,val)=>{const el=$(id);if(el)el.textContent=val};
   setText('#stat-today-count',todayAnswered);
   setText('#stat-today-rate',todayAnswered?`${Math.round(todayCorrect/todayAnswered*100)}%`:'—');
-  setText('#stat-review-due',activeWrong);
+  setText('#stat-review-due',activeWrongEntries.length);
   setText('#stat-total-practice',practiceRecords.length);
 }
 function renderBankSelect(){
@@ -283,7 +346,7 @@ function renderBankInputs(){
   renderBankGroupDatalistV58();
 }
 function renderBankList(){
-  ensureBankGroupUiV58();
+  ensureBankGroupUiV58();ensurePracticeScopeV8916();
   const box=$('#bank-list');
   let banks=[...state.banks];
   const sort=$('#bank-sort-mode')?.value||'created';
@@ -293,42 +356,28 @@ function renderBankList(){
   const validIds=new Set(state.banks.map(b=>b.id));
   exportBankSelectedV23=new Set([...exportBankSelectedV23].filter(id=>validIds.has(id)));
   if(!banks.length){box.innerHTML='<p class="muted">暂无题库。</p>';renderBankToolbarV28();renderExportBankSummaryV23();return;}
-  const groups=new Map();
-  banks.forEach(b=>{const g=bankGroupNameV58(b);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(b);});
+  const scope=practiceScopeV8916();
+  const groups=new Map();banks.forEach(b=>{const g=bankGroupNameV58(b);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(b);});
   box.innerHTML=[...groups.entries()].map(([groupName,items])=>{
-    const total=items.reduce((n,b)=>n+(b.questions?.length||0),0);
+    const total=items.reduce((n,b)=>n+(b.questions?.length||0),0);const groupActive=scope.type===PRACTICE_SCOPE_GROUP_V8916&&scope.value===groupName;
     const body=items.map(b=>{
-      const stats=countTypes(b.questions);const active=b.id===state.activeBankId;const checked=exportBankSelectedV23.has(b.id);
+      const stats=countTypes(b.questions);const active=b.id===state.activeBankId;const bankScope=scope.type===PRACTICE_SCOPE_BANK_V8916&&scope.value===b.id;const checked=exportBankSelectedV23.has(b.id);
       return `<article class="bank-item bank-item-compact-v28 ${active?'active-bank':''} ${checked?'selected-bank-v28':''}">
         <label class="bank-bulk-check-v23 bank-card-check-v28" title="选择题库"><input type="checkbox" data-bank-bulk-v23="${esc(b.id)}" ${checked?'checked':''}></label>
-        <div class="bank-card-main-v28">
-          <div class="bank-card-title-v28"><b>${esc(b.name)}</b>${active?'<span class="source-badge">当前</span>':''}</div>
-          <p class="muted bank-card-meta-v28">${b.questions.length}题｜单选${stats.single}｜多选${stats.multiple+stats.multi}｜判断${stats.judge}｜填空${stats.blank}｜简答${stats.short}｜创建 ${fmt(b.createdAt||now())}</p>
-        </div>
-        <div class="bank-card-actions-v33">
-          <button class="ghost mini-btn" data-openbank="${esc(b.id)}" type="button">设为当前</button>
-          <details class="bank-more-menu-v28">
-            <summary aria-label="更多题库操作">更多</summary>
-            <div class="bank-more-panel-v28">
-              <button class="ghost" data-editbank-v45="${esc(b.id)}" type="button">编辑 / 识别详情</button>
-              <button class="ghost" data-copybank="${esc(b.id)}" type="button">复制</button>
-              <button class="ghost" data-exportbank="${esc(b.id)}" type="button">导出该题库 JSON</button>
-            </div>
-          </details>
-          <button class="ghost danger mini-btn bank-delete-quick-v32" data-delbank="${esc(b.id)}" type="button" title="删除该题库">删除</button>
-        </div>
+        <div class="bank-card-main-v28"><div class="bank-card-title-v28"><b>${esc(b.name)}</b>${active?'<span class="source-badge">当前题库</span>':''}${bankScope?'<span class="practice-scope-badge-v8916">练习范围</span>':''}</div><p class="muted bank-card-meta-v28">${b.questions.length}题｜单选${stats.single}｜多选${stats.multiple+stats.multi}｜判断${stats.judge}｜填空${stats.blank}｜简答${stats.short}｜创建 ${fmt(b.createdAt||now())}</p></div>
+        <div class="bank-card-actions-v33"><button class="ghost mini-btn" data-openbank="${esc(b.id)}" type="button">${active&&bankScope?'当前':'设为当前'}</button><details class="bank-more-menu-v28"><summary aria-label="更多题库操作">更多</summary><div class="bank-more-panel-v28"><button class="ghost" data-editbank-v45="${esc(b.id)}" type="button">编辑 / 移动分组</button><button class="ghost" data-copybank="${esc(b.id)}" type="button">复制</button><button class="ghost" data-exportbank="${esc(b.id)}" type="button">导出该题库 JSON</button></div></details><button class="ghost danger mini-btn bank-delete-quick-v32" data-delbank="${esc(b.id)}" type="button" title="删除该题库">删除</button></div>
       </article>`;
     }).join('');
-    return `<section class="bank-group-section-v58"><div class="bank-group-head-v58"><div><b>${esc(groupName)}</b><span class="bank-group-badge-v58">一级分组</span></div><span class="muted">${items.length} 个题库｜${total} 题</span></div><div class="bank-group-list-v58">${body}</div></section>`;
+    return `<section class="bank-group-section-v58 ${groupActive?'practice-group-active-v8916':''}"><div class="bank-group-head-v58"><div><b>${esc(groupName)}</b><span class="bank-group-badge-v58">一级分组</span>${groupActive?'<span class="practice-scope-badge-v8916">当前练习范围</span>':''}</div><div class="bank-group-actions-v8916"><span class="muted">${items.length} 个题库｜${total} 题</span><button class="ghost mini-btn" data-practice-group-v8916="${esc(groupName)}" type="button">${groupActive?'已设为练习范围':'设为练习范围'}</button></div></div><div class="bank-group-list-v58">${body}</div></section>`;
   }).join('');
   $$('[data-bank-bulk-v23]').forEach(x=>x.onchange=()=>{if(x.checked)exportBankSelectedV23.add(x.dataset.bankBulkV23);else exportBankSelectedV23.delete(x.dataset.bankBulkV23);renderBankList()});
-  $$('[data-openbank]').forEach(x=>x.onclick=()=>{state.activeBankId=x.dataset.openbank;saveSilent();renderAll()});
+  $$('[data-openbank]').forEach(x=>x.onclick=()=>{setPracticeBankScopeV8916(x.dataset.openbank,true);saveSilent();renderAll()});
+  $$('[data-practice-group-v8916]').forEach(x=>x.onclick=()=>{if(setPracticeGroupScopeV8916(x.dataset.practiceGroupV8916)){saveSilent();renderAll();toast(`已将“${x.dataset.practiceGroupV8916}”设为当前练习范围。`,'ok')}});
   $$('[data-editbank-v45]').forEach(x=>x.onclick=()=>editBankByIdV45(x.dataset.editbankV45));
   $$('[data-copybank]').forEach(x=>x.onclick=()=>duplicateBankById(x.dataset.copybank));
   $$('[data-exportbank]').forEach(x=>x.onclick=()=>exportBankById(x.dataset.exportbank));
   $$('[data-delbank]').forEach(x=>x.onclick=()=>deleteBanksV32([x.dataset.delbank]));
-  renderBankToolbarV28();
-  renderExportBankSummaryV23();
+  renderBankToolbarV28();renderExportBankSummaryV23();
 }
 function renderBankToolbarV28(){
   const sel=$('#bank-current-select-v28');
@@ -5180,7 +5229,7 @@ function confirmImport(){
     const incoming=importCache.map((q,i)=>cleanImportedQuestion({...q,id:makeId('q',before+i+1),number:before+i+1}));
     target.questions=[...(target.questions||[]),...incoming].map((q,i)=>({...q,number:i+1}));
     target.updatedAt=now();
-    state.activeBankId=target.id;
+    setPracticeBankScopeV8916(target.id,true);
     saveSilent();renderAll();
     showNotice('追加成功',`已追加到“${bankPathLabelV58(target)}”：新增 ${incoming.length} 道题，当前共 ${target.questions.length} 道题。${warnings.length?`追加前有 ${warnings.length} 条提示，建议在题库管理中抽查。`:''}`,'ok');
     toast(`已追加 ${incoming.length} 题到：${target.name}`,'ok','追加成功');
@@ -5189,15 +5238,15 @@ function confirmImport(){
   const name=$('#import-bank-name').value.trim()||'导入题库';
   const groupName=readImportBankGroupV58();
   const bank={id:makeId('bank'),name,groupName,createdAt:now(),updatedAt:now(),questions:importCache.map((q,i)=>cleanImportedQuestion({...q,id:makeId('q',i),number:i+1}))};
-  state.banks.push(bank);state.activeBankId=bank.id;saveSilent();renderAll();
+  state.banks.push(bank);setPracticeBankScopeV8916(bank.id,true);saveSilent();renderAll();
   showNotice('导入成功',`已创建题库“${name}”，共 ${bank.questions.length} 道题。${warnings.length?`导入前有 ${warnings.length} 条提示，建议在题库管理中抽查。`:''}`,'ok');
   toast(`已导入题库：${name}，共 ${bank.questions.length} 题。`,'ok','导入成功');
 }
 
-function renameActiveBank(){const b=activeBank();const val=$('#bank-rename-input').value.trim();if(!val){alert('请输入新的题库名称。');return}b.name=val;b.groupName=normalizeBankGroupNameV58($('#bank-group-rename-input-v58')?.value||b.groupName);b.updatedAt=now();$('#bank-rename-input').value='';const g=$('#bank-group-rename-input-v58');if(g){g.dataset.lastBankIdV58='';}saveSilent();renderAll()}
+function renameActiveBank(){const b=activeBank();const val=$('#bank-rename-input').value.trim();if(!val){alert('请输入新的题库名称。');return}const oldGroup=bankGroupNameV58(b);b.name=val;b.groupName=normalizeBankGroupNameV58($('#bank-group-rename-input-v58')?.value||b.groupName);b.updatedAt=now();const scope=practiceScopeV8916();if(scope.type===PRACTICE_SCOPE_GROUP_V8916&&scope.value===oldGroup&&state.banks.every(x=>x.id===b.id||bankGroupNameV58(x)!==oldGroup)){ensurePracticeScopeV8916();toast('原练习分组已无题库，已切换为当前题库。','warn')}$('#bank-rename-input').value='';const g=$('#bank-group-rename-input-v58');if(g){g.dataset.lastBankIdV58='';}saveSilent();renderAll()}
 function duplicateActiveBank(){duplicateBankById(activeBank().id)}
-function duplicateBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const copy=JSON.parse(JSON.stringify(b));copy.id=makeId('bank');copy.name=b.name+' - 副本';copy.createdAt=now();copy.updatedAt=now();copy.questions=(copy.questions||[]).map((q,i)=>({...q,id:makeId('q',i),number:i+1}));state.banks.push(copy);state.activeBankId=copy.id;saveSilent();renderAll()}
-function newEmptyBank(){const name=prompt('请输入新题库名称：','新建空题库');if(!name)return;const groupName=normalizeBankGroupNameV58(prompt('请输入一级分组名称，可留空：','')||'');const bank={id:makeId('bank'),name:name.trim()||'新建空题库',groupName,createdAt:now(),updatedAt:now(),questions:[]};state.banks.push(bank);state.activeBankId=bank.id;saveSilent();renderAll()}
+function duplicateBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const copy=JSON.parse(JSON.stringify(b));copy.id=makeId('bank');copy.name=b.name+' - 副本';copy.createdAt=now();copy.updatedAt=now();copy.questions=(copy.questions||[]).map((q,i)=>({...q,id:makeId('q',i),number:i+1}));state.banks.push(copy);setPracticeBankScopeV8916(copy.id,true);saveSilent();renderAll()}
+function newEmptyBank(){const name=prompt('请输入新题库名称：','新建空题库');if(!name)return;const groupName=normalizeBankGroupNameV58(prompt('请输入一级分组名称，可留空：','')||'');const bank={id:makeId('bank'),name:name.trim()||'新建空题库',groupName,createdAt:now(),updatedAt:now(),questions:[]};state.banks.push(bank);setPracticeBankScopeV8916(bank.id,true);saveSilent();renderAll()}
 function mergeBankIntoActive(){const sourceId=$('#merge-bank-select').value;const target=activeBank();const src=state.banks.find(b=>b.id===sourceId);if(!src){alert('没有可合并的来源题库。');return}if(!confirm(`将“${src.name}”的 ${src.questions.length} 道题合并到当前题库“${target.name}”？`))return;const before=target.questions.length;const existing=new Set(target.questions.map(q=>normalizeText(q.question)));let added=0,skipped=0;src.questions.forEach((q)=>{const k=normalizeText(q.question);if(existing.has(k)){skipped++;return}existing.add(k);target.questions.push({...JSON.parse(JSON.stringify(q)),id:makeId('q',target.questions.length+1),number:target.questions.length+1});added++});target.updatedAt=now();saveSilent();renderAll();alert(`合并完成：新增 ${added} 题，跳过重复 ${skipped} 题。合并前 ${before} 题，当前 ${target.questions.length} 题。`)}
 function exportBankById(id){const b=state.banks.find(x=>x.id===id);if(!b)return;const text=JSON.stringify(serializeBankForCrossExportV53(b),null,2);$('#export-output')&&($('#export-output').value=text);download((b.name||'题库')+'.json',text)}
 
@@ -5206,7 +5255,7 @@ function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Ma
 function startWrongPractice(){
   const limit=$('#wrong-practice-limit')?.value||'custom';const customCount=readCustomCountV60('#wrong-practice-custom-count',20);
   $$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';
-  $('#practice-source').value='wrong';$('#practice-order').value='random';$('#practice-limit').value=limit;if($('#practice-custom-count'))$('#practice-custom-count').value=customCount;syncLimitControlV60('practice');updateShellLayoutByView('practice');startPractice();
+  $('#practice-source').value='wrong';$('#practice-order').value='random';$('#practice-limit').value=limit;if($('#practice-custom-count'))$('#practice-custom-count').value=customCount;syncLimitControlV60('practice');updateShellLayoutByView('practice');startPractice({type:PRACTICE_SCOPE_BANK_V8916,value:activeBank().id});
 }
 function enterPracticeFocus(){
   document.body.classList.add('practice-focus');
@@ -5600,13 +5649,13 @@ function markOptions(root,q,chosen){if(isTextType(q.type))return;$$(root+' .opti
 function getWrongEntries(bid=activeBank().id){const v=state.wrongBook[bid]||[];if(!Array.isArray(v))return[];return v.map(x=>typeof x==='string'?{id:x,wrongCount:1,rightCount:0,reviewRightCount:0,streakCorrectCount:0,lastWrongAt:'',lastCorrectAt:'',lastReviewedAt:'',nextReviewAt:'',reviewLevel:0,lastAnswer:[],source:'web',timestamp:0,status:'未掌握'}:{...x,id:x.id,wrongCount:Number(x.wrongCount||0),rightCount:Number(x.rightCount||0),reviewRightCount:Number(x.reviewRightCount||0),streakCorrectCount:Number(x.streakCorrectCount||0),lastWrongAt:x.lastWrongAt||'',lastCorrectAt:x.lastCorrectAt||'',lastReviewedAt:x.lastReviewedAt||'',nextReviewAt:x.nextReviewAt||'',reviewLevel:Number(x.reviewLevel||0),lastAnswer:Array.isArray(x.lastAnswer)?x.lastAnswer:[],source:x.source||'web',timestamp:Number(x.timestamp||0),status:x.status||'未掌握'}).filter(x=>x.id)}
 function setWrongEntries(entries,bid=activeBank().id){state.wrongBook[bid]=entries}
 function nextWrongReviewIsoV24(level,base=Date.now()){const days=[1,1,3,7,14,30,60][Math.max(0,Math.min(6,Number(level||0)))]||1;return new Date(base+days*86400000).toISOString()}
-function addWrong(id){const bid=activeBank().id;const arr=getWrongEntries(bid);let e=arr.find(x=>x.id===id);if(!e){e={id,wrongCount:0,rightCount:0,reviewRightCount:0,streakCorrectCount:0,lastWrongAt:'',lastCorrectAt:'',lastReviewedAt:'',nextReviewAt:'',reviewLevel:0,lastAnswer:[],source:'web',timestamp:0,status:'未掌握'};arr.push(e)}const ts=Date.now();e.wrongCount++;e.rightCount=0;e.reviewRightCount=0;e.streakCorrectCount=0;e.reviewLevel=0;e.lastWrongAt=new Date(ts).toISOString();e.lastReviewedAt=e.lastWrongAt;e.nextReviewAt=nextWrongReviewIsoV24(0,ts);e.timestamp=ts;e.source='web';e.status='未掌握';setWrongEntries(arr,bid)}
-function markRight(id){const bid=activeBank().id;const arr=getWrongEntries(bid);let e=arr.find(x=>x.id===id);if(!e)return;const ts=Date.now();e.rightCount++;e.reviewRightCount=Number(e.reviewRightCount||0)+1;e.streakCorrectCount=Number(e.streakCorrectCount||0)+1;const mastered=e.streakCorrectCount>=2;e.reviewLevel=mastered?Math.max(2,Number(e.reviewLevel||0)+1):Math.max(1,Number(e.reviewLevel||0));e.lastCorrectAt=new Date(ts).toISOString();e.lastReviewedAt=e.lastCorrectAt;e.nextReviewAt=nextWrongReviewIsoV24(e.reviewLevel,ts);e.timestamp=ts;e.status=mastered?'已掌握':'复习中';setWrongEntries(arr,bid)}
+function addWrong(id,bid=activeBank().id){const arr=getWrongEntries(bid);let e=arr.find(x=>x.id===id);if(!e){e={id,wrongCount:0,rightCount:0,reviewRightCount:0,streakCorrectCount:0,lastWrongAt:'',lastCorrectAt:'',lastReviewedAt:'',nextReviewAt:'',reviewLevel:0,lastAnswer:[],source:'web',timestamp:0,status:'未掌握'};arr.push(e)}const ts=Date.now();e.wrongCount++;e.rightCount=0;e.reviewRightCount=0;e.streakCorrectCount=0;e.reviewLevel=0;e.lastWrongAt=new Date(ts).toISOString();e.lastReviewedAt=e.lastWrongAt;e.nextReviewAt=nextWrongReviewIsoV24(0,ts);e.timestamp=ts;e.source='web';e.status='未掌握';setWrongEntries(arr,bid)}
+function markRight(id,bid=activeBank().id){const arr=getWrongEntries(bid);let e=arr.find(x=>x.id===id);if(!e)return;const ts=Date.now();e.rightCount++;e.reviewRightCount=Number(e.reviewRightCount||0)+1;e.streakCorrectCount=Number(e.streakCorrectCount||0)+1;const mastered=e.streakCorrectCount>=2;e.reviewLevel=mastered?Math.max(2,Number(e.reviewLevel||0)+1):Math.max(1,Number(e.reviewLevel||0));e.lastCorrectAt=new Date(ts).toISOString();e.lastReviewedAt=e.lastCorrectAt;e.nextReviewAt=nextWrongReviewIsoV24(e.reviewLevel,ts);e.timestamp=ts;e.status=mastered?'已掌握':'复习中';setWrongEntries(arr,bid)}
 function removeWrong(id){const bid=activeBank().id;setWrongEntries(getWrongEntries(bid).filter(x=>x.id!==id),bid)}
-function makeAnswerDetail(q,chosen,ok,score,totalScore){return {questionId:q.id,question:short(q.question,120),type:q.type,category:q.category||'',chosen:[...chosen],answer:[...q.answer],correct:!!ok,score:ok?score:0,fullScore:score,time:now()}}
+function makeAnswerDetail(item,chosen,ok,score,totalScore){const q=practiceQuestionV8916(item);return {questionId:q.id,question:short(q.question,120),type:q.type,category:q.category||'',chosen:[...chosen],answer:[...q.answer],correct:!!ok,score:ok?score:0,fullScore:score,time:now(),sourceBankId:practiceItemBankIdV8916(item),sourceBankName:practiceItemBankNameV8916(item),nativeQuestion:q}}
 function finishPractice(exited=false){
   const total=practice.answered;
-  const rec={id:makeId('rec','practice'),mode:'练习',bankId:activeBank().id,bankName:activeBank().name,total:practice.items.length,answered:total,correct:practice.correct,wrong:practice.wrong,accuracy:total?Math.round(practice.correct/total*100):0,score:null,date:now(),duration:Math.round((Date.now()-practice.start)/1000),details:practice.details||[]};
+  const groupMode=practice.scopeType==='GROUP';const rec={id:makeId('rec','practice'),mode:'练习',bankId:groupMode?'':(practice.items[0]?.bankId||activeBank().id),bankName:groupMode?(practice.scopeName||'分组练习'):(practice.items[0]?.bankName||activeBank().name),scopeType:practice.scopeType||'BANK',scopeName:practice.scopeName||practiceItemBankNameV8916(practice.items[0]),total:practice.items.length,answered:total,correct:practice.correct,wrong:practice.wrong,accuracy:total?Math.round(practice.correct/total*100):0,score:null,date:now(),duration:Math.round((Date.now()-practice.start)/1000),details:practice.details||[]};
   if(total||exited)state.records.unshift(rec);
   saveSilent();
   if(exited){
@@ -5629,7 +5678,7 @@ function finishPractice(exited=false){
 function scoreOf(q){if(q.score)return q.score;return Number(q.type==='multiple'?$('#score-multiple').value:q.type==='judge'?$('#score-judge').value:q.type==='blank'?$('#score-blank').value:q.type==='short'?$('#score-short').value:$('#score-single').value)||0}
 function collectExamTextAnswers(){if(!exam.items)return;exam.items.forEach(q=>{if(!isTextType(q.type))return;const box=$(`#exam-card [data-qid="${CSS.escape(q.id)}"]`);const el=box&&box.querySelector('.text-answer');if(el)exam.answers[q.id]=el.value.trim()?[el.value.trim()]:[]})}
 function addWrongOnExam(id,isWrong){if(isWrong)addWrong(id);else markRight(id)}
-function renderRecords(){const list=$('#records-list');let rows=[...state.records];const mode=$('#record-mode-filter')?.value||'all';if(mode!=='all')rows=rows.filter(r=>r.mode===mode);const lim=$('#record-limit')?.value||'30';if(lim!=='all')rows=rows.slice(0,Number(lim));list.innerHTML=rows.length?rows.map((r,idx)=>{const detail=(r.details||[]).slice(0,8).map((d,i)=>`<tr><td>${i+1}</td><td>${esc(short(d.question,42))}</td><td>${esc((d.chosen||[]).join('')||'未答')}</td><td>${esc((d.answer||[]).join(''))}</td><td>${d.correct?'正确':'错误'}</td></tr>`).join('');const summary=`题数${r.total}｜已答${r.answered}｜正确${r.correct}｜错误${r.wrong}｜正确率${r.accuracy}%${r.score!=null?`｜得分${r.score}/${r.totalScore}${r.passScore!=null?`｜及格线${r.passScore}｜${r.passed?'合格':'未合格'}`:''}`:''}｜用时${r.duration}秒`;return `<div class="record-item"><b>${esc(r.name||r.mode)}｜${esc(r.bankName)}｜${fmt(r.date)}</b><p class="muted">${summary}</p>${detail?`<details><summary>查看作答明细（前8题 / 共${(r.details||[]).length}题）</summary><div class="table-wrap"><table><thead><tr><th>#</th><th>题干</th><th>你的答案</th><th>正确答案</th><th>结果</th></tr></thead><tbody>${detail}</tbody></table></div></details>`:''}</div>`}).join(''):'<p class="muted">暂无练习或考试记录。</p>'}
+function renderRecords(){const list=$('#records-list');let rows=[...state.records];const mode=$('#record-mode-filter')?.value||'all';if(mode!=='all')rows=rows.filter(r=>r.mode===mode);const lim=$('#record-limit')?.value||'30';if(lim!=='all')rows=rows.slice(0,Number(lim));list.innerHTML=rows.length?rows.map((r,idx)=>{const showSource=r.scopeType==='GROUP';const detail=(r.details||[]).slice(0,8).map((d,i)=>`<tr><td>${i+1}</td><td>${esc(short(d.question,42))}${showSource&&d.sourceBankName?`<small class="record-source-v8916">来源：${esc(d.sourceBankName)}</small>`:''}</td><td>${esc((d.chosen||[]).join('')||'未答')}</td><td>${esc((d.answer||[]).join(''))}</td><td>${d.correct?'正确':'错误'}</td></tr>`).join('');const summary=`题数${r.total}｜已答${r.answered}｜正确${r.correct}｜错误${r.wrong}｜正确率${r.accuracy}%${r.score!=null?`｜得分${r.score}/${r.totalScore}${r.passScore!=null?`｜及格线${r.passScore}｜${r.passed?'合格':'未合格'}`:''}`:''}｜用时${r.duration}秒`;return `<div class="record-item"><b>${esc(r.name||r.mode)}｜${esc(r.bankName)}｜${fmt(r.date)}</b><p class="muted">${summary}</p>${detail?`<details><summary>查看作答明细（前8题 / 共${(r.details||[]).length}题）</summary><div class="table-wrap"><table><thead><tr><th>#</th><th>题干</th><th>你的答案</th><th>正确答案</th><th>结果</th></tr></thead><tbody>${detail}</tbody></table></div></details>`:''}</div>`}).join(''):'<p class="muted">暂无练习或考试记录。</p>'}
 function exportRecords(){const text=JSON.stringify(state.records||[],null,2);$('#export-output')&&($('#export-output').value=text);download('学习记录.json',text)}
 function fmt(s){return new Date(s).toLocaleString('zh-CN',{hour12:false})}
 function exportCurrentBank(){const text=JSON.stringify(serializeBankForCrossExportV53(activeBank()),null,2);$('#export-output').value=text;download(activeBank().name+'.json',text)}
@@ -5736,7 +5785,8 @@ function deleteBanksV32(ids){
   delIds.forEach(id=>{delete state.wrongBook[id];if(state.favorites)delete state.favorites[id];if(state.crossPlatformMeta&&state.crossPlatformMeta.favoriteQuestions)delete state.crossPlatformMeta.favoriteQuestions[id];exportBankSelectedV23.delete(id)});
   if(!state.banks.length){state.activeBankId='';state.settings={...(state.settings||{}),suppressDefaultBank:true};}
   else if(!state.banks.some(b=>b.id===state.activeBankId))state.activeBankId=state.banks[0]?.id||'';
-  saveSilent();renderAll();toast(`已删除 ${targets.length} 个题库。`,'ok');
+  const beforeScope=normalizePracticeScopeV8916(state.settings&&state.settings.practiceScope);ensurePracticeScopeV8916();const afterScope=practiceScopeV8916();
+  saveSilent();renderAll();toast(beforeScope.type===PRACTICE_SCOPE_GROUP_V8916&&afterScope.type===PRACTICE_SCOPE_BANK_V8916?`已删除 ${targets.length} 个题库。原练习分组已无题库，已切换为当前题库。`:`已删除 ${targets.length} 个题库。`,beforeScope.type===PRACTICE_SCOPE_GROUP_V8916&&afterScope.type===PRACTICE_SCOPE_BANK_V8916?'warn':'ok');
 }
 function cleanFileNameV23(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,80)||'bank'}
 function todayV23(){return new Date().toISOString().slice(0,10)}
@@ -5823,12 +5873,11 @@ function upgradeState(){
       state.wrongBook[bid]=val.map(x=>typeof x==='string'?{id:x,wrongCount:1,rightCount:0,reviewRightCount:0,streakCorrectCount:0,lastWrongAt:'',lastCorrectAt:'',lastReviewedAt:'',nextReviewAt:'',reviewLevel:0,lastAnswer:[],source:'web',timestamp:0,status:'未掌握'}:{...x,id:x.id,wrongCount:Number(x.wrongCount||1),rightCount:Number(x.rightCount||0),reviewRightCount:Number(x.reviewRightCount||0),streakCorrectCount:Number(x.streakCorrectCount||0),lastWrongAt:x.lastWrongAt||'',lastCorrectAt:x.lastCorrectAt||'',lastReviewedAt:x.lastReviewedAt||'',nextReviewAt:x.nextReviewAt||'',reviewLevel:Number(x.reviewLevel||0),lastAnswer:Array.isArray(x.lastAnswer)?x.lastAnswer:[],source:x.source||'web',timestamp:Number(x.timestamp||0),status:x.status||'未掌握'}).filter(x=>x.id);
     }else state.wrongBook[bid]=[];
   }
-  for(const bid of Object.keys(state.favorites)){
-    state.favorites[bid]=Array.isArray(state.favorites[bid])?[...new Set(state.favorites[bid].filter(Boolean))]:[];
-  }
+  for(const bid of Object.keys(state.favorites)){state.favorites[bid]=Array.isArray(state.favorites[bid])?[...new Set(state.favorites[bid].filter(Boolean))]:[];}
+  ensurePracticeScopeV8916();
 }
 function serializeState(){return JSON.stringify({...state,schemaVersion:CURRENT_SCHEMA_VERSION,favorites:state.favorites||{}})}
-function renderAll(){ensureBankGroupUiV58();renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderFavoritesPageV596();renderRecords();renderBankInputs();renderBuiltInPanelV252();if(typeof renderExportBankSelectorV23==='function')renderExportBankSelectorV23();renderImportTargetBankOptionsV59();syncImportAppendUiV59();syncHomeVersionPromptV586();}
+function renderAll(){ensureBankGroupUiV58();ensurePracticeScopeV8916();renderStats();renderBankSelect();renderMergeSelect();renderBankList();renderBankPreview();renderWrongBook();renderFavoritesPageV596();renderRecords();renderBankInputs();renderBuiltInPanelV252();renderPracticeScopeUiV8916();if(typeof renderExportBankSelectorV23==='function')renderExportBankSelectorV23();renderImportTargetBankOptionsV59();syncImportAppendUiV59();syncHomeVersionPromptV586();}
 function bindV25ToV28Events(){
   ['#load-built-in-bank-btn','#load-built-in-bank-btn-banks'].forEach(sel=>{const btn=$(sel);if(btn)btn.onclick=()=>loadBuiltInBankV252();});
 }
@@ -5877,7 +5926,7 @@ async function loadBuiltInBankV252(){
     const old=state.banks.findIndex(b=>b.id==='default-c1'||b.builtInLazy);
     if(old>=0)state.banks[old]=bank;else state.banks.push(bank);
     state.settings={...(state.settings||{}),suppressDefaultBank:false};
-    state.activeBankId=bank.id;saveSilent();renderAll();toast(`已加载内置题库：${bank.name}，共 ${bank.questions.length} 题。`,'ok');
+    setPracticeBankScopeV8916(bank.id,true);saveSilent();renderAll();toast(`已加载内置题库：${bank.name}，共 ${bank.questions.length} 题。`,'ok');
   }catch(e){warnDev('加载内置题库失败',e);toast('加载内置题库失败：'+e.message,'danger')}
 }
 function readCustomCountV60(selector,fallback=20){
@@ -5917,138 +5966,58 @@ function filteredQuestions(source,type,order,limit,customCount){
   if(order==='random')qs=shuffle(qs);
   return applyQuestionLimitV60(qs,limit,customCount);
 }
-function startPractice(){
+function filteredPracticeItemsV8916(source,type,order,limit,customCount,scopeOverride){
+  const banks=practiceScopeBanksV8916(scopeOverride);let items=practiceSessionItemsForBanksV8916(banks);
+  if(source==='wrong'){const byBank=new Map(banks.map(b=>[b.id,new Set(getWrongEntries(b.id).filter(e=>e.status!=='已掌握').map(e=>e.id))]));items=items.filter(item=>byBank.get(item.bankId)?.has(item.question.id))}
+  if(source==='favorite'){const byBank=new Map(banks.map(b=>[b.id,new Set(getFavoriteIdsV27(b.id))]));items=items.filter(item=>byBank.get(item.bankId)?.has(item.question.id))}
+  if(type&&type!=='all'){const t=type==='multi'?'multiple':type;items=items.filter(item=>item.question.type===t)}
+  if(order==='random')items=shuffle(items);
+  return applyQuestionLimitV60(items,limit,customCount);
+}
+
+function startPractice(scopeOverrideV8916){
+  const override=scopeOverrideV8916&&scopeOverrideV8916.type?normalizePracticeScopeV8916(scopeOverrideV8916):null;
   const limit=$('#practice-limit')?.value||'custom';const customCount=readCustomCountV60('#practice-custom-count',20);syncLimitControlV60('practice');
-  practice={items:filteredQuestions($('#practice-source').value,$('#practice-type').value,$('#practice-order').value,limit,customCount),idx:0,answered:0,correct:0,wrong:0,start:Date.now(),details:[],answerState:{}};
+  const scope=override||practiceScopeV8916();
+  practice={items:filteredPracticeItemsV8916($('#practice-source').value,$('#practice-type').value,$('#practice-order').value,limit,customCount,scope),idx:0,answered:0,correct:0,wrong:0,start:Date.now(),details:[],answerState:{},scopeType:scope.type===PRACTICE_SCOPE_GROUP_V8916?'GROUP':'BANK',scopeName:practiceScopeLabelV8916(scope),scopeValue:scope.value};
   if(!practice.items.length){$('#practice-card').innerHTML='<div class="empty">当前条件下没有题目。</div>';showNotice('无法开始练习','当前筛选条件下没有题目。','warn');return}
   if(practice.items.length>200&&(limit==='all'||limit==='half'||limit==='custom'||Number(limit)>200)){const msg=practice.items.length>500?`本轮将练习 ${practice.items.length} 道题，题量很大，手机 WebView 可能明显卡顿，建议减少题量或使用电脑端。是否继续？`:`本轮将练习 ${practice.items.length} 道题，手机 WebView 可能出现轻微卡顿，是否继续？`;if(!confirm(msg)){practice={items:[],idx:0,answered:0,correct:0,wrong:0,start:0,details:[],answerState:{}};return}}
-  enterPracticeFocus();showNotice('练习开始',`本轮共 ${practice.items.length} 道题。`,'ok');renderPracticeQuestion();
+  enterPracticeFocus();showNotice('练习开始',`${practice.scopeName} · 本轮共 ${practice.items.length} 道题。`,'ok');renderPracticeQuestion();
 }
 function renderPracticeQuestion(done=false){
   $('#practice-progress').textContent=`${Math.min(practice.idx+1,practice.items.length)} / ${practice.items.length}`;
   if(done||practice.idx>=practice.items.length){finishPractice();return}
-  const q=practice.items[practice.idx];const st=getPracticeAnswerStateV26(q.id);const fav=isFavoriteV27(q.id);
-  $('#practice-card').innerHTML=`<div class="practice-focus-head"><b>刷题练习</b><span>${practice.idx+1} / ${practice.items.length}</span><div class="practice-tools-v26"><button class="ghost mini-btn" id="p-favorite">${fav?'取消收藏':'收藏题目'}</button><button class="ghost mini-btn" id="p-exit">退出练习</button></div></div>${questionHtml(q,false)}<div class="actions practice-actions-v44"><button class="ghost" id="p-prev" ${practice.idx===0?'disabled':''}>上一题</button><button class="ghost" id="p-next">${practice.idx>=practice.items.length-1?'完成练习':'下一题'}</button><button class="primary" id="p-submit" ${st.answered||st.revealed?'disabled':''}>提交答案</button><button class="ghost" id="p-reveal" ${st.answered||st.revealed?'disabled':''}>看答案</button></div><div id="p-feedback"></div>${renderPracticeNavV26()}<aside class="practice-side-v31">${renderPracticeStatsV30()}</aside>`;
-  bindOptionSelect('#practice-card',q);applyAnswerStateV26('#practice-card',q,st.chosen||[]);
-  if(st.answered||st.revealed)showAnsweredStateV26(q,st);
+  const item=currentPracticeItemV8916();const q=practiceQuestionV8916(item);const key=practiceItemKeyV8916(item);const bid=practiceItemBankIdV8916(item);const st=getPracticeAnswerStateV26(key);const fav=isFavoriteV27(q.id,bid);const groupTitle=practice.scopeType==='GROUP'?`${practice.scopeName} · 分组练习`:'刷题练习';
+  $('#practice-card').innerHTML=`<div class="practice-focus-head"><b>${esc(groupTitle)}</b><span>${practice.idx+1} / ${practice.items.length}</span><div class="practice-tools-v26"><button class="ghost mini-btn" id="p-favorite">${fav?'取消收藏':'收藏题目'}</button><button class="ghost mini-btn" id="p-exit">退出练习</button></div></div>${questionHtml(q,false)}<div class="actions practice-actions-v44"><button class="ghost" id="p-prev" ${practice.idx===0?'disabled':''}>上一题</button><button class="ghost" id="p-next">${practice.idx>=practice.items.length-1?'完成练习':'下一题'}</button><button class="primary" id="p-submit" ${st.answered||st.revealed?'disabled':''}>提交答案</button><button class="ghost" id="p-reveal" ${st.answered||st.revealed?'disabled':''}>看答案</button></div><div id="p-feedback"></div>${renderPracticeNavV26()}<aside class="practice-side-v31">${renderPracticeStatsV30()}</aside>`;
+  bindOptionSelect('#practice-card',q);applyAnswerStateV26('#practice-card',q,st.chosen||[]);if(st.answered||st.revealed)showAnsweredStateV26(q,st);
   $('#p-exit').onclick=()=>{if(confirm('退出本轮练习？已作答部分会保存为一条记录。'))finishPractice(true)};
-  $('#p-favorite').onclick=()=>{toggleFavoriteV27(q.id);renderPracticeQuestion()};
+  $('#p-favorite').onclick=()=>{toggleFavoriteV27(q.id,bid);renderPracticeQuestion()};
   $('#p-prev').onclick=()=>{if(practice.idx>0){practice.idx--;renderPracticeQuestion()}};
-  $('#p-submit').onclick=()=>submitPractice(q,false);
-  $('#p-reveal').onclick=()=>submitPractice(q,true);
+  $('#p-submit').onclick=()=>submitPractice(item,false);$('#p-reveal').onclick=()=>submitPractice(item,true);
   $('#p-next').onclick=()=>{if(practice.idx>=practice.items.length-1)finishPractice();else{practice.idx++;renderPracticeQuestion()}};
-  bindPracticeNavV30();
-  bindFocusRailToggleV34();
-  bindPracticeHotkeysV44();
+  bindPracticeNavV30();bindFocusRailToggleV34();bindPracticeHotkeysV44();
 }
 function bindPracticeHotkeysV44(){
-  if(window.__shirohaPracticeHotkeysV44Bound)return;
-  window.__shirohaPracticeHotkeysV44Bound=true;
-  document.addEventListener('keydown',e=>{
-    if(!document.body.classList.contains('practice-focus'))return;
-    if(!practice||!practice.items||!practice.items.length)return;
-    if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey)return;
-    const target=e.target;
-    const tag=(target&&target.tagName||'').toUpperCase();
-    const type=String(target&&target.type||'').toLowerCase();
-    const editable=target&&(target.isContentEditable||tag==='TEXTAREA'||tag==='SELECT'||(tag==='INPUT'&&!['radio','checkbox','button','submit'].includes(type)));
-    if(editable)return;
-    if(tag==='BUTTON'&&(e.key==='Enter'||e.key===' '))return;
-    const q=practice.items[practice.idx];
-    if(!q)return;
-    const clickIfReady=selector=>{const btn=$(selector);if(btn&&!btn.disabled){btn.click();return true}return false};
-    if(e.key==='ArrowLeft'){
-      e.preventDefault();
-      clickIfReady('#p-prev');
-      return;
-    }
-    if(e.key==='ArrowRight'){
-      e.preventDefault();
-      clickIfReady('#p-next');
-      return;
-    }
-    if(e.key==='Enter'){
-      e.preventDefault();
-      if(!clickIfReady('#p-submit'))clickIfReady('#p-next');
-      return;
-    }
-    if(String(e.key||'').toLowerCase()==='v'){
-      e.preventDefault();
-      clickIfReady('#p-reveal');
-      return;
-    }
-    const numeric=String(e.key||'').trim();
-    if(/^[1-7]$/.test(numeric)&&!isTextType(q.type)){
-      const optionLabels=$$('#practice-card .option');
-      const label=optionLabels[Number(numeric)-1];
-      if(label){
-        e.preventDefault();
-        label.click();
-      }
-    }
-  });
+  if(window.__shirohaPracticeHotkeysV44Bound)return;window.__shirohaPracticeHotkeysV44Bound=true;
+  document.addEventListener('keydown',e=>{if(!document.body.classList.contains('practice-focus')||!practice?.items?.length||e.isComposing||e.ctrlKey||e.metaKey||e.altKey)return;const target=e.target;const tag=(target&&target.tagName||'').toUpperCase();const type=String(target&&target.type||'').toLowerCase();const editable=target&&(target.isContentEditable||tag==='TEXTAREA'||tag==='SELECT'||(tag==='INPUT'&&!['radio','checkbox','button','submit'].includes(type)));if(editable||tag==='BUTTON'&&(e.key==='Enter'||e.key===' '))return;const q=practiceQuestionV8916(currentPracticeItemV8916());if(!q)return;const clickIfReady=selector=>{const btn=$(selector);if(btn&&!btn.disabled){btn.click();return true}return false};if(e.key==='ArrowLeft'){e.preventDefault();clickIfReady('#p-prev');return}if(e.key==='ArrowRight'){e.preventDefault();clickIfReady('#p-next');return}if(e.key==='Enter'){e.preventDefault();if(!clickIfReady('#p-submit'))clickIfReady('#p-next');return}if(String(e.key||'').toLowerCase()==='v'){e.preventDefault();clickIfReady('#p-reveal');return}const numeric=String(e.key||'').trim();if(/^[1-7]$/.test(numeric)&&!isTextType(q.type)){const label=$$('#practice-card .option')[Number(numeric)-1];if(label){e.preventDefault();label.click()}}});
 }
-function renderPracticeStatsV30(){
-  const total=(practice.items||[]).length;
-  const answered=Number(practice.answered||0);
-  const correct=Number(practice.correct||0);
-  const wrong=Number(practice.wrong||0);
-  const accuracy=answered?Math.round(correct/answered*100):0;
-  const remaining=Math.max(0,total-answered);
-  return `<div id="practice-stat-card-v30" class="practice-stat-card-v30"><div class="practice-stat-head-v30"><div><b>本轮统计</b><span>沉浸练习</span></div><button class="rail-hide-btn-v34" data-rail-toggle-v34="practice" type="button" title="隐藏本轮统计">隐藏</button></div><div class="practice-stat-list-v31"><div><span>总题</span><b>${total}</b></div><div><span>已刷</span><b>${answered}</b></div><div><span>正确率</span><b>${accuracy}%</b></div><div><span>错题</span><b>${wrong}</b></div></div><p>正确 ${correct} · 剩余 ${remaining}</p><button class="rail-show-btn-v34" data-rail-toggle-v34="practice" type="button" title="显示本轮统计">统计</button></div>`;
-}
-function refreshPracticeStatsV30(){
-  const box=$('#practice-stat-card-v30');
-  if(box)box.outerHTML=renderPracticeStatsV30();
-  bindFocusRailToggleV34();
-  const nav=$('#practice-nav-v26');
-  if(nav){nav.outerHTML=renderPracticeNavV26();bindPracticeNavV30();bindFocusRailToggleV34();}
-}
-function bindPracticeNavV30(){
-  $$('#practice-card [data-practice-jump]').forEach(btn=>btn.onclick=()=>{practice.idx=Number(btn.dataset.practiceJump);renderPracticeQuestion()});
-}
-function getPracticeAnswerStateV26(id){practice.answerState=practice.answerState||{};return practice.answerState[id]||{chosen:[],answered:false,revealed:false,correct:null};}
-function setPracticeAnswerStateV26(id,next){practice.answerState=practice.answerState||{};practice.answerState[id]={...getPracticeAnswerStateV26(id),...next};}
-function applyAnswerStateV26(root,q,chosen){
-  if(isTextType(q.type)){const el=$(root+' .text-answer');if(el)el.value=(chosen||[]).join('；');return}
-  $$(root+' input').forEach(input=>{input.checked=(chosen||[]).includes(input.value)});$$(root+' .option').forEach(o=>o.classList.toggle('selected',o.querySelector('input').checked));
-}
-function renderPracticeNavV26(){
-  const buttons=(practice.items||[]).map((q,i)=>{const st=getPracticeAnswerStateV26(q.id);const cls=[i===practice.idx?'current':'',st.answered?'done':'',st.correct===true?'ok':st.correct===false?'bad':'',isFavoriteV27(q.id)?'favorite':''].filter(Boolean).join(' ');return `<button type="button" class="${cls}" data-practice-jump="${i}" title="第${i+1}题">${i+1}</button>`}).join('');
-  return `<div id="practice-nav-v26" class="practice-nav-v26"><b>答题卡</b><div class="practice-nav-grid-v26">${buttons}</div></div>`;
-}
-function submitPractice(q,reveal){
-  const chosen=collectAnswer('#practice-card',q);if(!chosen.length&&!reveal){$('#p-feedback').innerHTML='<div class="feedback warn">请先作答，再提交。</div>';return}
-  if(q.type==='short'){showSubjectiveFeedback(q,chosen,reveal);return}
-  const ok=!reveal&&sameAnswerForQuestion(q,chosen,q.answer);
-  if(!reveal)recordPracticeAnswer(q,chosen,ok);else setPracticeAnswerStateV26(q.id,{chosen,revealed:true,correct:null});
-  markOptions('#practice-card',q,chosen);showAnsweredStateV26(q,getPracticeAnswerStateV26(q.id));refreshPracticeStatsV30();saveSilent();renderStats();
-}
-function showAnsweredStateV26(q,st){
-  markOptions('#practice-card',q,st.chosen||[]);
-  $('#p-feedback').innerHTML=`<div class="feedback ${st.revealed?'warn':st.correct?'ok':'bad'}">${st.revealed?'已显示参考答案':st.correct?'✓ 回答正确':'✕ 这题要再看一遍'}｜你的答案：${esc((st.chosen||[]).join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}</div>`;
-  const sub=$('#p-submit'),rev=$('#p-reveal');if(sub)sub.disabled=true;if(rev)rev.disabled=true;
-}
-function showSubjectiveFeedback(q,chosen,reveal){
-  const user=chosen.join('；')||'未填写';
-  setPracticeAnswerStateV26(q.id,{chosen,revealed:!!reveal});
-  $('#p-feedback').innerHTML=`<div class="feedback warn">你的作答：${esc(user)}<br>参考答案：${esc(q.answer.join('；')||'未提供')}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}<br><div class="actions"><button class="primary" id="p-self-right">判为正确</button><button class="danger" id="p-self-wrong">判为错误</button></div></div>`;
-  $('#p-submit').disabled=true;$('#p-reveal').disabled=true;
-  $('#p-self-right').onclick=()=>{recordPracticeAnswer(q,chosen,true);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()};
-  $('#p-self-wrong').onclick=()=>{recordPracticeAnswer(q,chosen,false);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()};
-}
-function recordPracticeAnswer(q,chosen,ok){
-  const current=getPracticeAnswerStateV26(q.id);if(current.answered)return;
-  practice.answered++;if(ok){practice.correct++;markRight(q.id)}else{practice.wrong++;addWrong(q.id)}
-  setPracticeAnswerStateV26(q.id,{chosen:[...chosen],answered:true,revealed:false,correct:!!ok,answeredAt:now()});
-  practice.details.push(makeAnswerDetail(q,chosen,ok,scoreOf(q),scoreOf(q)));
-}
+function renderPracticeStatsV30(){const total=(practice.items||[]).length,answered=Number(practice.answered||0),correct=Number(practice.correct||0),wrong=Number(practice.wrong||0),accuracy=answered?Math.round(correct/answered*100):0,remaining=Math.max(0,total-answered);return `<div id="practice-stat-card-v30" class="practice-stat-card-v30"><div class="practice-stat-head-v30"><div><b>本轮统计</b><span>${esc(practice.scopeName||'沉浸练习')}</span></div><button class="rail-hide-btn-v34" data-rail-toggle-v34="practice" type="button" title="隐藏本轮统计">隐藏</button></div><div class="practice-stat-list-v31"><div><span>总题</span><b>${total}</b></div><div><span>已刷</span><b>${answered}</b></div><div><span>正确率</span><b>${accuracy}%</b></div><div><span>错题</span><b>${wrong}</b></div></div><p>正确 ${correct} · 剩余 ${remaining}</p><button class="rail-show-btn-v34" data-rail-toggle-v34="practice" type="button" title="显示本轮统计">统计</button></div>`}
+function refreshPracticeStatsV30(){const box=$('#practice-stat-card-v30');if(box)box.outerHTML=renderPracticeStatsV30();bindFocusRailToggleV34();const nav=$('#practice-nav-v26');if(nav){nav.outerHTML=renderPracticeNavV26();bindPracticeNavV30();bindFocusRailToggleV34()}}
+function bindPracticeNavV30(){$$('#practice-card [data-practice-jump]').forEach(btn=>btn.onclick=()=>{practice.idx=Number(btn.dataset.practiceJump);renderPracticeQuestion()})}
+function getPracticeAnswerStateV26(id){practice.answerState=practice.answerState||{};return practice.answerState[id]||{chosen:[],answered:false,revealed:false,correct:null}}
+function setPracticeAnswerStateV26(id,next){practice.answerState=practice.answerState||{};practice.answerState[id]={...getPracticeAnswerStateV26(id),...next}}
+function applyAnswerStateV26(root,q,chosen){if(isTextType(q.type)){const el=$(root+' .text-answer');if(el)el.value=(chosen||[]).join('；');return}$$(root+' input').forEach(input=>{input.checked=(chosen||[]).includes(input.value)});$$(root+' .option').forEach(o=>o.classList.toggle('selected',o.querySelector('input').checked))}
+function renderPracticeNavV26(){const buttons=(practice.items||[]).map((item,i)=>{const q=practiceQuestionV8916(item),st=getPracticeAnswerStateV26(practiceItemKeyV8916(item)),cls=[i===practice.idx?'current':'',st.answered?'done':'',st.correct===true?'ok':st.correct===false?'bad':'',isFavoriteV27(q.id,practiceItemBankIdV8916(item))?'favorite':''].filter(Boolean).join(' ');return `<button type="button" class="${cls}" data-practice-jump="${i}" title="第${i+1}题">${i+1}</button>`}).join('');return `<div id="practice-nav-v26" class="practice-nav-v26"><b>答题卡</b><div class="practice-nav-grid-v26">${buttons}</div></div>`}
+function submitPractice(item,reveal){const q=practiceQuestionV8916(item),key=practiceItemKeyV8916(item);const chosen=collectAnswer('#practice-card',q);if(!chosen.length&&!reveal){$('#p-feedback').innerHTML='<div class="feedback warn">请先作答，再提交。</div>';return}if(q.type==='short'){showSubjectiveFeedback(item,chosen,reveal);return}const ok=!reveal&&sameAnswerForQuestion(q,chosen,q.answer);if(!reveal)recordPracticeAnswer(item,chosen,ok);else setPracticeAnswerStateV26(key,{chosen,revealed:true,correct:null});markOptions('#practice-card',q,chosen);showAnsweredStateV26(q,getPracticeAnswerStateV26(key));refreshPracticeStatsV30();saveSilent();renderStats()}
+function showAnsweredStateV26(q,st){markOptions('#practice-card',q,st.chosen||[]);$('#p-feedback').innerHTML=`<div class="feedback ${st.revealed?'warn':st.correct?'ok':'bad'}">${st.revealed?'已显示参考答案':st.correct?'✓ 回答正确':'✕ 这题要再看一遍'}｜你的答案：${esc((st.chosen||[]).join('；')||'未作答')}｜参考答案：${esc(q.answer.join('；'))}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}</div>`;const sub=$('#p-submit'),rev=$('#p-reveal');if(sub)sub.disabled=true;if(rev)rev.disabled=true}
+function showSubjectiveFeedback(item,chosen,reveal){const q=practiceQuestionV8916(item),key=practiceItemKeyV8916(item),user=chosen.join('；')||'未填写';setPracticeAnswerStateV26(key,{chosen,revealed:!!reveal});$('#p-feedback').innerHTML=`<div class="feedback warn">你的作答：${esc(user)}<br>参考答案：${esc(q.answer.join('；')||'未提供')}${q.analysis?'<br>解析：'+renderQuestionContent(q.analysis):''}<br><div class="actions"><button class="primary" id="p-self-right">判为正确</button><button class="danger" id="p-self-wrong">判为错误</button></div></div>`;$('#p-submit').disabled=true;$('#p-reveal').disabled=true;$('#p-self-right').onclick=()=>{recordPracticeAnswer(item,chosen,true);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()};$('#p-self-wrong').onclick=()=>{recordPracticeAnswer(item,chosen,false);$('#p-self-right').disabled=true;$('#p-self-wrong').disabled=true;saveSilent();renderStats();renderPracticeQuestion()}}
+function recordPracticeAnswer(item,chosen,ok){const q=practiceQuestionV8916(item),key=practiceItemKeyV8916(item),bid=practiceItemBankIdV8916(item);const current=getPracticeAnswerStateV26(key);if(current.answered)return;practice.answered++;if(ok){practice.correct++;markRight(q.id,bid)}else{practice.wrong++;addWrong(q.id,bid)}setPracticeAnswerStateV26(key,{chosen:[...chosen],answered:true,revealed:false,correct:!!ok,answeredAt:now()});practice.details.push(makeAnswerDetail(item,chosen,ok,scoreOf(q),scoreOf(q)))}
 function getFavoriteIdsV27(bid=activeBank().id){state.favorites=state.favorites||{};return Array.isArray(state.favorites[bid])?state.favorites[bid]:[];}
 function setFavoriteIdsV27(ids,bid=activeBank().id){state.favorites=state.favorites||{};state.crossPlatformMeta=state.crossPlatformMeta&&typeof state.crossPlatformMeta==='object'?state.crossPlatformMeta:{favoriteQuestions:{}};state.crossPlatformMeta.favoriteQuestions=state.crossPlatformMeta.favoriteQuestions&&typeof state.crossPlatformMeta.favoriteQuestions==='object'?state.crossPlatformMeta.favoriteQuestions:{};const next=[...new Set((ids||[]).filter(Boolean))];state.favorites[bid]=next;const meta=state.crossPlatformMeta.favoriteQuestions[bid]&&typeof state.crossPlatformMeta.favoriteQuestions[bid]==='object'?state.crossPlatformMeta.favoriteQuestions[bid]:{};Object.keys(meta).forEach(qid=>{if(!next.includes(qid))delete meta[qid]});next.forEach(qid=>{if(!meta[qid])meta[qid]={favoritedAt:Date.now()}});state.crossPlatformMeta.favoriteQuestions[bid]=meta;}
 function isFavoriteV27(id,bid=activeBank().id){return getFavoriteIdsV27(bid).includes(id);}
 function toggleFavoriteV27(id,bid=activeBank().id){const ids=getFavoriteIdsV27(bid);if(ids.includes(id))setFavoriteIdsV27(ids.filter(x=>x!==id),bid);else setFavoriteIdsV27([...ids,id],bid);saveSilent();toast(ids.includes(id)?'已取消收藏。':'已收藏题目。','ok');}
 function ensureFavoritePanelV27(){return;}
-function switchPracticeSourceV27(source){$$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';$('#practice-source').value=source;$('#practice-order').value='random';$('#practice-limit').value='custom';if($('#practice-custom-count'))$('#practice-custom-count').value='20';syncLimitControlV60('practice');updateShellLayoutByView('practice');startPractice();}
+function switchPracticeSourceV27(source){$$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';$('#practice-source').value=source;$('#practice-order').value='random';$('#practice-limit').value='custom';if($('#practice-custom-count'))$('#practice-custom-count').value='20';syncLimitControlV60('practice');updateShellLayoutByView('practice');startPractice({type:PRACTICE_SCOPE_BANK_V8916,value:activeBank().id});}
 function favoriteRowsV596(){const ids=new Set(getFavoriteIdsV27());const map=new Map(activeBank().questions.map(q=>[q.id,q]));return [...ids].map(id=>map.get(id)).filter(Boolean);}
 function clearCurrentFavoritesV596(){const count=getFavoriteIdsV27().length;if(!count){toast('当前题库暂无收藏题。','warn');return}if(confirm(`确定清空当前题库的 ${count} 道收藏题？`)){setFavoriteIdsV27([]);saveSilent();renderAll();toast('已清空当前题库收藏。','ok')}}
 function renderFavoritePanelV27(){renderFavoritesPageV596();}
@@ -6065,7 +6034,7 @@ function renderFavoritesPageV596(){
 function startSingleFavoritePracticeV596(id){
   const q=activeBank().questions.find(x=>x.id===id);if(!q){toast('未找到这道收藏题。','warn');return}
   $$('.nav').forEach(b=>b.classList.remove('active'));document.querySelector('[data-view="practice"]').classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#practice').classList.add('active');$('#page-title').textContent='刷题练习';
-  practice={items:[q],idx:0,answered:0,correct:0,wrong:0,start:Date.now(),details:[],answerState:{}};
+  practice={items:practiceSessionItemsForBanksV8916([{...activeBank(),questions:[q]}]),idx:0,answered:0,correct:0,wrong:0,start:Date.now(),details:[],answerState:{},scopeType:'BANK',scopeName:activeBank().name,scopeValue:activeBank().id};
   enterPracticeFocus();showNotice('练习开始','本轮共 1 道收藏题。','ok');updateShellLayoutByView('practice');renderPracticeQuestion();
 }
 function renderWrongBook(){
@@ -6140,9 +6109,9 @@ function buildNativeInteropStateV24(exportedBanks){
       const fallbackQuestion=(d.nativeQuestion&&typeof d.nativeQuestion==='object'?d.nativeQuestion:null)||found||{
         id:qid||makeId('record_q',idx),number:String(idx+1),type:toNativeQuestionType(d.type||'short'),question:d.question||'',options:[],answer:Array.isArray(d.answer)?d.answer:[],analysis:'',category:d.category||'',images:[]
       };
-      return {question:fallbackQuestion,userAnswer:Array.isArray(d.chosen)?d.chosen:[],correct:!!d.correct,answerText:d.nativeAnswerText!=null?String(d.nativeAnswerText):(Array.isArray(d.answer)?d.answer.join(' / '):String(d.answer||'')),earnedScore:d.nativeEarnedScore!==undefined?d.nativeEarnedScore:(d.score??null),maxScore:d.nativeMaxScore!==undefined?d.nativeMaxScore:(d.fullScore??null),autoScored:d.autoScored!==false};
+      return {question:fallbackQuestion,userAnswer:Array.isArray(d.chosen)?d.chosen:[],correct:!!d.correct,answerText:d.nativeAnswerText!=null?String(d.nativeAnswerText):(Array.isArray(d.answer)?d.answer.join(' / '):String(d.answer||'')),earnedScore:d.nativeEarnedScore!==undefined?d.nativeEarnedScore:(d.score??null),maxScore:d.nativeMaxScore!==undefined?d.nativeMaxScore:(d.fullScore??null),autoScored:d.autoScored!==false,sourceBankId:d.sourceBankId||bid||null,sourceBankName:d.sourceBankName||bank?.name||''};
     });
-    return {id:r.id||makeId('rec'),bankId:bid||null,bankName:r.bankName||bank?.name||'',source:r.nativeSource||'web',title:r.nativeTitle||r.name||r.mode||'练习',total:Number(r.total||questionResults.length||0),correct:Number(r.correct||0),timestamp:parseCrossPlatformTimeV24(r.date||r.timestamp,Date.now()),durationSeconds:Number(r.duration||0)||null,autoSubmitted:!!r.autoSubmitted,startedAt:r.startedAt?parseCrossPlatformTimeV24(r.startedAt,null):null,earnedScore:r.nativeEarnedScore!==undefined?r.nativeEarnedScore:(r.score??null),totalScore:r.nativeTotalScore!==undefined?r.nativeTotalScore:(r.totalScore??null),questionResults};
+    return {id:r.id||makeId('rec'),bankId:bid||null,bankName:r.bankName||bank?.name||'',source:r.nativeSource||'web',title:r.nativeTitle||r.name||r.mode||'练习',scopeType:r.scopeType||null,scopeName:r.scopeName||null,total:Number(r.total||questionResults.length||0),correct:Number(r.correct||0),timestamp:parseCrossPlatformTimeV24(r.date||r.timestamp,Date.now()),durationSeconds:Number(r.duration||0)||null,autoSubmitted:!!r.autoSubmitted,startedAt:r.startedAt?parseCrossPlatformTimeV24(r.startedAt,null):null,earnedScore:r.nativeEarnedScore!==undefined?r.nativeEarnedScore:(r.score??null),totalScore:r.nativeTotalScore!==undefined?r.nativeTotalScore:(r.totalScore??null),questionResults};
   });
   return {schemaVersion:1,wrongBook:nativeWrongBook,favoriteQuestions:nativeFavorites,studyRecords:nativeRecords};
 }
@@ -6190,28 +6159,41 @@ function extractNativeFavoriteMetaV24(nativeEntries){const meta={};(Array.isArra
 function splitNativeAnswerTextV24(text){const s=String(text||'').trim();if(!s)return[];return s.split(/\s*(?:\/|；|;)\s*/).map(x=>x.trim()).filter(Boolean)}
 function convertNativeRecordsToWebV24(nativeEntries){
   return (Array.isArray(nativeEntries)?nativeEntries:[]).map(r=>{
-    const details=(r.questionResults||[]).map((qr,idx)=>{const q=qr.question||{};const earned=qr.earnedScore;const max=qr.maxScore;return {questionId:q.id||'',question:q.question||'',type:normalizeWebQuestionType(q.type)||String(q.type||'').toLowerCase(),category:q.category||'',chosen:Array.isArray(qr.userAnswer)?qr.userAnswer:[],answer:Array.isArray(q.answer)&&q.answer.length?q.answer:splitNativeAnswerTextV24(qr.answerText),correct:!!qr.correct,score:earned==null?(qr.correct?1:0):Number(earned),fullScore:max==null?1:Number(max),nativeEarnedScore:earned??null,nativeMaxScore:max??null,nativeAnswerText:qr.answerText??'',autoScored:qr.autoScored!==false,time:''}});
+    const details=(r.questionResults||[]).map((qr,idx)=>{const q=qr.question||{};const earned=qr.earnedScore;const max=qr.maxScore;return {questionId:q.id||'',question:q.question||'',type:normalizeWebQuestionType(q.type)||String(q.type||'').toLowerCase(),category:q.category||'',chosen:Array.isArray(qr.userAnswer)?qr.userAnswer:[],answer:Array.isArray(q.answer)&&q.answer.length?q.answer:splitNativeAnswerTextV24(qr.answerText),correct:!!qr.correct,score:earned==null?(qr.correct?1:0):Number(earned),fullScore:max==null?1:Number(max),nativeEarnedScore:earned??null,nativeMaxScore:max??null,nativeAnswerText:qr.answerText??'',autoScored:qr.autoScored!==false,sourceBankId:qr.sourceBankId||r.bankId||'',sourceBankName:qr.sourceBankName||r.bankName||'',time:''}});
     const total=Number(r.total||details.length||0),correct=Number(r.correct||details.filter(d=>d.correct).length||0);
-    details.forEach((d,i)=>{const qr=(r.questionResults||[])[i];if(qr&&qr.question)d.nativeQuestion=qr.question});return {id:r.id||makeId('rec'),mode:r.title||r.source||'练习',nativeTitle:r.title||'',nativeSource:r.source||'',bankId:r.bankId||'',bankName:r.bankName||'',date:crossTimeToIsoV24(r.timestamp)||now(),total,correct,wrong:Math.max(0,total-correct),answered:total,accuracy:total>0?Math.round(correct/total*100):0,duration:Number(r.durationSeconds||0),score:r.earnedScore==null?0:Number(r.earnedScore),totalScore:r.totalScore==null?0:Number(r.totalScore),nativeEarnedScore:r.earnedScore??null,nativeTotalScore:r.totalScore??null,passScore:null,passed:null,details,autoSubmitted:!!r.autoSubmitted,startedAt:r.startedAt?crossTimeToIsoV24(r.startedAt):''};
+    details.forEach((d,i)=>{const qr=(r.questionResults||[])[i];if(qr&&qr.question)d.nativeQuestion=qr.question});return {id:r.id||makeId('rec'),mode:r.title||r.source||'练习',nativeTitle:r.title||'',nativeSource:r.source||'',bankId:r.bankId||'',bankName:r.bankName||'',scopeType:r.scopeType||null,scopeName:r.scopeName||null,date:crossTimeToIsoV24(r.timestamp)||now(),total,correct,wrong:Math.max(0,total-correct),answered:total,accuracy:total>0?Math.round(correct/total*100):0,duration:Number(r.durationSeconds||0),score:r.earnedScore==null?0:Number(r.earnedScore),totalScore:r.totalScore==null?0:Number(r.totalScore),nativeEarnedScore:r.earnedScore??null,nativeTotalScore:r.totalScore??null,passScore:null,passed:null,details,autoSubmitted:!!r.autoSubmitted,startedAt:r.startedAt?crossTimeToIsoV24(r.startedAt):''};
   });
 }
 function mergeBackupBanksV23(normalized){
   const existingKeys=new Set(state.banks.map(b=>bankNameKeyV58(b.groupName,b.name)));
   const existingIds=new Set(state.banks.map(b=>b.id));
-  const idMap={};const importedFavoriteMeta=normalized.crossPlatformMeta&&normalized.crossPlatformMeta.favoriteQuestions||{};state.crossPlatformMeta=state.crossPlatformMeta&&typeof state.crossPlatformMeta==='object'?state.crossPlatformMeta:{favoriteQuestions:{}};state.crossPlatformMeta.favoriteQuestions=state.crossPlatformMeta.favoriteQuestions&&typeof state.crossPlatformMeta.favoriteQuestions==='object'?state.crossPlatformMeta.favoriteQuestions:{};
+  const idMap={},bankMap={};const importedFavoriteMeta=normalized.crossPlatformMeta&&normalized.crossPlatformMeta.favoriteQuestions||{};state.crossPlatformMeta=state.crossPlatformMeta&&typeof state.crossPlatformMeta==='object'?state.crossPlatformMeta:{favoriteQuestions:{}};state.crossPlatformMeta.favoriteQuestions=state.crossPlatformMeta.favoriteQuestions&&typeof state.crossPlatformMeta.favoriteQuestions==='object'?state.crossPlatformMeta.favoriteQuestions:{};
   normalized.banks.forEach((bank,idx)=>{
     const oldId=bank.id;
     const groupName=normalizeBankGroupNameV58(bank.groupName);
     let name=bank.name||('导入题库_'+(idx+1));
     if(existingKeys.has(bankNameKeyV58(groupName,name))){let n=1;const base=name+'_导入';while(existingKeys.has(bankNameKeyV58(groupName,base+n)))n++;name=base+n;}
     let id=bank.id;if(existingIds.has(id))id=makeId('bank_import',idx);
-    idMap[oldId]=id;existingIds.add(id);existingKeys.add(bankNameKeyV58(groupName,name));
+    idMap[oldId]=id;bankMap[oldId]={id,name};existingIds.add(id);existingKeys.add(bankNameKeyV58(groupName,name));
     const next={...bank,id,name,groupName,createdAt:bank.createdAt||now(),updatedAt:now(),questions:(bank.questions||[]).map((q,i)=>({...normalizeQuestion(q,i),id:q.id||makeId('q',idx,i),number:q.number||i+1}))};
     state.banks.push(next);
     if(normalized.wrongBook&&normalized.wrongBook[oldId])state.wrongBook[id]=normalized.wrongBook[oldId];
     if(normalized.favorites&&normalized.favorites[oldId])state.favorites[id]=normalized.favorites[oldId];if(importedFavoriteMeta[oldId])state.crossPlatformMeta.favoriteQuestions[id]=importedFavoriteMeta[oldId];
   });
-  const importedRecords=(normalized.records||[]).map(r=>({...r,bankId:r.bankId&&idMap[r.bankId]?idMap[r.bankId]:r.bankId}));
+  const importedRecords=(normalized.records||[]).map(r=>{
+    const mappedRecordBank=r.bankId&&bankMap[r.bankId];
+    return {...r,
+      bankId:mappedRecordBank?mappedRecordBank.id:r.bankId,
+      bankName:mappedRecordBank?mappedRecordBank.name:r.bankName,
+      details:(r.details||[]).map(d=>{
+        const mappedSource=d.sourceBankId&&bankMap[d.sourceBankId];
+        return {...d,
+          sourceBankId:mappedSource?mappedSource.id:d.sourceBankId,
+          sourceBankName:mappedSource?mappedSource.name:d.sourceBankName
+        };
+      })
+    };
+  });
   if(importedRecords.length)state.records=[...(state.records||[]),...importedRecords];
   state.activeBankId=state.banks[state.banks.length-normalized.banks.length]?.id||state.activeBankId;
 }
@@ -6500,11 +6482,16 @@ function saveBankEditSessionV45(){
   const warnings=collectImportWarnings(importCache);
   const name=($('#import-bank-name')?.value||bank.name||'题库').trim()||bank.name||'题库';
   const groupName=readImportBankGroupV58();
+  const oldGroupName=bankGroupNameV58(bank);
   bank.name=name;
   bank.groupName=groupName;
   bank.updatedAt=now();
   bank.questions=importCache.map((q,i)=>cleanImportedQuestion({...q,id:q.id||makeId('q',i),number:i+1}));
-  state.activeBankId=bank.id;
+  const scopeBefore=practiceScopeV8916();
+  if(scopeBefore.type===PRACTICE_SCOPE_GROUP_V8916&&scopeBefore.value===oldGroupName&&state.banks.every(x=>x.id===bank.id||bankGroupNameV58(x)!==oldGroupName)){
+    ensurePracticeScopeV8916();
+    toast('原练习分组已无题库，已切换为当前题库。','warn');
+  }
   saveSilent();
   bankEditSessionV45=null;
   importReport='';
@@ -6528,6 +6515,9 @@ function cancelBankEditSessionV45(){
   switchViewV45('banks');
 }
 /* SHIROHA_WEB_V45_BANK_EDITOR_AND_FOCUS_NAV_END */
+
+// Initialize only after every top-level lexical binding has been created.
+init();
 
 })();
 
