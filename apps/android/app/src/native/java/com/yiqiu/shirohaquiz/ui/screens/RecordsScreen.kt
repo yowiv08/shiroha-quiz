@@ -81,7 +81,7 @@ fun RecordsScreen(
             GlassCard {
                 ActionPillButton(
                     icon = Icons.AutoMirrored.Rounded.Undo,
-                    text = "返回首页",
+                    text = "返回",
                     primary = false,
                     onClick = onBack
                 )

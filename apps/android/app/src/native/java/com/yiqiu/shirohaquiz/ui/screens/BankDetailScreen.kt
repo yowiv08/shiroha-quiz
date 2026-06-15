@@ -107,7 +107,7 @@ fun BankDetailScreen(
         if (bank == null) {
             EmptyStateIllustration(
                 title = "没有找到对应题库",
-                message = "这通常说明题库已经被切换或删除。回到首页重新选择一份题库就好。",
+                message = "这通常说明题库已经被切换或删除。返回上一页重新选择一份题库即可。",
                 imageRes = R.drawable.illus_empty_state_webp,
                 action = {
                     Spacer(Modifier.height(12.dp))
@@ -116,7 +116,7 @@ fun BankDetailScreen(
             GlassCard {
                 ActionPillButton(
                     icon = Icons.Rounded.Done,
-                    text = "返回首页",
+                    text = "返回",
                     primary = true,
                     onClick = onBack
                 )

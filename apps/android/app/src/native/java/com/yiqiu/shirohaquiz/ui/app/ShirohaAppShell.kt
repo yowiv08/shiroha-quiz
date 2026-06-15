@@ -107,7 +107,7 @@ private enum class MainTab(
     About("关于", Icons.Rounded.Settings, showInBottomBar = false)
 }
 
-private fun MainTab.systemBackTarget(): MainTab? = when (this) {
+private fun MainTab.fallbackBackTarget(): MainTab? = when (this) {
     MainTab.Home,
     MainTab.Practice,
     MainTab.Import,
@@ -115,12 +115,12 @@ private fun MainTab.systemBackTarget(): MainTab? = when (this) {
 
     MainTab.Exam,
     MainTab.BankList,
-    MainTab.QuestionSearch,
-    MainTab.BankDetail,
     MainTab.WrongBook,
     MainTab.Favorites,
     MainTab.Records -> MainTab.Home
 
+    MainTab.QuestionSearch,
+    MainTab.BankDetail -> MainTab.BankList
     MainTab.BankReview -> MainTab.BankDetail
     MainTab.RecordDetail -> MainTab.Records
     MainTab.PracticeQuickEdit -> MainTab.Practice
@@ -133,15 +133,87 @@ private fun MainTab.systemBackTarget(): MainTab? = when (this) {
     MainTab.About -> MainTab.Me
 }
 
+private data class AppRouteSnapshot(
+    val tab: MainTab,
+    val bankId: String? = null,
+    val recordId: String? = null
+)
+
+private const val ROUTE_PART_SEPARATOR = "\u001F"
+
+private fun AppRouteSnapshot.encode(): String = listOf(
+    tab.name,
+    bankId.orEmpty(),
+    recordId.orEmpty()
+).joinToString(ROUTE_PART_SEPARATOR)
+
+private fun decodeRouteSnapshot(value: String): AppRouteSnapshot? {
+    val parts = value.split(ROUTE_PART_SEPARATOR, limit = 3)
+    val tab = parts.firstOrNull()?.let { name ->
+        MainTab.entries.firstOrNull { it.name == name }
+    } ?: return null
+    return AppRouteSnapshot(
+        tab = tab,
+        bankId = parts.getOrNull(1)?.takeIf { it.isNotEmpty() },
+        recordId = parts.getOrNull(2)?.takeIf { it.isNotEmpty() }
+    )
+}
+
 @Composable
 fun ShirohaAppShell() {
     var currentTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var detailBankId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRecordId by rememberSaveable { mutableStateOf<String?>(null) }
-    val systemBackTarget = currentTab.systemBackTarget()
+    var routeBackStack by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
-    BackHandler(enabled = systemBackTarget != null) {
-        systemBackTarget?.let { currentTab = it }
+    fun currentRouteSnapshot() = AppRouteSnapshot(
+        tab = currentTab,
+        bankId = detailBankId,
+        recordId = detailRecordId
+    )
+
+    fun navigateTo(
+        target: MainTab,
+        bankId: String? = null,
+        recordId: String? = null
+    ) {
+        val targetBankId = bankId ?: detailBankId
+        val targetRecordId = recordId ?: detailRecordId
+        if (
+            currentTab == target &&
+            detailBankId == targetBankId &&
+            detailRecordId == targetRecordId
+        ) {
+            return
+        }
+        routeBackStack = routeBackStack + currentRouteSnapshot().encode()
+        detailBankId = targetBankId
+        detailRecordId = targetRecordId
+        currentTab = target
+    }
+
+    fun navigateRoot(target: MainTab) {
+        routeBackStack = emptyList()
+        currentTab = target
+    }
+
+    fun navigateBack() {
+        val previous = routeBackStack.lastOrNull()?.let(::decodeRouteSnapshot)
+        if (previous != null) {
+            routeBackStack = routeBackStack.dropLast(1)
+            detailBankId = previous.bankId
+            detailRecordId = previous.recordId
+            currentTab = previous.tab
+            return
+        }
+        currentTab.fallbackBackTarget()?.let { fallback ->
+            currentTab = fallback
+        }
+    }
+
+    val hasBackTarget = routeBackStack.isNotEmpty() || currentTab.fallbackBackTarget() != null
+    BackHandler(enabled = hasBackTarget) {
+        navigateBack()
     }
 
     Scaffold(
@@ -164,7 +236,7 @@ fun ShirohaAppShell() {
                             selected = currentTab == tab,
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                if (currentTab != tab) currentTab = tab
+                                if (currentTab != tab) navigateRoot(tab)
                             }
                         )
                     }
@@ -204,110 +276,106 @@ fun ShirohaAppShell() {
             ) { tab ->
                 when (tab) {
                     MainTab.Home -> HomeScreen(
-                        onGoImport = { currentTab = MainTab.Import },
-                        onGoPractice = { currentTab = MainTab.Practice },
-                        onGoExam = { currentTab = MainTab.Exam },
-                        onOpenBankList = { currentTab = MainTab.BankList },
+                        onGoImport = { navigateRoot(MainTab.Import) },
+                        onGoPractice = { navigateRoot(MainTab.Practice) },
+                        onGoExam = { navigateTo(MainTab.Exam) },
+                        onOpenBankList = { navigateTo(MainTab.BankList) },
                         onOpenBankDetail = { bankId ->
-                            detailBankId = bankId
-                            currentTab = MainTab.BankDetail
+                            navigateTo(MainTab.BankDetail, bankId = bankId)
                         },
-                        onOpenWrongBook = { currentTab = MainTab.WrongBook },
-                        onOpenFavorites = { currentTab = MainTab.Favorites },
-                        onOpenRecords = { currentTab = MainTab.Records }
+                        onOpenWrongBook = { navigateTo(MainTab.WrongBook) },
+                        onOpenFavorites = { navigateTo(MainTab.Favorites) },
+                        onOpenRecords = { navigateTo(MainTab.Records) }
                     )
 
                     MainTab.Practice -> PracticeScreen(
-                        onGoExam = { currentTab = MainTab.Exam },
-                        onOpenRecords = { currentTab = MainTab.Records },
-                        onOpenQuickEdit = { currentTab = MainTab.PracticeQuickEdit }
+                        onGoExam = { navigateTo(MainTab.Exam) },
+                        onOpenRecords = { navigateTo(MainTab.Records) },
+                        onOpenQuickEdit = { navigateTo(MainTab.PracticeQuickEdit) }
                     )
                     MainTab.PracticeQuickEdit -> PracticeQuickEditScreen(
-                        onBack = { currentTab = MainTab.Practice }
+                        onBack = { navigateBack() }
                     )
                     MainTab.Import -> ImportScreen(
-                        onImportSaved = { currentTab = MainTab.Home },
-                        onOpenPreference = { currentTab = MainTab.AiSettings }
+                        onImportSaved = { navigateRoot(MainTab.Home) },
+                        onOpenPreference = { navigateTo(MainTab.AiSettings) }
                     )
                     MainTab.Me -> MeScreen(
-                        onOpenRecords = { currentTab = MainTab.Records },
-                        onOpenAppearancePreference = { currentTab = MainTab.AppearancePreference },
-                        onOpenPracticePreference = { currentTab = MainTab.PracticePreference },
-                        onOpenWrongBookPreference = { currentTab = MainTab.WrongBookPreference },
-                        onOpenAiSettings = { currentTab = MainTab.AiSettings },
-                        onOpenDataManagement = { currentTab = MainTab.DataManagement },
-                        onOpenStandardFormat = { currentTab = MainTab.StandardFormat },
-                        onOpenAbout = { currentTab = MainTab.About }
+                        onOpenRecords = { navigateTo(MainTab.Records) },
+                        onOpenAppearancePreference = { navigateTo(MainTab.AppearancePreference) },
+                        onOpenPracticePreference = { navigateTo(MainTab.PracticePreference) },
+                        onOpenWrongBookPreference = { navigateTo(MainTab.WrongBookPreference) },
+                        onOpenAiSettings = { navigateTo(MainTab.AiSettings) },
+                        onOpenDataManagement = { navigateTo(MainTab.DataManagement) },
+                        onOpenStandardFormat = { navigateTo(MainTab.StandardFormat) },
+                        onOpenAbout = { navigateTo(MainTab.About) }
                     )
                     MainTab.Exam -> ExamScreen(
-                        onBackHome = { currentTab = MainTab.Home },
-                        onGoPractice = { currentTab = MainTab.Practice }
+                        onBackHome = { navigateRoot(MainTab.Home) },
+                        onGoPractice = { navigateRoot(MainTab.Practice) }
                     )
                     MainTab.BankList -> BankListScreen(
-                        onBack = { currentTab = MainTab.Home },
-                        onOpenQuestionSearch = { currentTab = MainTab.QuestionSearch },
+                        onBack = { navigateBack() },
+                        onOpenQuestionSearch = { navigateTo(MainTab.QuestionSearch) },
                         onOpenBankDetail = { bankId ->
-                            detailBankId = bankId
-                            currentTab = MainTab.BankDetail
+                            navigateTo(MainTab.BankDetail, bankId = bankId)
                         }
                     )
                     MainTab.QuestionSearch -> QuestionSearchScreen(
-                        onBack = { currentTab = MainTab.BankList },
+                        onBack = { navigateBack() },
                         onOpenBankDetail = { bankId ->
-                            detailBankId = bankId
-                            currentTab = MainTab.BankDetail
+                            navigateTo(MainTab.BankDetail, bankId = bankId)
                         }
                     )
                     MainTab.BankDetail -> BankDetailScreen(
                         bankId = detailBankId,
-                        onBack = { currentTab = MainTab.Home },
-                        onGoPractice = { currentTab = MainTab.Practice },
-                        onGoExam = { currentTab = MainTab.Exam },
-                        onOpenReview = { currentTab = MainTab.BankReview }
+                        onBack = { navigateBack() },
+                        onGoPractice = { navigateRoot(MainTab.Practice) },
+                        onGoExam = { navigateTo(MainTab.Exam) },
+                        onOpenReview = { navigateTo(MainTab.BankReview) }
                     )
                     MainTab.BankReview -> BankReviewScreen(
                         bankId = detailBankId,
-                        onBack = { currentTab = MainTab.BankDetail }
+                        onBack = { navigateBack() }
                     )
                     MainTab.WrongBook -> WrongBookScreen(
-                        onBack = { currentTab = MainTab.Home },
-                        onGoPractice = { currentTab = MainTab.Practice }
+                        onBack = { navigateBack() },
+                        onGoPractice = { navigateRoot(MainTab.Practice) }
                     )
                     MainTab.Favorites -> FavoriteScreen(
-                        onBack = { currentTab = MainTab.Home },
-                        onGoPractice = { currentTab = MainTab.Practice }
+                        onBack = { navigateBack() },
+                        onGoPractice = { navigateRoot(MainTab.Practice) }
                     )
                     MainTab.Records -> RecordsScreen(
-                        onBack = { currentTab = MainTab.Home },
+                        onBack = { navigateBack() },
                         onOpenRecord = { recordId ->
-                            detailRecordId = recordId
-                            currentTab = MainTab.RecordDetail
+                            navigateTo(MainTab.RecordDetail, recordId = recordId)
                         }
                     )
                     MainTab.RecordDetail -> RecordDetailScreen(
                         recordId = detailRecordId,
-                        onBack = { currentTab = MainTab.Records }
+                        onBack = { navigateBack() }
                     )
                     MainTab.AppearancePreference -> AppearancePreferenceScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.PracticePreference -> PracticePreferenceScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.WrongBookPreference -> WrongBookPreferenceScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.AiSettings -> AiSettingsScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.DataManagement -> DataManagementScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.StandardFormat -> StandardImportFormatScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                     MainTab.About -> AboutScreen(
-                        onBack = { currentTab = MainTab.Me }
+                        onBack = { navigateBack() }
                     )
                 }
             }
