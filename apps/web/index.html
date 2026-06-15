@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#F6F7FB" />
-  <title>Shiroha Quiz - V35：题库管理与学习体验优化版</title>
+  <title>Shiroha Quiz - V34：标准解析与局部修复版</title>
   <link rel="icon" type="image/png" href="./app-icon.png" />
   <link rel="apple-touch-icon" href="./app-icon.png" />
   <link rel="preload" as="image" href="./media/peeking.webp" />
@@ -55,8 +55,8 @@
         <div class="hero-card dashboard-home-hero">
           <div class="dashboard-home-main">
             <p class="kicker">当前版本</p>
-            <h2 id="home-version-label">V35：题库管理与学习体验优化版</h2>
-            <p class="dashboard-home-desc">题库分组、追加导入、收藏复习、练习题量与数据备份等功能已进一步完善。</p>
+            <h2 id="home-version-label">V34：标准解析与局部修复版</h2>
+            <p class="dashboard-home-desc">Web 端主体功能与布局已基本定型，常用入口、题库状态和学习数据都可以从首页快速查看。</p><div id="home-practice-scope-v8916" class="practice-scope-summary-v8916 home-practice-scope-v8916"></div>
             <div class="dashboard-action-grid" aria-label="首页快捷入口">
               <button type="button" class="dashboard-action-card blue" onclick="var n=document.querySelector('.nav[data-view=&quot;practice&quot;]');if(n)n.click();">
                 <span>开始刷题</span><small>顺序练习</small>
@@ -77,7 +77,7 @@
               <img class="hero-mascot hero-mascot-main" src="./media/splash_mascot.webp" alt="Shiroha Quiz 首页欢迎素材" />
             </div>
             <div class="dashboard-stat-grid hero-stats-app">
-              <div><b id="stat-total">0</b><span>当前题库题数</span></div>
+              <div><b id="stat-total">0</b><span>当前练习范围题数</span></div>
               <div><b id="stat-wrong">0</b><span>错题数</span></div>
               <div><b id="stat-records">0</b><span>记录数</span></div>
             </div>
@@ -165,7 +165,7 @@
 
         <details class="card import-help import-help-details"><summary>查看导入格式说明</summary>
           <h2>支持的题库格式</h2>
-          <p>支持 Word / TXT / PDF / JSON 等常见题库来源。普通文本题库会进入识别流程；从 Shiroha Quiz 导出的完整备份 JSON、题库集合 JSON 或配置文件，请到“设置/导出”页使用“导入备份 JSON”，不要当作普通题库文本解析。</p>
+          <p>支持 Word / TXT / PDF / JSON 等常见题库来源。普通文本题库会进入识别流程；从 Shiroha Quiz 导出的完整备份 JSON/ZIP、题库集合 JSON 或配置文件，请到“设置/导出”页使用“导入备份 JSON/ZIP”，不要当作普通题库文本解析。</p>
           <div class="help-grid">
             <div><b>单选题</b><code>1. 下列说法正确的是？
 A. 选项一
@@ -202,6 +202,7 @@ C. 判断题
             <div><b>题库列表与批量管理</b><span>没有题库时可先导入或新建空题库；已有题库可在这里整理、复制、合并和批量导出。</span></div>
             <img src="./media/empty_state_no_question_bank.webp" alt="空题库提示素材" />
           </div>
+          <div id="bank-practice-scope-v8916" class="bank-scope-status-v8916"></div>
           <div class="form-grid">
             <label>当前题库名称<input id="bank-rename-input" placeholder="输入新名称后点击重命名" /></label>
             <label>合并来源题库<select id="merge-bank-select"></select></label>
@@ -228,6 +229,7 @@ C. 判断题
             <div><b>选择题型和题量后开始练习</b><span>练习页保留一个学习状态素材，避免占用答题区域。</span></div>
             <img src="./media/quiz_in_progress_study.webp" alt="刷题学习素材" />
           </div>
+          <div id="practice-scope-summary-v8916" class="practice-scope-summary-v8916"></div>
           <div class="form-grid">
             <label>题型<select id="practice-type"><option value="all">全部</option><option value="single">单选</option><option value="multiple">多选</option><option value="multi">多选兼容</option><option value="judge">判断</option><option value="blank">填空</option><option value="short">简答</option></select></label>
             <label>来源<select id="practice-source"><option value="all">全部题目</option><option value="wrong">仅错题本</option><option value="favorite">仅收藏题</option></select></label>
@@ -251,6 +253,7 @@ C. 判断题
       <section id="exam" class="view">
         <div class="card" id="exam-setup">
           <div class="section-head"><div><p class="kicker">Exam</p><h2>考试设置</h2></div><div class="pill" id="exam-timer">未开始</div></div>
+          <p id="exam-bank-summary-v8916" class="muted scope-platform-note-v8916"></p>
           <div class="page-art-strip exam-art-strip">
             <div><b>配置考试参数，再开始模拟</b><span>考试模式使用思考提示素材，保持页面轻量，不遮挡试卷区域。</span></div>
             <img src="./media/thinking_state_question.webp" alt="思考提示素材" />
@@ -282,7 +285,7 @@ C. 判断题
       <section id="wrongbook" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Wrongbook</p><h2>错题整理</h2></div><button id="clear-wrong-btn" class="danger">清空错题</button></div><div class="page-art-strip wrongbook-art-strip"><div><b>错题复习与掌握状态</b><span>错题本页面使用一个复习素材，帮助区分学习场景，不额外堆叠图片。</span></div><img src="./media/wrong_question_review_clipboard.webp" alt="错题复习素材" /></div><div class="form-grid wrongbook-controls-v60"><label>掌握状态筛选<select id="wrong-status-filter"><option value="active">未掌握/复习中</option><option value="all">全部错题记录</option><option value="未掌握">未掌握</option><option value="复习中">复习中</option><option value="已掌握">已掌握</option></select></label><label>排序<select id="wrong-sort-mode"><option value="lastWrong">最近答错优先</option><option value="wrongCount">错误次数最多</option><option value="status">按掌握状态</option></select></label><label class="limit-field-v60">错题重练题量<div class="limit-control-v60"><select id="wrong-practice-limit"><option value="custom" selected>自定义</option><option value="50">50题</option><option value="100">100题</option><option value="half">一半</option><option value="all">全部</option></select><input id="wrong-practice-custom-count" type="number" value="20" min="1" inputmode="numeric" aria-label="自定义错题重练题量" /></div></label><label class="quick-action-field-v60">快捷操作<button id="practice-wrong-btn" class="primary" type="button">重练未掌握错题</button></label></div><div id="wrongbook-list" class="list"></div></div></section>
       <section id="favorites" class="view"><div class="card favorites-card-v596"><div class="section-head"><div><p class="kicker">Favorites</p><h2>收藏夹</h2></div><div class="pill" id="favorites-count-v596">0 道</div></div><div class="favorites-hero-v596"><div><b>收藏题独立复习</b><span>收藏夹已从错题本独立出来，保留当前题库的收藏题，可直接练习或取消收藏。</span></div><div class="favorites-actions-top-v596"><button id="practice-favorites-btn-v596" class="primary" type="button">练习收藏题</button><button id="clear-favorites-btn-v596" class="ghost danger" type="button">清空收藏</button></div></div><div id="favorites-list-v596" class="list favorites-list-v596"></div></div></section>
       <section id="records" class="view"><div class="card"><div class="section-head"><div><p class="kicker">Records</p><h2>记录筛选与导出</h2></div><div class="actions"><button id="export-records-btn" class="ghost">导出记录</button><button id="clear-records-btn" class="danger">清空记录</button></div></div><div class="page-art-strip records-art-strip"><div><b>查看练习与考试记录</b><span>记录页使用休息状态素材，表示阶段性回顾和复盘。</span></div><img src="./media/rest_sleep_pillow.webp" alt="休息睡眠素材" /></div><div class="form-grid"><label>记录类型<select id="record-mode-filter"><option value="all">全部</option><option value="练习">练习</option><option value="考试">考试</option></select></label><label>显示范围<select id="record-limit"><option value="30">最近30条</option><option value="100">最近100条</option><option value="all">全部</option></select></label><label>统计<button id="record-refresh-btn" class="ghost" type="button">刷新记录</button></label></div><div id="records-list" class="list"></div></div></section>
-      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免本地数据丢失</b><span>设置页只导出完整数据备份；单个题库或选中题库 JSON 请到题库管理页导出。</span></div><img src="./media/loading_waiting_hourglass.webp" alt="加载等待素材" /></div><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。设置页导出的备份包含题库、错题本、收藏夹、练习记录和设置。</p><div class="actions"><button id="export-all-btn" class="primary">导出全部数据备份</button><button id="import-backup-quick-btn-v598" class="ghost">导入备份 JSON</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.webp" alt="角色基准素材" /></details></div></section>
+      <section id="settings" class="view"><div class="card"><h2>设置与导出</h2><div class="page-art-strip settings-art-strip"><div><b>定期导出备份，避免本地数据丢失</b><span>设置页只导出完整数据备份；单个题库或选中题库 JSON 请到题库管理页导出。</span></div><img src="./media/loading_waiting_hourglass.webp" alt="加载等待素材" /></div><p>数据保存在浏览器 localStorage 中。更换浏览器或清理缓存会丢失数据，请定期导出。设置页导出的备份包含题库、错题本、收藏夹、练习记录和 Web 设置；也可直接导入原生端 ZIP 备份。</p><div class="actions"><button id="export-all-btn" class="primary">导出全部数据备份</button><button id="import-backup-quick-btn-v598" class="ghost">导入备份 JSON/ZIP</button><button id="reset-data-btn" class="danger">清除全部本地数据</button></div><textarea id="export-output" readonly placeholder="导出内容会显示在这里，也会自动下载文件。"></textarea><details class="asset-reference-details"><summary>角色基准素材预览</summary><img src="./media/mascot_character_sheet.webp" alt="角色基准素材" /></details></div></section>
     </main>
   </div>
 
