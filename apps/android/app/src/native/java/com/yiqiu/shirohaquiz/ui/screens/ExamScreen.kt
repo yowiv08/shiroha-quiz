@@ -90,7 +90,8 @@ private enum class ExamGroupMode {
 @Composable
 fun ExamScreen(
     onBackHome: () -> Unit,
-    onGoPractice: () -> Unit
+    onGoPractice: () -> Unit,
+    onOpenRecord: (String) -> Unit
 ) {
     val context = LocalContext.current
     val activeBank = QuizRepository.activeBank()
@@ -334,11 +335,9 @@ fun ExamScreen(
 
         FinishedExamPanel(
             examSummary = examSummary,
+            recordId = QuizRepository.studyRecords.firstOrNull { it.source == "考试" }?.id,
             onRestart = { QuizRepository.resetExam() },
-            onGoPractice = {
-                QuizRepository.resetExam()
-                onGoPractice()
-            },
+            onOpenRecord = onOpenRecord,
             onBackHome = {
                 QuizRepository.resetExam()
                 onBackHome()
@@ -1185,8 +1184,9 @@ private fun ConfirmSubmitExamDialog(
 @Composable
 private fun FinishedExamPanel(
     examSummary: ExamSummary,
+    recordId: String?,
     onRestart: () -> Unit,
-    onGoPractice: () -> Unit,
+    onOpenRecord: (String) -> Unit,
     onBackHome: () -> Unit
 ) {
     GlassCard {
@@ -1217,7 +1217,12 @@ private fun FinishedExamPanel(
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ActionPillButton(Icons.Rounded.RestartAlt, "再来一场", primary = true, onClick = onRestart)
-            ActionPillButton(Icons.Rounded.PlayArrow, "去练习页", primary = false, onClick = onGoPractice)
+            ActionPillButton(
+                Icons.AutoMirrored.Rounded.ListAlt,
+                "查看详情",
+                primary = false,
+                onClick = { recordId?.let(onOpenRecord) }
+            )
             ActionPillButton(Icons.Rounded.Timer, "返回首页", primary = false, onClick = onBackHome)
         }
     }

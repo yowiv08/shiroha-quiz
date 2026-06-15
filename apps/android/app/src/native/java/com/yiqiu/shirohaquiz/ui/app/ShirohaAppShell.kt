@@ -316,7 +316,10 @@ fun ShirohaAppShell() {
                     )
                     MainTab.Exam -> ExamScreen(
                         onBackHome = { navigateRoot(MainTab.Home) },
-                        onGoPractice = { navigateRoot(MainTab.Practice) }
+                        onGoPractice = { navigateRoot(MainTab.Practice) },
+                        onOpenRecord = { recordId ->
+                            navigateTo(MainTab.RecordDetail, recordId = recordId)
+                        }
                     )
                     MainTab.BankList -> BankListScreen(
                         onBack = { navigateBack() },
