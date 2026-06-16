@@ -2,6 +2,7 @@ package com.yiqiu.shirohaquiz.importer.validate
 
 import com.yiqiu.shirohaquiz.importer.assets.QuestionImageMarker
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
+import com.yiqiu.shirohaquiz.importer.model.MultiBlankSupport
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.importer.model.WarningLevel
@@ -11,6 +12,9 @@ object ImportValidator {
         val warnings = mutableListOf<ImportWarning>()
 
         questions.forEach { question ->
+            question.warnings.forEach { message ->
+                warnings += ImportWarning(WarningLevel.WARNING, question.number, message)
+            }
             if (question.question.isBlank()) {
                 warnings += ImportWarning(WarningLevel.ERROR, question.number, "题干为空")
             }
@@ -35,7 +39,25 @@ object ImportValidator {
                     if (question.answer.any { it !in listOf("A", "B") }) warnings += ImportWarning(WarningLevel.WARNING, question.number, "判断题答案不是标准对/错标记")
                 }
 
-                QuestionType.BLANK, QuestionType.SHORT -> {
+                QuestionType.BLANK -> {
+                    if (MultiBlankSupport.hasStructuredAnswers(question)) {
+                        val detectedCount = MultiBlankSupport.countExplicitBlanks(question.question)
+                        if (detectedCount > 0 && detectedCount != question.blankAnswers.size) {
+                            warnings += ImportWarning(
+                                WarningLevel.WARNING,
+                                question.number,
+                                "题干检测到${detectedCount}个题空，当前配置了${question.blankAnswers.size}组答案，请人工核对"
+                            )
+                        }
+                        if (question.blankAnswers.any { group -> group.none { it.isNotBlank() } }) {
+                            warnings += ImportWarning(WarningLevel.WARNING, question.number, "多空填空题存在未配置答案的题空")
+                        }
+                    } else if (question.answer.isEmpty()) {
+                        warnings += ImportWarning(WarningLevel.WARNING, question.number, "主观题未识别到参考答案")
+                    }
+                }
+
+                QuestionType.SHORT -> {
                     if (question.answer.isEmpty()) warnings += ImportWarning(WarningLevel.WARNING, question.number, "主观题未识别到参考答案")
                 }
             }

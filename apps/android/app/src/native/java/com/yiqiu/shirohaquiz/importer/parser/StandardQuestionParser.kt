@@ -134,15 +134,24 @@ object StandardQuestionParser {
         )
         val normalizedOptions = normalizeOptionsForType(options, type)
         val answer = normalizeAnswer(answerText, type)
+        val multiBlank = MultiBlankQuestionParser.extract(
+            stem = stem,
+            type = type,
+            options = normalizedOptions,
+            answerText = answerText,
+            normalizedAnswer = answer
+        )
 
         return Question(
             number = block.number,
             type = type,
-            question = stem,
+            question = multiBlank.questionText,
             options = normalizedOptions,
-            answer = answer,
+            answer = multiBlank.answer,
+            blankAnswers = multiBlank.blankAnswers,
             analysis = analysisLines.joinToString("\n").trim(),
-            category = block.category
+            category = block.category,
+            warnings = multiBlank.warnings
         )
     }
 

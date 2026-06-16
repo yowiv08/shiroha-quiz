@@ -92,16 +92,25 @@ object ExcelQuestionTableParser {
         )
         val normalizedOptions = normalizeOptionsForType(options, type)
         val answer = normalizeAnswer(rawAnswer, type)
+        val multiBlank = MultiBlankQuestionParser.extract(
+            stem = stem,
+            type = type,
+            options = normalizedOptions,
+            answerText = rawAnswer,
+            normalizedAnswer = answer
+        )
 
         return Question(
             number = cleanupNumber(number),
             type = type,
-            question = stem,
+            question = multiBlank.questionText,
             options = normalizedOptions,
-            answer = answer,
+            answer = multiBlank.answer,
+            blankAnswers = multiBlank.blankAnswers,
             analysis = analysis,
             category = category,
-            score = score
+            score = score,
+            warnings = multiBlank.warnings
         )
     }
 

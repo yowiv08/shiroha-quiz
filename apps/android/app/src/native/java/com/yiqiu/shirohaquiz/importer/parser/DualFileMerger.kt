@@ -1,6 +1,7 @@
 package com.yiqiu.shirohaquiz.importer.parser
 
 import com.yiqiu.shirohaquiz.importer.model.ImportWarning
+import com.yiqiu.shirohaquiz.importer.model.MultiBlankSupport
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
 import com.yiqiu.shirohaquiz.importer.model.WarningLevel
@@ -197,6 +198,26 @@ object DualFileMerger {
         entry: ParsedAnswerEntry,
         warnings: MutableList<ImportWarning>
     ): Question {
+        if (question.type == QuestionType.BLANK) {
+            val blankCount = question.blankAnswers.size.takeIf { it > 1 }
+                ?: MultiBlankSupport.countExplicitBlanks(question.question).takeIf { it > 1 }
+            if (blankCount != null && question.answer.isEmpty()) {
+                val rawAnswer = entry.answer.joinToString("；")
+                val parts = MultiBlankSupport.splitReliableParts(rawAnswer, blankCount)
+                if (parts != null) {
+                    val groups = parts.map { listOf(it) }
+                    return MultiBlankSupport.withBlankAnswers(question, groups).copy(
+                        analysis = if (question.analysis.isNotBlank()) question.analysis else entry.analysis
+                    )
+                }
+                warnings += ImportWarning(
+                    WarningLevel.WARNING,
+                    question.number,
+                    "检测到${blankCount}个题空，答案数量无法对应，请人工核对"
+                )
+            }
+        }
+
         val mergedAnswer = if (question.answer.isNotEmpty()) question.answer else normalizeAnswerForQuestion(question, entry.answer)
         val mergedType = normalizeTypeAfterMerge(question, mergedAnswer)
         if (mergedType != question.type) {
