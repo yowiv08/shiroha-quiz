@@ -15,13 +15,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dashboard
@@ -32,9 +36,13 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +59,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.yiqiu.shirohaquiz.state.QuizRepository
 import com.yiqiu.shirohaquiz.ui.screens.AboutScreen
 import com.yiqiu.shirohaquiz.ui.screens.AiSettingsScreen
 import com.yiqiu.shirohaquiz.ui.screens.BankDetailScreen
@@ -165,6 +174,7 @@ fun ShirohaAppShell() {
     var detailBankId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRecordId by rememberSaveable { mutableStateOf<String?>(null) }
     var routeBackStack by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var selectedRootTab by rememberSaveable { mutableStateOf(MainTab.Home) }
 
     fun currentRouteSnapshot() = AppRouteSnapshot(
         tab = currentTab,
@@ -195,6 +205,9 @@ fun ShirohaAppShell() {
     fun navigateRoot(target: MainTab) {
         routeBackStack = emptyList()
         currentTab = target
+        if (target.showInBottomBar) {
+            selectedRootTab = target
+        }
     }
 
     fun navigateBack() {
@@ -220,172 +233,250 @@ fun ShirohaAppShell() {
         navigateBack()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            BottomAppBar(
-                containerColor = ShirohaColors.BottomBar,
-                tonalElevation = 0.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = ShirohaDimens.BottomBarHorizontalPadding, vertical = ShirohaDimens.BottomBarVerticalPadding),
-                    horizontalArrangement = Arrangement.spacedBy(ShirohaDimens.BottomNavItemGap),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    MainTab.entries.filter { it.showInBottomBar }.forEach { tab ->
-                        ShirohaBottomNavItem(
-                            tab = tab,
-                            selected = currentTab == tab,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                if (currentTab != tab) navigateRoot(tab)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useSideNavigation = QuizRepository.tabletSideNavigationEnabled &&
+            maxWidth >= 600.dp &&
+            maxHeight >= 480.dp
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                if (!useSideNavigation) {
+                    BottomAppBar(
+                        containerColor = ShirohaColors.BottomBar,
+                        tonalElevation = 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = ShirohaDimens.BottomBarHorizontalPadding,
+                                    vertical = ShirohaDimens.BottomBarVerticalPadding
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(ShirohaDimens.BottomNavItemGap),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MainTab.entries.filter { it.showInBottomBar }.forEach { tab ->
+                                ShirohaBottomNavItem(
+                                    tab = tab,
+                                    selected = selectedRootTab == tab,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        if (currentTab != tab) navigateRoot(tab)
+                                    }
+                                )
                             }
+                        }
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                if (useSideNavigation) {
+                    ShirohaSideNavigation(
+                        selectedTab = selectedRootTab,
+                        onTabClick = { tab ->
+                            if (currentTab != tab) navigateRoot(tab)
+                        }
+                    )
+                    VerticalDivider(
+                        modifier = Modifier.fillMaxHeight(),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    ShirohaColors.BgGradientTop,
+                                    ShirohaColors.BgGradientMiddle,
+                                    ShirohaColors.BgGradientBottom
+                                )
+                            )
+                        )
+                ) {
+                    AnimatedContent(
+                    targetState = currentTab,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = {
+                        (fadeIn(
+                            animationSpec = tween(durationMillis = ShirohaMotion.PageTransitionMillis, easing = ShirohaPageEaseOut)
+                        ) + slideInVertically(
+                            animationSpec = tween(durationMillis = ShirohaMotion.PageTransitionMillis, easing = ShirohaPageEaseOut),
+                            initialOffsetY = { ShirohaMotion.PageTransitionOffsetPx }
+                        )) togetherWith fadeOut(
+                            animationSpec = tween(durationMillis = ShirohaMotion.PageFadeOutMillis)
+                        )
+                    },
+                    contentAlignment = Alignment.TopStart,
+                    label = "main_tabs"
+                ) { tab ->
+                    when (tab) {
+                        MainTab.Home -> HomeScreen(
+                            onGoImport = { navigateRoot(MainTab.Import) },
+                            onGoPractice = { navigateRoot(MainTab.Practice) },
+                            onGoExam = { navigateTo(MainTab.Exam) },
+                            onOpenBankList = { navigateTo(MainTab.BankList) },
+                            onOpenBankDetail = { bankId ->
+                                navigateTo(MainTab.BankDetail, bankId = bankId)
+                            },
+                            onOpenWrongBook = { navigateTo(MainTab.WrongBook) },
+                            onOpenFavorites = { navigateTo(MainTab.Favorites) },
+                            onOpenRecords = { navigateTo(MainTab.Records) }
+                        )
+    
+                        MainTab.Practice -> PracticeScreen(
+                            onGoExam = { navigateTo(MainTab.Exam) },
+                            onOpenRecords = { navigateTo(MainTab.Records) },
+                            onOpenQuickEdit = { navigateTo(MainTab.PracticeQuickEdit) }
+                        )
+                        MainTab.PracticeQuickEdit -> PracticeQuickEditScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.Import -> ImportScreen(
+                            onImportSaved = { navigateRoot(MainTab.Home) },
+                            onOpenPreference = { navigateTo(MainTab.AiSettings) }
+                        )
+                        MainTab.Me -> MeScreen(
+                            onOpenRecords = { navigateTo(MainTab.Records) },
+                            onOpenAppearancePreference = { navigateTo(MainTab.AppearancePreference) },
+                            onOpenPracticePreference = { navigateTo(MainTab.PracticePreference) },
+                            onOpenWrongBookPreference = { navigateTo(MainTab.WrongBookPreference) },
+                            onOpenAiSettings = { navigateTo(MainTab.AiSettings) },
+                            onOpenDataManagement = { navigateTo(MainTab.DataManagement) },
+                            onOpenStandardFormat = { navigateTo(MainTab.StandardFormat) },
+                            onOpenAbout = { navigateTo(MainTab.About) }
+                        )
+                        MainTab.Exam -> ExamScreen(
+                            onBackHome = { navigateRoot(MainTab.Home) },
+                            onGoPractice = { navigateRoot(MainTab.Practice) },
+                            onOpenRecord = { recordId ->
+                                navigateTo(MainTab.RecordDetail, recordId = recordId)
+                            }
+                        )
+                        MainTab.BankList -> BankListScreen(
+                            onBack = { navigateBack() },
+                            onOpenQuestionSearch = { navigateTo(MainTab.QuestionSearch) },
+                            onOpenBankDetail = { bankId ->
+                                navigateTo(MainTab.BankDetail, bankId = bankId)
+                            }
+                        )
+                        MainTab.QuestionSearch -> QuestionSearchScreen(
+                            onBack = { navigateBack() },
+                            onOpenBankDetail = { bankId ->
+                                navigateTo(MainTab.BankDetail, bankId = bankId)
+                            }
+                        )
+                        MainTab.BankDetail -> BankDetailScreen(
+                            bankId = detailBankId,
+                            onBack = { navigateBack() },
+                            onGoPractice = { navigateRoot(MainTab.Practice) },
+                            onGoExam = { navigateTo(MainTab.Exam) },
+                            onOpenReview = { navigateTo(MainTab.BankReview) }
+                        )
+                        MainTab.BankReview -> BankReviewScreen(
+                            bankId = detailBankId,
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.WrongBook -> WrongBookScreen(
+                            onBack = { navigateBack() },
+                            onGoPractice = { navigateRoot(MainTab.Practice) }
+                        )
+                        MainTab.Favorites -> FavoriteScreen(
+                            onBack = { navigateBack() },
+                            onGoPractice = { navigateRoot(MainTab.Practice) }
+                        )
+                        MainTab.Records -> RecordsScreen(
+                            onBack = { navigateBack() },
+                            onOpenRecord = { recordId ->
+                                navigateTo(MainTab.RecordDetail, recordId = recordId)
+                            }
+                        )
+                        MainTab.RecordDetail -> RecordDetailScreen(
+                            recordId = detailRecordId,
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.AppearancePreference -> AppearancePreferenceScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.PracticePreference -> PracticePreferenceScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.WrongBookPreference -> WrongBookPreferenceScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.AiSettings -> AiSettingsScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.DataManagement -> DataManagementScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.StandardFormat -> StandardImportFormatScreen(
+                            onBack = { navigateBack() }
+                        )
+                        MainTab.About -> AboutScreen(
+                            onBack = { navigateBack() }
                         )
                     }
                 }
             }
         }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            ShirohaColors.BgGradientTop,
-                            ShirohaColors.BgGradientMiddle,
-                            ShirohaColors.BgGradientBottom
-                        )
-                    )
-                )
-                .padding(innerPadding)
-        ) {
-            AnimatedContent(
-                targetState = currentTab,
-                modifier = Modifier.fillMaxSize(),
-                transitionSpec = {
-                    (fadeIn(
-                        animationSpec = tween(durationMillis = ShirohaMotion.PageTransitionMillis, easing = ShirohaPageEaseOut)
-                    ) + slideInVertically(
-                        animationSpec = tween(durationMillis = ShirohaMotion.PageTransitionMillis, easing = ShirohaPageEaseOut),
-                        initialOffsetY = { ShirohaMotion.PageTransitionOffsetPx }
-                    )) togetherWith fadeOut(
-                        animationSpec = tween(durationMillis = ShirohaMotion.PageFadeOutMillis)
+    }
+}
+}
+
+@Composable
+private fun ShirohaSideNavigation(
+    selectedTab: MainTab,
+    onTabClick: (MainTab) -> Unit
+) {
+    NavigationRail(
+        modifier = Modifier
+            .width(88.dp)
+            .fillMaxHeight(),
+        containerColor = ShirohaColors.BottomBar
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        MainTab.entries.filter { it.showInBottomBar }.forEach { tab ->
+            val selected = selectedTab == tab
+            NavigationRailItem(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                selected = selected,
+                onClick = { onTabClick(tab) },
+                icon = {
+                    Icon(
+                        imageVector = tab.icon,
+                        contentDescription = tab.title,
+                        modifier = Modifier.size(ShirohaDimens.BottomNavIconSize)
                     )
                 },
-                contentAlignment = Alignment.TopStart,
-                label = "main_tabs"
-            ) { tab ->
-                when (tab) {
-                    MainTab.Home -> HomeScreen(
-                        onGoImport = { navigateRoot(MainTab.Import) },
-                        onGoPractice = { navigateRoot(MainTab.Practice) },
-                        onGoExam = { navigateTo(MainTab.Exam) },
-                        onOpenBankList = { navigateTo(MainTab.BankList) },
-                        onOpenBankDetail = { bankId ->
-                            navigateTo(MainTab.BankDetail, bankId = bankId)
-                        },
-                        onOpenWrongBook = { navigateTo(MainTab.WrongBook) },
-                        onOpenFavorites = { navigateTo(MainTab.Favorites) },
-                        onOpenRecords = { navigateTo(MainTab.Records) }
+                label = {
+                    Text(
+                        text = tab.title,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-
-                    MainTab.Practice -> PracticeScreen(
-                        onGoExam = { navigateTo(MainTab.Exam) },
-                        onOpenRecords = { navigateTo(MainTab.Records) },
-                        onOpenQuickEdit = { navigateTo(MainTab.PracticeQuickEdit) }
-                    )
-                    MainTab.PracticeQuickEdit -> PracticeQuickEditScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.Import -> ImportScreen(
-                        onImportSaved = { navigateRoot(MainTab.Home) },
-                        onOpenPreference = { navigateTo(MainTab.AiSettings) }
-                    )
-                    MainTab.Me -> MeScreen(
-                        onOpenRecords = { navigateTo(MainTab.Records) },
-                        onOpenAppearancePreference = { navigateTo(MainTab.AppearancePreference) },
-                        onOpenPracticePreference = { navigateTo(MainTab.PracticePreference) },
-                        onOpenWrongBookPreference = { navigateTo(MainTab.WrongBookPreference) },
-                        onOpenAiSettings = { navigateTo(MainTab.AiSettings) },
-                        onOpenDataManagement = { navigateTo(MainTab.DataManagement) },
-                        onOpenStandardFormat = { navigateTo(MainTab.StandardFormat) },
-                        onOpenAbout = { navigateTo(MainTab.About) }
-                    )
-                    MainTab.Exam -> ExamScreen(
-                        onBackHome = { navigateRoot(MainTab.Home) },
-                        onGoPractice = { navigateRoot(MainTab.Practice) },
-                        onOpenRecord = { recordId ->
-                            navigateTo(MainTab.RecordDetail, recordId = recordId)
-                        }
-                    )
-                    MainTab.BankList -> BankListScreen(
-                        onBack = { navigateBack() },
-                        onOpenQuestionSearch = { navigateTo(MainTab.QuestionSearch) },
-                        onOpenBankDetail = { bankId ->
-                            navigateTo(MainTab.BankDetail, bankId = bankId)
-                        }
-                    )
-                    MainTab.QuestionSearch -> QuestionSearchScreen(
-                        onBack = { navigateBack() },
-                        onOpenBankDetail = { bankId ->
-                            navigateTo(MainTab.BankDetail, bankId = bankId)
-                        }
-                    )
-                    MainTab.BankDetail -> BankDetailScreen(
-                        bankId = detailBankId,
-                        onBack = { navigateBack() },
-                        onGoPractice = { navigateRoot(MainTab.Practice) },
-                        onGoExam = { navigateTo(MainTab.Exam) },
-                        onOpenReview = { navigateTo(MainTab.BankReview) }
-                    )
-                    MainTab.BankReview -> BankReviewScreen(
-                        bankId = detailBankId,
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.WrongBook -> WrongBookScreen(
-                        onBack = { navigateBack() },
-                        onGoPractice = { navigateRoot(MainTab.Practice) }
-                    )
-                    MainTab.Favorites -> FavoriteScreen(
-                        onBack = { navigateBack() },
-                        onGoPractice = { navigateRoot(MainTab.Practice) }
-                    )
-                    MainTab.Records -> RecordsScreen(
-                        onBack = { navigateBack() },
-                        onOpenRecord = { recordId ->
-                            navigateTo(MainTab.RecordDetail, recordId = recordId)
-                        }
-                    )
-                    MainTab.RecordDetail -> RecordDetailScreen(
-                        recordId = detailRecordId,
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.AppearancePreference -> AppearancePreferenceScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.PracticePreference -> PracticePreferenceScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.WrongBookPreference -> WrongBookPreferenceScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.AiSettings -> AiSettingsScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.DataManagement -> DataManagementScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.StandardFormat -> StandardImportFormatScreen(
-                        onBack = { navigateBack() }
-                    )
-                    MainTab.About -> AboutScreen(
-                        onBack = { navigateBack() }
-                    )
-                }
-            }
+                },
+                alwaysShowLabel = true,
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                    unselectedIconColor = ShirohaColors.TextSecondary,
+                    unselectedTextColor = ShirohaColors.TextSecondary
+                )
+            )
         }
     }
 }

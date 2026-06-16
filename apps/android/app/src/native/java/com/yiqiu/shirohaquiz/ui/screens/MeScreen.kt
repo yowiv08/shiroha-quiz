@@ -514,6 +514,13 @@ fun AppearancePreferenceScreen(
                     onCheckedChange = { enabled -> QuizRepository.setStartupSplashEnabled(context, enabled) }
                 )
             }
+            Spacer(Modifier.height(12.dp))
+            PreferenceSwitchRow(
+                title = "平板侧边导航",
+                desc = "开启后可在较宽屏幕上将底部导航移到左侧。",
+                checked = QuizRepository.tabletSideNavigationEnabled,
+                onCheckedChange = { enabled -> QuizRepository.setTabletSideNavigationEnabled(context, enabled) }
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "提示：部分桌面可能会缓存应用图标，切换后可能需要稍等片刻才刷新。",

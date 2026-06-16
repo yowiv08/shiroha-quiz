@@ -205,6 +205,7 @@ object QuizRepository {
     private const val KEY_STARTUP_SPLASH_ENABLED = "startup_splash_enabled"
     private const val KEY_DARK_THEME_ENABLED = "dark_theme_enabled"
     private const val KEY_SHIROHA_MODE_ENABLED = "shiroha_mode_enabled"
+    private const val KEY_TABLET_SIDE_NAVIGATION_ENABLED = "tablet_side_navigation_enabled"
     private const val KEY_QUESTION_FONT_SIZE_MODE = "question_font_size_mode"
     private const val KEY_OPTION_FONT_SIZE_MODE = "option_font_size_mode"
     private const val KEY_COMPACT_OPTIONS_ENABLED = "compact_options_enabled"
@@ -309,6 +310,8 @@ object QuizRepository {
     var darkThemeEnabled by mutableStateOf(false)
         private set
     var shirohaModeEnabled by mutableStateOf(false)
+        private set
+    var tabletSideNavigationEnabled by mutableStateOf(false)
         private set
     var questionFontSizeMode by mutableStateOf("standard")
         private set
@@ -465,6 +468,7 @@ object QuizRepository {
         startupSplashEnabled = prefs.getBoolean(KEY_STARTUP_SPLASH_ENABLED, true)
         darkThemeEnabled = prefs.getBoolean(KEY_DARK_THEME_ENABLED, false)
         shirohaModeEnabled = prefs.getBoolean(KEY_SHIROHA_MODE_ENABLED, false)
+        tabletSideNavigationEnabled = prefs.getBoolean(KEY_TABLET_SIDE_NAVIGATION_ENABLED, false)
         questionFontSizeMode = normalizeReadingSizeMode(prefs.getString(KEY_QUESTION_FONT_SIZE_MODE, "standard"))
         optionFontSizeMode = normalizeReadingSizeMode(prefs.getString(KEY_OPTION_FONT_SIZE_MODE, "standard"))
         compactOptionsEnabled = prefs.getBoolean(KEY_COMPACT_OPTIONS_ENABLED, false)
@@ -1620,6 +1624,12 @@ object QuizRepository {
         shirohaModeEnabled = enabled
         persist()
         LauncherIconSwitcher.applyShirohaMode(context, enabled)
+    }
+
+    fun setTabletSideNavigationEnabled(context: Context, enabled: Boolean) {
+        appContext = context.applicationContext
+        tabletSideNavigationEnabled = enabled
+        persist()
     }
 
     fun setQuestionFontSizeMode(context: Context, mode: String) {
@@ -3735,6 +3745,7 @@ object QuizRepository {
             .putBoolean(KEY_STARTUP_SPLASH_ENABLED, startupSplashEnabled)
             .putBoolean(KEY_DARK_THEME_ENABLED, darkThemeEnabled)
             .putBoolean(KEY_SHIROHA_MODE_ENABLED, shirohaModeEnabled)
+            .putBoolean(KEY_TABLET_SIDE_NAVIGATION_ENABLED, tabletSideNavigationEnabled)
             .putString(KEY_QUESTION_FONT_SIZE_MODE, questionFontSizeMode)
             .putString(KEY_OPTION_FONT_SIZE_MODE, optionFontSizeMode)
             .putBoolean(KEY_COMPACT_OPTIONS_ENABLED, compactOptionsEnabled)
