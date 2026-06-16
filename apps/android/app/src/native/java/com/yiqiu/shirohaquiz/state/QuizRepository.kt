@@ -22,6 +22,7 @@ import java.io.File
 import java.text.Normalizer
 import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -206,6 +207,8 @@ object QuizRepository {
     private const val KEY_DARK_THEME_ENABLED = "dark_theme_enabled"
     private const val KEY_SHIROHA_MODE_ENABLED = "shiroha_mode_enabled"
     private const val KEY_TABLET_SIDE_NAVIGATION_ENABLED = "tablet_side_navigation_enabled"
+    private const val KEY_QUESTION_ID_INTEGRITY_MIGRATION_VERSION = "question_id_integrity_migration_version"
+    private const val QUESTION_ID_INTEGRITY_MIGRATION_VERSION = 1
     private const val KEY_QUESTION_FONT_SIZE_MODE = "question_font_size_mode"
     private const val KEY_OPTION_FONT_SIZE_MODE = "option_font_size_mode"
     private const val KEY_COMPACT_OPTIONS_ENABLED = "compact_options_enabled"
@@ -388,6 +391,8 @@ object QuizRepository {
         appContext = context.applicationContext
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val needsQuestionIdIntegrityMigration =
+            prefs.getInt(KEY_QUESTION_ID_INTEGRITY_MIGRATION_VERSION, 0) < QUESTION_ID_INTEGRITY_MIGRATION_VERSION
         val banksJson = prefs.getString(KEY_BANKS, null)
         val restoredBanks = runCatching { parseBanksJson(banksJson) }.getOrDefault(emptyList())
         val restoredWrongBook = runCatching {
@@ -413,9 +418,49 @@ object QuizRepository {
         studyRecords.clear()
         practiceSequentialProgress.clear()
 
-        val sanitizedRestoredBanks = restoredBanks
-            .map(::sanitizeBank)
-            .filterNot { bank -> bank.id == "demo-bank" || (bank.name == "示例题库" && bank.questions.isEmpty()) }
+        val restoredBankRepairs = if (needsQuestionIdIntegrityMigration) {
+            restoredBanks
+                .map(::sanitizeBankWithQuestionIdRepair)
+                .filterNot { result ->
+                    val bank = result.bank
+                    bank.id == "demo-bank" || (bank.name == "示例题库" && bank.questions.isEmpty())
+                }
+        } else {
+            emptyList()
+        }
+        val sanitizedRestoredBanks = if (needsQuestionIdIntegrityMigration) {
+            restoredBankRepairs.map { it.bank }
+        } else {
+            restoredBanks
+                .map(::sanitizeBankWithoutQuestionIdRepair)
+                .filterNot { bank ->
+                    bank.id == "demo-bank" || (bank.name == "示例题库" && bank.questions.isEmpty())
+                }
+        }
+        val restoredRepairByBankId = restoredBankRepairs
+            .filter { it.idChanged }
+            .associateBy { it.bank.id }
+        val hasQuestionIdRepairs = restoredRepairByBankId.isNotEmpty()
+        val migratedWrongBook = if (hasQuestionIdRepairs) {
+            migrateWrongEntriesForQuestionIdRepair(restoredWrongBook, restoredRepairByBankId)
+        } else {
+            restoredWrongBook
+        }
+        val migratedSlashedQuestions = if (hasQuestionIdRepairs) {
+            migrateSlashedEntriesForQuestionIdRepair(restoredSlashedQuestions, restoredRepairByBankId)
+        } else {
+            restoredSlashedQuestions
+        }
+        val migratedFavoriteQuestions = if (hasQuestionIdRepairs) {
+            migrateFavoriteEntriesForQuestionIdRepair(restoredFavoriteQuestions, restoredRepairByBankId)
+        } else {
+            restoredFavoriteQuestions
+        }
+        val migratedStudyRecords = if (hasQuestionIdRepairs) {
+            migrateStudyRecordsForQuestionIdRepair(restoredStudyRecords, restoredRepairByBankId)
+        } else {
+            restoredStudyRecords
+        }
         banks.addAll(sanitizedRestoredBanks)
         activeBankId = prefs.getString(KEY_ACTIVE_BANK_ID, sanitizedRestoredBanks.firstOrNull()?.id)
             ?.takeIf { id -> sanitizedRestoredBanks.any { it.id == id } }
@@ -486,12 +531,24 @@ object QuizRepository {
         aiTimeoutSeconds = prefs.getInt(KEY_AI_TIMEOUT_SECONDS, 60).coerceIn(15, 180)
         aiRefactorMaxChars = prefs.getInt(KEY_AI_REFACTOR_MAX_CHARS, 30000).coerceIn(5000, 80000)
 
-        wrongBook.addAll(restoredWrongBook.map(::sanitizeWrongEntry))
-        slashedQuestions.addAll(sanitizeSlashedEntries(restoredSlashedQuestions, sanitizedRestoredBanks))
-        favoriteQuestions.addAll(sanitizeFavoriteEntries(restoredFavoriteQuestions, sanitizedRestoredBanks))
+        wrongBook.addAll(migratedWrongBook.map(::sanitizeWrongEntry))
+        slashedQuestions.addAll(sanitizeSlashedEntries(migratedSlashedQuestions, sanitizedRestoredBanks))
+        favoriteQuestions.addAll(sanitizeFavoriteEntries(migratedFavoriteQuestions, sanitizedRestoredBanks))
         practiceSequentialProgress.putAll(sanitizeSequentialProgress(restoredSequentialProgress, sanitizedRestoredBanks))
-        studyRecords.addAll(restoredStudyRecords)
-        if (sanitizedRestoredBanks != restoredBanks) persist()
+        studyRecords.addAll(migratedStudyRecords)
+        val questionIdIntegrityChanged = needsQuestionIdIntegrityMigration && (
+            restoredBankRepairs.any { it.idChanged } ||
+                migratedWrongBook != restoredWrongBook ||
+                migratedSlashedQuestions != restoredSlashedQuestions ||
+                migratedFavoriteQuestions != restoredFavoriteQuestions ||
+                migratedStudyRecords != restoredStudyRecords
+            )
+        if (sanitizedRestoredBanks != restoredBanks || questionIdIntegrityChanged) persist()
+        if (needsQuestionIdIntegrityMigration) {
+            prefs.edit()
+                .putInt(KEY_QUESTION_ID_INTEGRITY_MIGRATION_VERSION, QUESTION_ID_INTEGRITY_MIGRATION_VERSION)
+                .apply()
+        }
     }
 
     fun importBank(
@@ -504,13 +561,15 @@ object QuizRepository {
         val cleanGroupName = normalizeBankGroupName(groupName)
         val cleanName = uniqueBankNameInGroup(name.trim().ifBlank { "导入题库" }, cleanGroupName)
         val importedAssetDir = File(context.filesDir, "question_assets/import_json_${System.currentTimeMillis()}").apply { mkdirs() }
-        val bank = QuizBank(
-            id = "bank_${System.currentTimeMillis()}",
-            name = cleanName,
-            questions = questions
-                .map { question -> normalizeImportedQuestionAssets(question, emptyMap(), importedAssetDir) }
-                .map(::sanitizeQuestion),
-            groupName = cleanGroupName
+        val bank = sanitizeBank(
+            QuizBank(
+                id = "bank_${System.currentTimeMillis()}",
+                name = cleanName,
+                questions = questions.map { question ->
+                    normalizeImportedQuestionAssets(question, emptyMap(), importedAssetDir)
+                },
+                groupName = cleanGroupName
+            )
         )
         banks += bank
         activeBankId = bank.id
@@ -527,9 +586,13 @@ object QuizRepository {
         if (bankIndex < 0) return false
         val bank = banks[bankIndex]
         val importedAssetDir = File(context.filesDir, "question_assets/import_json_${System.currentTimeMillis()}").apply { mkdirs() }
-        val appendedQuestions = bank.questions + newQuestions
-            .map { question -> normalizeImportedQuestionAssets(question, emptyMap(), importedAssetDir) }
-            .map(::sanitizeQuestion)
+        val appendedQuestions = sanitizeBank(
+            bank.copy(
+                questions = bank.questions + newQuestions.map { question ->
+                    normalizeImportedQuestionAssets(question, emptyMap(), importedAssetDir)
+                }
+            )
+        ).questions
         banks[bankIndex] = bank.copy(questions = appendedQuestions)
         if (activeBankId == bankId) {
             resetPracticeState()
@@ -686,7 +749,7 @@ object QuizRepository {
         if (bankIndex < 0) return false
 
         val bank = banks[bankIndex]
-        val cleanQuestions = questions.map(::sanitizeQuestion)
+        val cleanQuestions = sanitizeBank(bank.copy(questions = questions)).questions
         banks[bankIndex] = bank.copy(questions = cleanQuestions)
 
         val questionById = cleanQuestions.associateBy { it.id }
@@ -2506,9 +2569,11 @@ object QuizRepository {
         val preview = runCatching { parseStandaloneJsonPreview(text) }
             .getOrElse { return "导入失败：题库数据无法解析。" }
             ?: return "导入失败：备份中没有可用题库。"
-        val importedBanks = preview.banks
+        val importedBankRepairs = preview.banks
             .map { bank -> normalizeImportedBankAssets(bank, zipAssets, assetDir) }
-            .map(::sanitizeBank)
+            .map(::sanitizeBankWithQuestionIdRepair)
+        val importedBanks = importedBankRepairs.map { it.bank }
+        val importedRepairByBankId = importedBankRepairs.associateBy { it.bank.id }
         if (importedBanks.isEmpty()) return "导入失败：备份中没有可用题库。"
 
         val isWebBackup = isWebBackupJson(root)
@@ -2557,7 +2622,12 @@ object QuizRepository {
                     for (k in 0 until entries.length()) {
                         val entry = entries.optJSONObject(k) ?: continue
                         val qid = entry.optString("id")
-                        val question = mappedBank.questions.firstOrNull { it.id == qid } ?: continue
+                        val repair = importedRepairByBankId[originalBankId]
+                        val repairedQuestion = resolveRepairedQuestionByLegacyId(qid, repair)
+                        val question = repairedQuestion
+                            ?.let { repaired -> mappedBank.questions.firstOrNull { it.id == repaired.id } }
+                            ?: mappedBank.questions.firstOrNull { it.id == qid }
+                            ?: continue
                         importedWrongBook.add(
                             WrongQuestionEntry(
                                 bankId = mappedBankId,
@@ -2595,7 +2665,12 @@ object QuizRepository {
                     val qids = webFavoritesObj.optJSONArray(originalBankId) ?: continue
                     for (k in 0 until qids.length()) {
                         val qid = qids.optString(k)
-                        val question = mappedBank.questions.firstOrNull { it.id == qid } ?: continue
+                        val repair = importedRepairByBankId[originalBankId]
+                        val repairedQuestion = resolveRepairedQuestionByLegacyId(qid, repair)
+                        val question = repairedQuestion
+                            ?.let { repaired -> mappedBank.questions.firstOrNull { it.id == repaired.id } }
+                            ?: mappedBank.questions.firstOrNull { it.id == qid }
+                            ?: continue
                         importedFavorites.add(FavoriteQuestionEntry(question = question, bankId = mappedBankId, bankName = mappedBank.name, favoritedAt = System.currentTimeMillis()))
                     }
                 }
@@ -2618,7 +2693,14 @@ object QuizRepository {
                                 val detail = details.optJSONObject(d) ?: continue
                                 val nestedQuestion = detail.optJSONObject("question")?.let { runCatching { parseQuestion(it) }.getOrNull() }
                                 val questionId = detail.optString("questionId")
-                                val resolvedQuestion = nestedQuestion
+                                val repair = importedRepairByBankId[originalBankId]
+                                val resolvedQuestion = nestedQuestion?.let { reference ->
+                                    resolveRepairedQuestion(reference, repair)
+                                        ?.let { repaired -> mappedBank?.questions?.firstOrNull { it.id == repaired.id } }
+                                        ?: reference
+                                }
+                                    ?: resolveRepairedQuestionByLegacyId(questionId, repair)
+                                        ?.let { repaired -> mappedBank?.questions?.firstOrNull { it.id == repaired.id } }
                                     ?: mappedBank?.questions?.firstOrNull { it.id == questionId }
                                     ?: Question(
                                         id = questionId.ifBlank { "record_question_${k}_$d" },
@@ -2709,7 +2791,11 @@ object QuizRepository {
             val mappedBankId = idMap[entry.bankId] ?: return@mapNotNull null
             val mappedBank = addedBanks.firstOrNull { it.id == mappedBankId }
             val mappedBankName = mappedBank?.name ?: entry.bankName
-            val mappedQuestion = mappedBank?.questions?.firstOrNull { it.id == entry.question.id }
+            val originalBankId = entry.bankId
+            val repair = importedRepairByBankId[originalBankId]
+            val mappedQuestion = resolveRepairedQuestion(entry.question, repair)
+                ?.let { repaired -> mappedBank?.questions?.firstOrNull { it.id == repaired.id } }
+                ?: mappedBank?.questions?.firstOrNull { it.id == entry.question.id }
                 ?: normalizeImportedQuestionAssets(entry.question, zipAssets, assetDir)
             sanitizeWrongEntry(
                 entry.copy(
@@ -2728,7 +2814,11 @@ object QuizRepository {
             val mappedBankId = idMap[entry.bankId] ?: return@mapNotNull null
             val mappedBank = addedBanks.firstOrNull { it.id == mappedBankId }
             val mappedBankName = mappedBank?.name ?: entry.bankName
-            val mappedQuestion = mappedBank?.questions?.firstOrNull { it.id == entry.question.id }
+            val originalBankId = entry.bankId
+            val repair = importedRepairByBankId[originalBankId]
+            val mappedQuestion = resolveRepairedQuestion(entry.question, repair)
+                ?.let { repaired -> mappedBank?.questions?.firstOrNull { it.id == repaired.id } }
+                ?: mappedBank?.questions?.firstOrNull { it.id == entry.question.id }
                 ?: normalizeImportedQuestionAssets(entry.question, zipAssets, assetDir)
             sanitizeFavoriteEntry(
                 entry.copy(
@@ -2754,7 +2844,11 @@ object QuizRepository {
                     val mappedSourceBankId = result.sourceBankId?.let { originalId -> idMap[originalId] ?: originalId }
                         ?: mappedBankId
                     val mappedSourceBank = mappedSourceBankId?.let { id -> addedBanks.firstOrNull { it.id == id } }
-                    val mappedQuestion = mappedSourceBank?.questions?.firstOrNull { it.id == result.question.id }
+                    val originalSourceBankId = result.sourceBankId ?: record.bankId
+                    val repair = originalSourceBankId?.let { importedRepairByBankId[it] }
+                    val mappedQuestion = resolveRepairedQuestion(result.question, repair)
+                        ?.let { repaired -> mappedSourceBank?.questions?.firstOrNull { it.id == repaired.id } }
+                        ?: mappedSourceBank?.questions?.firstOrNull { it.id == result.question.id }
                         ?: normalizeImportedQuestionAssets(result.question, zipAssets, assetDir)
                     result.copy(
                         question = mappedQuestion,
@@ -3126,12 +3220,199 @@ object QuizRepository {
 
     fun practiceCorrectCount(): Int = practiceAnswerResults.values.count { it.autoScored && it.correct }
 
+    private data class QuestionIdRepair(
+        val original: Question,
+        val repaired: Question
+    )
+
+    private data class BankQuestionIdRepair(
+        val bank: QuizBank,
+        val repairs: List<QuestionIdRepair>,
+        val affectedLegacyIds: Set<String>,
+        val idChanged: Boolean
+    )
+
     private fun sanitizeBank(bank: QuizBank): QuizBank {
+        return sanitizeBankWithQuestionIdRepair(bank).bank
+    }
+
+    private fun sanitizeBankWithoutQuestionIdRepair(bank: QuizBank): QuizBank {
         return bank.copy(
             name = bank.name.ifBlank { "未命名题库" },
             groupName = normalizeBankGroupName(bank.groupName),
             questions = bank.questions.map(::sanitizeQuestion)
         )
+    }
+
+    private fun sanitizeBankWithQuestionIdRepair(bank: QuizBank): BankQuestionIdRepair {
+        val cleanQuestions = bank.questions.map(::sanitizeQuestion)
+        val idCounts = cleanQuestions.groupingBy { it.id }.eachCount()
+        val affectedLegacyIds = idCounts
+            .filter { (id, count) -> id.isBlank() || count > 1 }
+            .keys
+        val usedIds = mutableSetOf<String>()
+        val repairs = bank.questions.zip(cleanQuestions).map { (originalQuestion, cleanQuestion) ->
+            val repairedId = if (cleanQuestion.id.isNotBlank() && usedIds.add(cleanQuestion.id)) {
+                cleanQuestion.id
+            } else {
+                generateUniqueQuestionId(usedIds)
+            }
+            val repairedQuestion = if (repairedId == cleanQuestion.id) cleanQuestion else cleanQuestion.copy(id = repairedId)
+            QuestionIdRepair(
+                original = originalQuestion,
+                repaired = repairedQuestion
+            )
+        }
+        val repairedBank = bank.copy(
+            name = bank.name.ifBlank { "未命名题库" },
+            groupName = normalizeBankGroupName(bank.groupName),
+            questions = repairs.map { it.repaired }
+        )
+        return BankQuestionIdRepair(
+            bank = repairedBank,
+            repairs = repairs,
+            affectedLegacyIds = affectedLegacyIds,
+            idChanged = affectedLegacyIds.isNotEmpty()
+        )
+    }
+
+    private fun generateUniqueQuestionId(usedIds: MutableSet<String>): String {
+        while (true) {
+            val candidate = UUID.randomUUID().toString()
+            if (usedIds.add(candidate)) return candidate
+        }
+    }
+
+    private fun questionMigrationFingerprint(question: Question): String {
+        fun normalize(value: String): String {
+            return Normalizer.normalize(value, Normalizer.Form.NFKC)
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+                .lowercase(Locale.ROOT)
+        }
+        return listOf(
+            normalize(question.number),
+            question.type.name,
+            normalize(question.question),
+            question.options.joinToString("|") { option -> "${normalize(option.key)}:${normalize(option.text)}" },
+            question.answer.joinToString("|") { normalize(it) },
+            question.blankAnswers.joinToString("||") { answers -> answers.joinToString("|") { normalize(it) } },
+            normalize(question.category),
+            question.images.sortedBy { it.order }.joinToString("|") { image ->
+                listOf(image.order.toString(), normalize(image.sourceName), image.width.orEmptyText(), image.height.orEmptyText())
+                    .joinToString(":")
+            }
+        ).joinToString("#")
+    }
+
+    private fun Int?.orEmptyText(): String = this?.toString().orEmpty()
+
+    private fun resolveRepairedQuestion(
+        reference: Question,
+        repair: BankQuestionIdRepair?
+    ): Question? {
+        if (repair == null) return null
+        if (reference.id.isNotBlank() && reference.id !in repair.affectedLegacyIds) return null
+        val sameLegacyId = repair.repairs.filter { item -> item.original.id == reference.id }
+        val candidates = sameLegacyId.ifEmpty { repair.repairs }
+        val fingerprint = questionMigrationFingerprint(reference)
+        val exactMatches = candidates.filter { item -> questionMigrationFingerprint(item.original) == fingerprint }
+        if (exactMatches.isNotEmpty()) return exactMatches.first().repaired
+
+        val normalizedStem = Normalizer.normalize(reference.question, Normalizer.Form.NFKC).trim()
+        if (normalizedStem.isNotBlank()) {
+            val stemMatches = candidates.filter { item ->
+                item.original.type == reference.type &&
+                    Normalizer.normalize(item.original.question, Normalizer.Form.NFKC).trim() == normalizedStem
+            }
+            if (stemMatches.size == 1) return stemMatches.single().repaired
+        }
+
+        if (reference.number.isNotBlank()) {
+            val numberMatches = candidates.filter { item ->
+                item.original.type == reference.type && item.original.number.trim() == reference.number.trim()
+            }
+            if (numberMatches.size == 1) return numberMatches.single().repaired
+        }
+
+        if (reference.id.isNotBlank()) {
+            repair.repairs.firstOrNull { item -> item.repaired.id == reference.id }?.let { return it.repaired }
+            if (sameLegacyId.isNotEmpty()) return sameLegacyId.first().repaired
+        }
+        return null
+    }
+
+    private fun resolveRepairedQuestionByLegacyId(
+        legacyId: String,
+        repair: BankQuestionIdRepair?
+    ): Question? {
+        if (repair == null || legacyId !in repair.affectedLegacyIds) return null
+        return repair.repairs.firstOrNull { item -> item.original.id == legacyId }?.repaired
+    }
+
+    private fun migrateWrongEntriesForQuestionIdRepair(
+        entries: List<WrongQuestionEntry>,
+        repairsByBankId: Map<String, BankQuestionIdRepair>
+    ): List<WrongQuestionEntry> {
+        return entries.map { entry ->
+            val repair = repairsByBankId[entry.bankId] ?: return@map entry
+            val repairedQuestion = resolveRepairedQuestion(entry.question, repair) ?: return@map entry
+            entry.copy(
+                bankName = repair.bank.name,
+                question = repairedQuestion
+            )
+        }
+    }
+
+    private fun migrateFavoriteEntriesForQuestionIdRepair(
+        entries: List<FavoriteQuestionEntry>,
+        repairsByBankId: Map<String, BankQuestionIdRepair>
+    ): List<FavoriteQuestionEntry> {
+        return entries.map { entry ->
+            val repair = repairsByBankId[entry.bankId] ?: return@map entry
+            val repairedQuestion = resolveRepairedQuestion(entry.question, repair) ?: return@map entry
+            entry.copy(
+                bankName = repair.bank.name,
+                question = repairedQuestion
+            )
+        }
+    }
+
+    private fun migrateStudyRecordsForQuestionIdRepair(
+        records: List<StudyRecord>,
+        repairsByBankId: Map<String, BankQuestionIdRepair>
+    ): List<StudyRecord> {
+        return records.map recordLoop@ { record ->
+            val migratedResults = record.questionResults.map resultLoop@ { result ->
+                val sourceBankId = result.sourceBankId ?: record.bankId
+                val repair = sourceBankId?.let { repairsByBankId[it] } ?: return@resultLoop result
+                val repairedQuestion = resolveRepairedQuestion(result.question, repair) ?: return@resultLoop result
+                result.copy(
+                    question = repairedQuestion,
+                    sourceBankId = result.sourceBankId ?: repair.bank.id,
+                    sourceBankName = result.sourceBankName?.takeIf { it.isNotBlank() } ?: repair.bank.name
+                )
+            }
+            if (migratedResults == record.questionResults) record else record.copy(questionResults = migratedResults)
+        }
+    }
+
+    private fun migrateSlashedEntriesForQuestionIdRepair(
+        entries: List<SlashedQuestionEntry>,
+        repairsByBankId: Map<String, BankQuestionIdRepair>
+    ): List<SlashedQuestionEntry> {
+        return entries.map { entry ->
+            val repair = repairsByBankId[entry.bankId] ?: return@map entry
+            val candidates = repair.repairs.filter { item ->
+                item.original.id in repair.affectedLegacyIds && questionKey(item.original) == entry.questionKey
+            }
+            val repairedQuestion = when {
+                candidates.size == 1 -> candidates.single().repaired
+                candidates.isNotEmpty() && candidates.first().repaired.id == entry.questionKey -> candidates.first().repaired
+                else -> null
+            } ?: return@map entry
+            entry.copy(questionKey = repairedQuestion.id)
+        }
     }
 
     private fun sanitizeWrongEntry(entry: WrongQuestionEntry): WrongQuestionEntry {
