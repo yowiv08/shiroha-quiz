@@ -417,6 +417,14 @@ function explicitBlankCountV58914(value){return (String(value||'').match(/（\s*
 /* SHIROHA_WEB_V58_9_10_SOURCE_INTERVAL_LOCAL_REPAIR */
 // v58.9.10：导入阶段内部原文定位元数据。使用 Symbol 避免写入题库 JSON/备份包。
 const SOURCE_META_V58910=Symbol('shiroha_source_meta_v58_9_10');
+const RECRUITMENT_OPTIONS_V58915=Symbol('shiroha_recruitment_options_v58_9_15');
+function getRecruitmentOptionsV58915(q){return q&&q[RECRUITMENT_OPTIONS_V58915]||null}
+function attachRecruitmentOptionsV58915(q,options){
+  if(!q||!Array.isArray(options)||options.length<2)return q;
+  const value=options.map(o=>({key:normalizeOptionKey(o.key),text:String(o.text||'').trim()})).filter(o=>o.text);
+  try{Object.defineProperty(q,RECRUITMENT_OPTIONS_V58915,{value,writable:true,configurable:true,enumerable:true});}catch(_){q[RECRUITMENT_OPTIONS_V58915]=value}
+  return q;
+}
 function getSourceMetaV58910(q){return q&&q[SOURCE_META_V58910]||null}
 function attachSourceMetaV58910(q,meta){
   if(!q||!meta)return q;
@@ -424,6 +432,7 @@ function attachSourceMetaV58910(q,meta){
   return q;
 }
 function normalizeQuestion(q,i=0){
+  const recruitmentOptionsV58915=getRecruitmentOptionsV58915(q);
   let type=normalizeType(q.type||q.questionType||q.kind||'');
   let rawAnswer=q.answer??q.answerKeys??q.correctAnswer??q.correct??q.rightAnswer??q.referenceAnswer??q.standardAnswer??[];
   const blankAnswersV58914=normalizeBlankAnswersV58914(q.blankAnswers);
@@ -497,6 +506,11 @@ function normalizeQuestion(q,i=0){
   }
   const normalizedQuestion={id:q.id||makeId('q',i),type,number:q.number||i+1,volume:q.volume||'',group:q.group||'',question:questionText,options,answer,analysis:analysisText,category:q.category||q.topic||q.group||'',images:structuredImages,score:Number(q.score||0)||undefined,subject:q.subject||'',grade:q.grade||'',difficulty:q.difficulty||'',knowledgePoints:Array.isArray(q.knowledgePoints)?q.knowledgePoints:[],tags:Array.isArray(q.tags)?q.tags:[],source:q.source||'',sourceFileId:q.sourceFileId||'',version:Number(q.version||1)||1,reviewStatus:q.reviewStatus||'approved',aiConfidence:q.aiConfidence==null?null:Number(q.aiConfidence),warnings:Array.isArray(q.warnings)?q.warnings:[],normalized:normalizeText(questionText)};
   if(Array.isArray(q.blankAnswers))normalizedQuestion.blankAnswers=cloneBlankAnswersV58914(blankAnswersV58914);
+  if(Array.isArray(recruitmentOptionsV58915)&&recruitmentOptionsV58915.length>=2){
+    normalizedQuestion.options=recruitmentOptionsV58915.map(o=>({key:normalizeOptionKey(o.key),text:String(o.text||'').trim()})).filter(o=>o.text);
+    normalizedQuestion.answer=normalizeAnswer(normalizedQuestion.answer,normalizedQuestion.options,normalizedQuestion.type);
+    attachRecruitmentOptionsV58915(normalizedQuestion,normalizedQuestion.options);
+  }
   const sourceMeta=getSourceMetaV58910(q);
   if(sourceMeta)attachSourceMetaV58910(normalizedQuestion,sourceMeta);
   return normalizedQuestion;
@@ -2984,6 +2998,17 @@ function extractInlineAnswerFromRecruitmentSegment(seg){
   m=s.match(/(?:答案|正确答案|参考答案)\s*[:：]?\s*([A-G]{1,7})/i);if(m)return m[1].toUpperCase().split('');
   return [];
 }
+function splitRecruitmentInlineAnalysisV58915(seg){
+  const lines=String(seg||'').split('\n');
+  let cut=-1;
+  for(let i=1;i<lines.length;i++){
+    if(/^(?:分析|解析|答|答案|详解|说明|解题思路|思路(?:一|二|三)?)\s*[:：]/.test(String(lines[i]||'').trim())){cut=i;break;}
+  }
+  if(cut<0)return {body:String(seg||'').trim(),analysis:''};
+  const body=lines.slice(0,cut).join('\n').trim();
+  if(!/(?:^|\n)\s*A\s*[.．、]/i.test(body))return {body:String(seg||'').trim(),analysis:''};
+  return {body,analysis:lines.slice(cut).join('\n').trim()};
+}
 function recruitmentGroupToType(group){
   if(/多选|多项/.test(group))return 'multiple';
   if(/判断题|判断正误|是非/.test(group))return 'judge';
@@ -3056,7 +3081,8 @@ function makeRecruitmentQuestion(seg,ctx,idx,restore){
   raw=stripTrailingRecruitmentNextMaterial(raw);
   let ans=(ctx.answer||[]).map(a=>String(a).toUpperCase());
   const inline=extractInlineAnswerFromRecruitmentSegment(raw);if(!ans.length&&inline.length)ans=inline;
-  raw=raw.replace(/(?:答\s*[:：]?\s*)?选\s*[A-G]\s*[，,。；;]?/ig,'').trim();
+  const inlineAnalysisV58915=splitRecruitmentInlineAnalysisV58915(raw);
+  raw=inlineAnalysisV58915.body.replace(/(?:答\s*[:：]?\s*)?选\s*[A-G]\s*[，,。；;]?/ig,'').trim();
   const split=splitRecruitmentOptions(raw);
   let question=split.question||raw;
   let options=mergeDuplicateOptions(repairRecruitmentEmbeddedOptions(split.options||[]));
@@ -3070,7 +3096,9 @@ function makeRecruitmentQuestion(seg,ctx,idx,restore){
   const group=ctx.group||'';
   let type=recruitmentGroupToType(group);
   if(ans.length>1)type='multiple';
-  const q={id:makeId('imp',idx),type,number:num,question,options,answer:ans,analysis:ctx.analysis||'',group,category:group};
+  const q={id:makeId('imp',idx),type,number:num,question,options,answer:ans,analysis:ctx.analysis||inlineAnalysisV58915.analysis||'',group,category:group};
+  // 专用真题解析已经按明确 A-D 边界拆好选项，使用内部标记避免后续多次规范化把“A等/B等、A队/B队”等正文再次拆坏。
+  attachRecruitmentOptionsV58915(q,options);
   return normalizeQuestion(q,idx);
 }
 function parseRecruitmentQuestionPart(qText,answerMap={},analysisMap={},group='',restore=(x)=>x){
@@ -3197,6 +3225,28 @@ function scoreRecruitmentImageCandidate(qs,profile){
   score+=img*180+answered*60+arr.length*20;
   const expected=(profile&&profile.expectedByHeadings)||0;if(expected)score-=Math.min(500,Math.abs(arr.length-expected)*20);
   return score+1600;
+}
+
+function recruitmentFallbackStatsV58915(questions){
+  const arr=questions||[];
+  const warnings=collectImportWarnings(arr);
+  const hard=warnings.filter(w=>!/缺少答案|缺少参考答案|多选题只有一个答案/.test(w)).length;
+  const answered=arr.filter(q=>(q.answer||[]).length).length;
+  const objective=arr.filter(q=>['single','multiple','judge'].includes(q.type)).length;
+  return {count:arr.length,answered,answerRate:arr.length?answered/arr.length:0,objective,hard};
+}
+function isHighConfidenceRecruitmentFallbackV58915(questions){
+  const st=recruitmentFallbackStatsV58915(questions);
+  return st.count>=40&&st.answerRate>=0.9&&st.objective>=Math.floor(st.count*0.9)&&st.hard<=Math.max(1,Math.floor(st.count*0.01));
+}
+function recruitmentFallbackClearlyBetterV58915(fallbackQuestions,mainlineQuestions){
+  if(!isHighConfidenceRecruitmentFallbackV58915(fallbackQuestions))return false;
+  const next=recruitmentFallbackStatsV58915(fallbackQuestions);
+  const current=recruitmentFallbackStatsV58915(mainlineQuestions);
+  const answerGain=next.answered-current.answered;
+  if(answerGain>=Math.max(5,Math.ceil(next.count*0.08)))return true;
+  if(current.hard-next.hard>=3)return true;
+  return next.count<current.count&&next.answered===next.count&&current.hard>next.hard&&(current.count-next.count)<=Math.ceil(next.count*0.25);
 }
 
 function repairDocxTablePromptSplitQuestions(questions){
@@ -3540,10 +3590,11 @@ function parseTextQuestions(text,strategy='auto'){
     }
 
     const mainlineEval=mainlineBest.eval||evaluateCandidate(mainlineBest);
-    const needWholeDocumentFallback=standardMainlineSeverelyFailedV599(mainlineBest,mainlineEval,profile);
+    const preferRecruitmentFallbackV58915=imageWholeQuestions.length&&recruitmentFallbackClearlyBetterV58915(imageWholeQuestions,mainlineBest.questions||[]);
+    const needWholeDocumentFallback=preferRecruitmentFallbackV58915||standardMainlineSeverelyFailedV599(mainlineBest,mainlineEval,profile);
     autoBest=mainlineBest;
 
-    // 只有标准主线整体严重失效，才允许复杂解析器生成整卷候选。
+    // 只有标准主线整体严重失效，或专用真题解析结果高置信度且明显更完整时，才允许复杂解析器生成整卷候选。
     if(needWholeDocumentFallback){
       if(profile.hasAnswerAnalysisSection||hasAnswerAnalysisSignal(original)){
         try{
@@ -3559,7 +3610,9 @@ function parseTextQuestions(text,strategy='auto'){
         .map(c=>({...c,eval:evaluateCandidate(c)}))
         .sort(fallbackComparator);
       const fallbackBest=fallbackCandidates[0];
-      if(fallbackBest){
+      const recruitmentBest=preferRecruitmentFallbackV58915?fallbackCandidates.find(c=>c.name==='整卷兜底：图片真题 + 后置答案'):null;
+      if(recruitmentBest)autoBest=recruitmentBest;
+      else if(fallbackBest){
         const fallbackGood=fallbackBest.eval.qtyOk&&fallbackBest.eval.typeOk&&fallbackBest.eval.hardCount<mainlineEval.hardCount;
         const mainlineEmpty=!(mainlineBest.questions||[]).length;
         if(mainlineEmpty||fallbackGood)autoBest=fallbackBest;
