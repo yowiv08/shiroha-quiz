@@ -404,7 +404,10 @@ function isMultiBlankQuestionV58914(question){
 function normalizeBlankTextV58914(value){
   let text=String(value??'');
   try{text=text.normalize('NFKC')}catch(_){}
-  return text.trim().replace(/[\s\u3000]+/g,'').toLowerCase();
+  text=text.replace(/[，；：（）。！？]/g,char=>({
+    '，':',','；':';','：':':','（':'(','）':')','。':'.','！':'!','？':'?'
+  })[char]||char);
+  return text.trim().replace(/[\s\u3000]+/g,'').toLowerCase().replace(/^[.,;:!?，。；：！？、]+|[.,;:!?，。；：！？、]+$/g,'');
 }
 function primaryBlankAnswerV58914(groups){return normalizeBlankAnswersV58914(groups).map(group=>group[0]||'').join('；')}
 function cloneBlankAnswersV58914(groups){return normalizeBlankAnswersV58914(groups).map(group=>[...group])}
