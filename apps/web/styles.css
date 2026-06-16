@@ -7441,6 +7441,9 @@ body.practice-focus.practice-rail-collapsed-v34 #practice-card > .practice-side-
 
 
 /* SHIROHA_WEB_V58_9_14_MULTI_BLANK_SYNC_START */
+#edit-answer-single-wrap-v58914.hidden,
+#edit-multi-blank-wrap-v58914.hidden,
+#edit-enable-multi-blank-btn-v58914.hidden{display:none!important}
 .multi-blank-answer-list-v58914{display:grid;gap:12px}
 .multi-blank-answer-item-v58914{display:grid;grid-template-columns:minmax(58px,auto) minmax(0,1fr);gap:10px;align-items:center}
 .multi-blank-answer-item-v58914>span{font-weight:700;color:var(--text-soft,#526071)}
