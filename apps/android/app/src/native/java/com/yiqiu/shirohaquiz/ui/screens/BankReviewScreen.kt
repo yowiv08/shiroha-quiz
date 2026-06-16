@@ -3,6 +3,7 @@ package com.yiqiu.shirohaquiz.ui.screens
 import androidx.compose.foundation.BorderStroke
 import com.yiqiu.shirohaquiz.ui.components.shirohaNoRippleClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.RemoveCircle
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -108,6 +111,7 @@ fun BankReviewScreen(
     var showRemoveImagesConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
     var showDeleteLastOptionConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
     var showDeleteQuestionConfirm by rememberSaveable(bank.id) { mutableStateOf(false) }
+    var showInsertQuestionMenu by rememberSaveable(bank.id) { mutableStateOf(false) }
     val filter = bankReviewFilterFromName(filterName)
 
     val allIndices = editableQuestions.indices.toList()
@@ -251,6 +255,25 @@ fun BankReviewScreen(
                 bankQuestionMatchesFilter(editableQuestions[index], BankReviewFilter.ANOMALY)
             }
 
+            fun insertQuestion(position: InsertQuestionPosition) {
+                val anchorIndex = editableQuestions.indexOfFirst { item -> item.id == question.id }
+                if (anchorIndex < 0) return
+
+                val newQuestion = newQuestionFromAnchor(question)
+                val insertIndex = when (position) {
+                    InsertQuestionPosition.BEFORE -> anchorIndex
+                    InsertQuestionPosition.AFTER -> anchorIndex + 1
+                }
+                editableQuestions.add(insertIndex, newQuestion)
+
+                if (!bankQuestionMatchesFilter(newQuestion, filter) || !bankQuestionMatchesQuery(newQuestion, searchText)) {
+                    filterName = BankReviewFilter.ALL.name
+                    query = ""
+                }
+                currentIndex = insertIndex
+                showInsertQuestionMenu = false
+            }
+
             GlassCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -366,11 +389,38 @@ fun BankReviewScreen(
             }
 
             GlassCard {
-                Text(
-                    text = "题目内容",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "题目内容",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Box {
+                        ReviewCompactButton(
+                            icon = Icons.Rounded.Add,
+                            text = "插入新题",
+                            onClick = { showInsertQuestionMenu = true }
+                        )
+                        DropdownMenu(
+                            expanded = showInsertQuestionMenu,
+                            onDismissRequest = { showInsertQuestionMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("在当前题前插入") },
+                                onClick = { insertQuestion(InsertQuestionPosition.BEFORE) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("在当前题后插入") },
+                                onClick = { insertQuestion(InsertQuestionPosition.AFTER) }
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -626,6 +676,20 @@ private enum class BankReviewFilter {
     NO_ANSWER,
     IMAGE,
     HARD_ERROR
+}
+
+private enum class InsertQuestionPosition {
+    BEFORE,
+    AFTER
+}
+
+private fun newQuestionFromAnchor(anchor: Question): Question {
+    return Question(
+        type = anchor.type,
+        question = "",
+        category = anchor.category,
+        score = anchor.score
+    )
 }
 
 private fun bankReviewFilterFromName(name: String): BankReviewFilter {

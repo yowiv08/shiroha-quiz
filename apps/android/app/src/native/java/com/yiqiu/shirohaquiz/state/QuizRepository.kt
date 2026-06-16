@@ -19,6 +19,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.text.Normalizer
 import java.util.Calendar
 import java.util.Locale
 import java.util.zip.ZipEntry
@@ -3336,7 +3337,7 @@ object QuizRepository {
     }
 
     private fun normalizeBlankAnswer(value: String): String {
-        val compactAnswer = value
+        val compactAnswer = Normalizer.normalize(value, Normalizer.Form.NFKC)
             .trim()
             .lowercase(Locale.ROOT)
             .replace('，', ',')
