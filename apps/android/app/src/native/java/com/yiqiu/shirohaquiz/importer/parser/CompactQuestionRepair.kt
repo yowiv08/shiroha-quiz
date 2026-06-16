@@ -220,7 +220,10 @@ object CompactQuestionRepair {
     private fun isCandidateBoundaryAllowed(line: String, marker: OptionMarker): Boolean {
         if (marker.markerStart == 0) return true
         val previous = line.getOrNull(marker.markerStart - 1) ?: return true
-        if (previous.isDigit() || previous == '_') return false
+        if (previous == '_') return false
+        // DOCX/OCR 常见为 “A.182B.242C.36 D.72”。数字后的大写 B/C/D
+        // 只能作为从 A 开始的连续选项组后续标记参与校验，不能单独触发修复。
+        if (previous.isDigit()) return marker.key.isUpperCase()
 
         val keyIsLowercase = marker.key.isLowerCase()
         if (keyIsLowercase && isAsciiLetter(previous)) return false

@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.importer.parser
 
+import com.yiqiu.shirohaquiz.importer.assets.QuestionImageMarker
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
@@ -20,7 +21,7 @@ object StandardQuestionParser {
     )
     private val blankKeywords = Regex("""(填空|填入|补全|补充完整|空白处|空白|空格|横线|横线上|括号内|括号里|_{2,}|[\(（]\s*[\)）])""")
     private val solutionChoiceRegex = Regex(
-        """^\s*(?:(?:本题)?(?:答案|正确答案|参考答案|标准答案|正确选项)\s*(?:为|是)|(?:本题)?(?:应选|故选))\s*($objectiveAnswerValuePattern)\b[.。,:：，、;；]?\s*(.*)$""",
+        """^\s*(?:(?:本题)?(?:答案|正确答案|参考答案|标准答案|正确选项)\s*(?:为|是)|(?:本题)?(?:应选|故选)|(?:分析|解析)\s*[:：]\s*(?:应选|故选|选))\s*($objectiveAnswerValuePattern)\b[.。,:：，、;；]?\s*(.*)$""",
         RegexOption.IGNORE_CASE
     )
     private val subjectiveAnswerLineRegex = Regex(
@@ -109,10 +110,12 @@ object StandardQuestionParser {
         }
 
         if (options.isEmpty()) {
-            inferPlainOptionLines(stemLines, forcedType, answerText)?.let { inferred ->
+            val inferred = inferImageOptionLabelLine(stemLines, forcedType)
+                ?: inferPlainOptionLines(stemLines, forcedType, answerText)
+            inferred?.let {
                 stemLines.clear()
-                stemLines += inferred.stem
-                options += inferred.options
+                stemLines += it.stem
+                options += it.options
             }
         }
 
@@ -269,6 +272,46 @@ object StandardQuestionParser {
             options += Option(marker.key, text)
         }
         return true
+    }
+
+    private fun inferImageOptionLabelLine(
+        stemLines: List<String>,
+        forcedType: QuestionType?
+    ): InferredPlainOptions? {
+        if (forcedType == QuestionType.BLANK || forcedType == QuestionType.SHORT || forcedType == QuestionType.JUDGE) {
+            return null
+        }
+        if (stemLines.none(QuestionImageMarker::contains)) return null
+
+        val labelIndex = stemLines.indexOfLast { line ->
+            parseSequentialImageOptionKeys(line) != null
+        }
+        if (labelIndex < 0) return null
+
+        val keys = parseSequentialImageOptionKeys(stemLines[labelIndex]) ?: return null
+        val remainingStem = stemLines.filterIndexed { index, _ -> index != labelIndex }
+        val plainStem = remainingStem
+            .filterNot(QuestionImageMarker::contains)
+            .joinToString(" ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        if (!looksLikeChoiceStemNeedingOptions(plainStem)) return null
+
+        return InferredPlainOptions(
+            stem = remainingStem,
+            options = keys.map { key -> Option(key, "图中选项$key") }
+        )
+    }
+
+    private fun parseSequentialImageOptionKeys(line: String): List<String>? {
+        val tokens = line.trim()
+            .split(Regex("""\s+"""))
+            .map { it.trim().uppercase() }
+            .filter { it.isNotBlank() }
+        if (tokens.size !in 2..7) return null
+        if (tokens.any { !Regex("""^[A-G]$""").matches(it) }) return null
+        val expected = ('A'..'G').take(tokens.size).map { it.toString() }
+        return tokens.takeIf { it == expected }
     }
 
     private fun inferPlainOptionLines(

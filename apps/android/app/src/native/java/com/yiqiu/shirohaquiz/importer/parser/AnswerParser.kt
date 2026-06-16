@@ -71,6 +71,7 @@ object AnswerTokenParser {
             .trim('[', ']', '【', '】', '(', ')', '（', '）')
             .replace(Regex("""^\s*(?:本题)?(?:$ANSWER_LABEL_PATTERN)(?:$ANSWER_SEPARATOR_PATTERN)?"""), "")
             .replace(Regex("""^\s*(?:应选|故选)\s*""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""^\s*选\s*(?=[A-Ga-g](?:\b|[.、．:：)）;；,，]))"""), "")
             .trim()
             .trim('[', ']', '【', '】', '(', ')', '（', '）')
             .trim()

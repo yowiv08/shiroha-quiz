@@ -95,7 +95,7 @@ object FullPaperFallbackStrategy {
         val orderedQuestions = mutableListOf<Question>()
         chunks.forEach { chunk ->
             if (chunk is PaperChunk.Questions) {
-                val parsed = StandardQuestionParser.parse(
+                val parsed = QuestionParser.parseStandardFirst(
                     text = preprocessQuestionSegment(chunk.segment.text),
                     forcedType = null,
                     category = chunk.segment.category,
@@ -299,13 +299,23 @@ object FullPaperFallbackStrategy {
         val scopedQuestions = assignImplicitSectionCategoriesForFullPaper(questions)
         return scopedQuestions.map { question ->
             val objectiveAnswer = question.answer.filter { Regex("""^[A-G]$""").matches(it) }
+            val imageChoiceWithoutTextOptions = question.options.isEmpty() &&
+                QuestionImageMarker.contains(question.question) &&
+                objectiveAnswer.isNotEmpty()
+            val normalizedOptions = if (imageChoiceWithoutTextOptions) {
+                ('A'..'D').map { key ->
+                    com.yiqiu.shirohaquiz.importer.model.Option(key.toString(), "图中选项$key")
+                }
+            } else {
+                question.options
+            }
             val normalizedType = when {
-                question.options.size >= 2 && objectiveAnswer.size > 1 -> QuestionType.MULTIPLE
-                question.options.size >= 2 && objectiveAnswer.size == 1 && question.type != QuestionType.JUDGE -> QuestionType.SINGLE
+                normalizedOptions.size >= 2 && objectiveAnswer.size > 1 -> QuestionType.MULTIPLE
+                normalizedOptions.size >= 2 && objectiveAnswer.size == 1 && question.type != QuestionType.JUDGE -> QuestionType.SINGLE
                 else -> question.type
             }
             val category = enrichMaterialHint(question.category, question.question)
-            question.copy(type = normalizedType, category = category)
+            question.copy(type = normalizedType, options = normalizedOptions, category = category)
         }
     }
 
