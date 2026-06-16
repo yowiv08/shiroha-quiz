@@ -53,7 +53,13 @@ object QuestionSearchEngine {
                 val fieldTexts = mapOf(
                     QuestionSearchMatchedField.Question to question.question,
                     QuestionSearchMatchedField.Options to question.options.joinToString(" ") { "${it.key} ${it.text}" },
-                    QuestionSearchMatchedField.Answer to question.answer.joinToString(" "),
+                    QuestionSearchMatchedField.Answer to buildString {
+                        append(question.answer.joinToString(" "))
+                        if (question.blankAnswers.isNotEmpty()) {
+                            append(' ')
+                            append(question.blankAnswers.flatten().joinToString(" "))
+                        }
+                    },
                     QuestionSearchMatchedField.Analysis to question.analysis
                 )
                 val normalizedFields = fieldTexts.mapValues { (_, value) -> normalizeForSearch(value) }

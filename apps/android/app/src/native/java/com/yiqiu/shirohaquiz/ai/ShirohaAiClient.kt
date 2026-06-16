@@ -1,5 +1,6 @@
 package com.yiqiu.shirohaquiz.ai
 
+import com.yiqiu.shirohaquiz.importer.model.MultiBlankSupport
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionType
@@ -308,6 +309,8 @@ object ShirohaAiClient {
 
             val answers = JSONArray()
             question.answer.forEach { answers.put(it) }
+            val blankAnswers = JSONArray()
+            question.blankAnswers.forEach { group -> blankAnswers.put(JSONArray(group)) }
 
             array.put(
                 JSONObject()
@@ -318,6 +321,7 @@ object ShirohaAiClient {
                     .put("question", question.question)
                     .put("options", options)
                     .put("answer", answers)
+                    .put("blankAnswers", blankAnswers)
                     .put("analysis", question.analysis)
                     .put("category", question.category)
             )
@@ -439,20 +443,53 @@ object ShirohaAiClient {
                 val text = option.optString("text").trim()
                 if (key.isBlank() && text.isBlank()) null else Option(key, text)
             }
-            val answerJson = item.optJSONArray("answer")
-            val answers = if (answerJson != null) {
-                (0 until answerJson.length()).map { answerJson.optString(it).trim().uppercase() }.filter { it.isNotBlank() }
+            val type = parseQuestionType(item.optString("type"))
+            val blankAnswersJson = item.optJSONArray("blankAnswers")
+            val blankAnswers = if (blankAnswersJson != null) {
+                (0 until blankAnswersJson.length()).map { blankIndex ->
+                    val group = blankAnswersJson.optJSONArray(blankIndex)
+                    if (group != null) {
+                        (0 until group.length())
+                            .map { answerIndex -> group.optString(answerIndex).trim() }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .take(3)
+                    } else {
+                        blankAnswersJson.optString(blankIndex).trim()
+                            .takeIf { it.isNotBlank() }
+                            ?.let(::listOf)
+                            .orEmpty()
+                    }
+                }
             } else {
-                item.optString("answer").split(Regex("[,，、\\s]+"))
-                    .map { it.trim().uppercase() }
+                emptyList()
+            }
+            val answerJson = item.optJSONArray("answer")
+            val rawAnswers = if (answerJson != null) {
+                (0 until answerJson.length())
+                    .map { answerJson.optString(it).trim() }
                     .filter { it.isNotBlank() }
+            } else {
+                val raw = item.optString("answer").trim()
+                when (type) {
+                    QuestionType.BLANK, QuestionType.SHORT -> raw.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty()
+                    else -> raw.split(Regex("[,，、\\s]+"))
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                }
+            }
+            val answers = when {
+                type == QuestionType.BLANK && blankAnswers.isNotEmpty() -> MultiBlankSupport.compatibilityAnswer(blankAnswers)
+                type == QuestionType.BLANK || type == QuestionType.SHORT -> rawAnswers
+                else -> rawAnswers.map { it.uppercase() }
             }
             Question(
                 number = item.optString("number", (index + 1).toString()).trim().ifBlank { (index + 1).toString() },
-                type = parseQuestionType(item.optString("type")),
+                type = type,
                 question = questionText,
                 options = options,
                 answer = answers,
+                blankAnswers = if (type == QuestionType.BLANK) blankAnswers else emptyList(),
                 analysis = item.optString("analysis").trim(),
                 category = item.optString("category").trim()
             )
@@ -567,6 +604,7 @@ object ShirohaAiClient {
                         .put("question", "题干")
                         .put("options", JSONArray().put(JSONObject().put("key", "A").put("text", "选项文本")))
                         .put("answer", JSONArray().put("A"))
+                        .put("blankAnswers", JSONArray().put(JSONArray().put("第1空主答案").put("第1空备选答案")))
                         .put("analysis", "解析；没有可靠来源时可为空")
                         .put("category", "分区或来源；没有可为空")
                 )

@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.yiqiu.shirohaquiz.importer.model.MultiBlankSupport
 import com.yiqiu.shirohaquiz.importer.model.Option
 import com.yiqiu.shirohaquiz.importer.model.Question
 import com.yiqiu.shirohaquiz.importer.model.QuestionImage
@@ -97,6 +98,7 @@ data class WrongBookSmartReviewSummary(
 data class StudyQuestionResult(
     val question: Question,
     val userAnswer: List<String>,
+    val userBlankAnswers: List<String> = emptyList(),
     val correct: Boolean,
     val answerText: String,
     val earnedScore: Double? = null,
@@ -135,6 +137,7 @@ data class StudyRecord(
 data class QuestionCheckResult(
     val question: Question,
     val userAnswer: List<String>,
+    val userBlankAnswers: List<String> = emptyList(),
     val correct: Boolean,
     val answerText: String,
     val autoScored: Boolean = true
@@ -1394,14 +1397,28 @@ object QuizRepository {
         updateCurrentPracticeAnswer(listOf(text))
     }
 
+    fun updatePracticeBlankAnswer(index: Int, text: String) {
+        val question = currentPracticeQuestion() ?: return
+        if (!MultiBlankSupport.hasStructuredAnswers(question)) return
+        val count = question.blankAnswers.size
+        if (index !in 0 until count) return
+        val next = MultiBlankSupport.padUserAnswers(selectedAnswer, count).toMutableList()
+        next[index] = text
+        updateCurrentPracticeAnswer(next)
+    }
+
     private fun updateCurrentPracticeAnswer(answer: List<String>) {
-        selectedAnswer = answer
+        val question = currentPracticeQuestion()
+        val normalizedAnswer = if (question != null && MultiBlankSupport.hasStructuredAnswers(question)) {
+            MultiBlankSupport.padUserAnswers(answer, question.blankAnswers.size)
+        } else {
+            answer.map { it.trim() }.filter { it.isNotBlank() }
+        }
+        selectedAnswer = normalizedAnswer
         if (practiceMode == PRACTICE_MODE_BATCH && !practiceBatchSubmitted) {
-            val question = currentPracticeQuestion()
             val sessionKey = currentPracticeSessionKey()
             if (question != null && sessionKey != null) {
-                val normalizedAnswer = answer.map { it.trim() }.filter { it.isNotBlank() }
-                if (normalizedAnswer.isEmpty()) {
+                if (normalizedAnswer.none { it.isNotBlank() }) {
                     practiceDraftAnswers.remove(sessionKey)
                 } else {
                     practiceDraftAnswers[sessionKey] = normalizedAnswer
@@ -1737,6 +1754,7 @@ object QuizRepository {
         practiceAnswerResults[sessionKey] = StudyQuestionResult(
             question = question,
             userAnswer = result.userAnswer,
+            userBlankAnswers = result.userBlankAnswers,
             correct = result.correct,
             answerText = result.answerText,
             autoScored = result.autoScored,
@@ -1770,6 +1788,7 @@ object QuizRepository {
             practiceAnswerResults[sessionKey] = StudyQuestionResult(
                 question = question,
                 userAnswer = result.userAnswer,
+                userBlankAnswers = result.userBlankAnswers,
                 correct = result.correct,
                 answerText = result.answerText,
                 autoScored = result.autoScored,
@@ -1794,9 +1813,19 @@ object QuizRepository {
         return true
     }
 
+    fun isPracticeDraftAnswered(index: Int): Boolean {
+        val question = practiceQuestions.getOrNull(index) ?: return false
+        val sessionKey = practiceSessionKeyAt(index) ?: return false
+        return MultiBlankSupport.isUserAnswerComplete(question, practiceDraftAnswers[sessionKey].orEmpty())
+    }
+
+    fun practiceResultCorrectAt(index: Int): Boolean? {
+        return practiceSessionKeyAt(index)?.let { key -> practiceAnswerResults[key]?.correct }
+    }
+
     fun practiceDraftAnsweredCount(): Int {
         val indexes = if (practiceMode == PRACTICE_MODE_BATCH) practiceCurrentBatchIndexes() else practiceQuestions.indices.toList()
-        return indexes.count { index -> practiceSessionKeyAt(index)?.let { practiceDraftAnswers[it]?.isNotEmpty() == true } == true }
+        return indexes.count(::isPracticeDraftAnswered)
     }
 
     fun practiceCurrentBatchSubmittedCount(): Int {
@@ -2014,6 +2043,20 @@ object QuizRepository {
         }
     }
 
+    fun updateExamBlankAnswer(index: Int, text: String) {
+        val question = currentExamQuestion() ?: return
+        if (!MultiBlankSupport.hasStructuredAnswers(question)) return
+        val count = question.blankAnswers.size
+        if (index !in 0 until count) return
+        val next = MultiBlankSupport.padUserAnswers(examAnswers[question.id].orEmpty(), count).toMutableList()
+        next[index] = text
+        if (next.none { it.isNotBlank() }) {
+            examAnswers.remove(question.id)
+        } else {
+            examAnswers[question.id] = next
+        }
+    }
+
     fun submitExam(autoSubmitted: Boolean = false) {
         if (examQuestions.isEmpty() || examFinished) return
         examFinished = true
@@ -2029,7 +2072,8 @@ object QuizRepository {
             val maxScore = scoreForExamQuestion(question)
             StudyQuestionResult(
                 question = question,
-                userAnswer = userAnswer,
+                userAnswer = result.userAnswer,
+                userBlankAnswers = result.userBlankAnswers,
                 correct = result.correct,
                 answerText = result.answerText,
                 earnedScore = if (result.autoScored) { if (result.correct) maxScore else 0.0 } else null,
@@ -2086,7 +2130,11 @@ object QuizRepository {
         }
     }
 
-    fun examAnsweredCount(): Int = examQuestions.count { examAnswers[it.id].orEmpty().isNotEmpty() }
+    fun isExamQuestionAnswered(question: Question): Boolean {
+        return MultiBlankSupport.isUserAnswerComplete(question, examAnswers[question.id].orEmpty())
+    }
+
+    fun examAnsweredCount(): Int = examQuestions.count(::isExamQuestionAnswered)
 
     fun examCorrectCount(): Int = examQuestions.count { question ->
         val result = evaluateQuestion(question, examAnswers[question.id].orEmpty())
@@ -2568,6 +2616,7 @@ object QuizRepository {
                                         answer = detail.optJSONArray("answer")?.let { arr ->
                                             buildList { for (i in 0 until arr.length()) add(arr.optString(i)) }
                                         }.orEmpty(),
+                                        blankAnswers = parseNestedStringArray(detail.optJSONArray("blankAnswers")),
                                         category = detail.optString("category")
                                     )
                                 val chosen = detail.optJSONArray("chosen")?.let { arr ->
@@ -2580,8 +2629,15 @@ object QuizRepository {
                                     StudyQuestionResult(
                                         question = resolvedQuestion,
                                         userAnswer = chosen,
+                                        userBlankAnswers = parseOrderedStringArray(detail.optJSONArray("userBlankAnswers")).ifEmpty {
+                                            if (MultiBlankSupport.hasStructuredAnswers(resolvedQuestion)) chosen else emptyList()
+                                        },
                                         correct = detail.optBoolean("correct"),
-                                        answerText = referenceAnswer.joinToString(" / "),
+                                        answerText = if (MultiBlankSupport.hasStructuredAnswers(resolvedQuestion)) {
+                                            MultiBlankSupport.expectedAnswerText(resolvedQuestion.blankAnswers)
+                                        } else {
+                                            referenceAnswer.joinToString(" / ")
+                                        },
                                         earnedScore = if (detail.has("score") && !detail.isNull("score")) detail.optDouble("score") else null,
                                         maxScore = if (detail.has("fullScore") && !detail.isNull("fullScore")) detail.optDouble("fullScore") else null,
                                         autoScored = true,
@@ -3031,6 +3087,7 @@ object QuizRepository {
                 QuestionCheckResult(
                     question = question,
                     userAnswer = result.userAnswer,
+                    userBlankAnswers = result.userBlankAnswers,
                     correct = result.correct,
                     answerText = result.answerText,
                     autoScored = result.autoScored
@@ -3143,14 +3200,16 @@ object QuizRepository {
                 question.type.name,
                 question.question.trim(),
                 question.options.joinToString("|") { option -> "${option.key}:${option.text}" },
-                question.answer.joinToString("|")
+                question.answer.joinToString("|"),
+                question.blankAnswers.joinToString("||") { it.joinToString("|") }
             ).joinToString("#").lowercase(Locale.ROOT)
         }
     }
 
     private fun sanitizeQuestion(question: Question): Question {
-        val cleanQuestion = stripEmbeddedAnswerBracket(question.question, question.answer)
-        return if (cleanQuestion == question.question) question else question.copy(question = cleanQuestion)
+        val blankSanitized = MultiBlankSupport.sanitizeQuestion(question)
+        val cleanQuestion = stripEmbeddedAnswerBracket(blankSanitized.question, blankSanitized.answer)
+        return if (cleanQuestion == blankSanitized.question) blankSanitized else blankSanitized.copy(question = cleanQuestion)
     }
 
     private fun stripEmbeddedAnswerBracket(stem: String, answer: List<String>): String {
@@ -3196,22 +3255,39 @@ object QuizRepository {
     )
 
     private fun evaluateQuestion(question: Question, userAnswer: List<String>): QuestionCheckResult {
-        val answerText = question.answer.joinToString(" / ").ifBlank { "未识别答案" }
-        val normalizedUserAnswer = userAnswer.map { it.trim() }.filter { it.isNotBlank() }
+        val structuredBlank = MultiBlankSupport.hasStructuredAnswers(question)
+        val normalizedUserAnswer = if (structuredBlank) {
+            MultiBlankSupport.padUserAnswers(userAnswer, question.blankAnswers.size)
+        } else {
+            userAnswer.map { it.trim() }.filter { it.isNotBlank() }
+        }
+        val answerText = if (structuredBlank) {
+            MultiBlankSupport.expectedAnswerText(question.blankAnswers)
+        } else {
+            question.answer.joinToString(" / ").ifBlank { "未识别答案" }
+        }
         val correct = when (question.type) {
             QuestionType.SINGLE,
             QuestionType.MULTIPLE,
             QuestionType.JUDGE -> normalizedUserAnswer.sorted() == question.answer.sorted() && normalizedUserAnswer.isNotEmpty()
-            QuestionType.BLANK -> isBlankAnswerCorrect(
-                userAnswer = normalizedUserAnswer.joinToString(" "),
-                acceptedAnswers = question.answer
-            )
+            QuestionType.BLANK -> if (structuredBlank) {
+                isStructuredBlankAnswerCorrect(
+                    userAnswers = normalizedUserAnswer,
+                    acceptedAnswers = question.blankAnswers
+                )
+            } else {
+                isBlankAnswerCorrect(
+                    userAnswer = normalizedUserAnswer.joinToString(" "),
+                    acceptedAnswers = question.answer
+                )
+            }
             QuestionType.SHORT -> false
         }
 
         return QuestionCheckResult(
             question = question,
             userAnswer = normalizedUserAnswer,
+            userBlankAnswers = if (structuredBlank) normalizedUserAnswer else emptyList(),
             correct = correct,
             answerText = answerText,
             autoScored = isAutoScoredQuestionType(question.type)
@@ -3223,6 +3299,22 @@ object QuizRepository {
             type == QuestionType.MULTIPLE ||
             type == QuestionType.JUDGE ||
             type == QuestionType.BLANK
+    }
+
+
+    private fun isStructuredBlankAnswerCorrect(
+        userAnswers: List<String>,
+        acceptedAnswers: List<List<String>>
+    ): Boolean {
+        if (acceptedAnswers.isEmpty() || userAnswers.size != acceptedAnswers.size) return false
+        return acceptedAnswers.indices.all { index ->
+            val user = normalizeBlankAnswer(userAnswers[index])
+            if (user.isBlank()) return@all false
+            acceptedAnswers[index]
+                .map(::normalizeBlankAnswer)
+                .filter { it.isNotBlank() }
+                .any { it == user }
+        }
     }
 
     private fun isBlankAnswerCorrect(userAnswer: String, acceptedAnswers: List<String>): Boolean {
@@ -3764,6 +3856,9 @@ object QuizRepository {
             val item = JSONObject()
             item.put("question", questionToJson(result.question, assetMapping))
             item.put("userAnswer", JSONArray(result.userAnswer))
+            if (result.userBlankAnswers.isNotEmpty() || MultiBlankSupport.hasStructuredAnswers(result.question)) {
+                item.put("userBlankAnswers", JSONArray(result.userBlankAnswers))
+            }
             item.put("correct", result.correct)
             item.put("answerText", result.answerText)
             item.put("earnedScore", result.earnedScore)
@@ -3944,10 +4039,15 @@ object QuizRepository {
                         add(userAnswerArray.optString(index))
                     }
                 }
+                val question = parseQuestion(questionJson)
+                val userBlankAnswers = parseOrderedStringArray(item.optJSONArray("userBlankAnswers")).ifEmpty {
+                    if (MultiBlankSupport.hasStructuredAnswers(question)) userAnswer else emptyList()
+                }
                 add(
                     StudyQuestionResult(
-                        question = parseQuestion(questionJson),
+                        question = question,
                         userAnswer = userAnswer,
+                        userBlankAnswers = userBlankAnswers,
                         correct = item.optBoolean("correct"),
                         answerText = item.optString("answerText"),
                         earnedScore = if (item.has("earnedScore") && !item.isNull("earnedScore")) item.optDouble("earnedScore") else null,
@@ -4087,6 +4187,7 @@ object QuizRepository {
                 question = questionJson.optString("question"),
                 options = options,
                 answer = answers,
+                blankAnswers = parseNestedStringArray(questionJson.optJSONArray("blankAnswers")),
                 analysis = questionJson.optString("analysis"),
                 category = listOf(
                     questionJson.optString("category"),
@@ -4133,6 +4234,34 @@ object QuizRepository {
         }
     }
 
+    private fun parseOrderedStringArray(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                add(array.optString(i))
+            }
+        }
+    }
+
+    private fun parseNestedStringArray(array: JSONArray?): List<List<String>> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                val inner = array.optJSONArray(i)
+                if (inner != null) {
+                    add(buildList {
+                        for (j in 0 until inner.length()) {
+                            add(inner.optString(j))
+                        }
+                    })
+                } else {
+                    val value = array.optString(i)
+                    add(if (value.isBlank()) emptyList() else listOf(value))
+                }
+            }
+        }
+    }
+
     private fun questionsToJsonArray(questions: List<Question>, assetMapping: MutableMap<String, BackupAsset>? = null): JSONArray {
         val questionsArray = JSONArray()
         questions.forEach { question ->
@@ -4163,6 +4292,13 @@ object QuizRepository {
         val answersArray = JSONArray()
         question.answer.forEach { answersArray.put(it) }
         questionJson.put("answer", answersArray)
+        if (question.blankAnswers.isNotEmpty()) {
+            val blankAnswersArray = JSONArray()
+            question.blankAnswers.forEach { answers ->
+                blankAnswersArray.put(JSONArray(answers))
+            }
+            questionJson.put("blankAnswers", blankAnswersArray)
+        }
 
         val imagesArray = JSONArray()
         question.images.forEach { image ->
