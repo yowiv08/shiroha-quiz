@@ -28,7 +28,6 @@ assignees: ""
 
 - [ ] 原生 Android App
 - [ ] Web 版（浏览器 / GitHub Pages）
-- [ ] WebView 壳过渡版（旧方案，只有明确使用时才选）
 - [ ] 双端都需要
 - [ ] 不确定
 

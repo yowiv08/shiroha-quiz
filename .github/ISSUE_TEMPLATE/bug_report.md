@@ -25,7 +25,7 @@ assignees: ""
 - 系统：
 - Shiroha Quiz 版本号：
 - 设备型号：
-- Android 系统版本（仅原生 Android App / WebView 壳需要）：
+- Android 系统版本（仅原生 Android App 需要）：
 - 浏览器版本（仅 Web 版需要）：
 
 ## 使用端 / 平台
@@ -34,10 +34,9 @@ assignees: ""
 
 - [ ] 原生 Android App
 - [ ] Web 版（浏览器 / GitHub Pages）
-- [ ] WebView 壳过渡版（旧方案，只有明确使用时才选）
 - [ ] 不确定
 
-如果是在手机安装包里遇到问题，通常请选择“原生 Android App”，不要写成 Web 版或 WebView 壳。
+如果是在手机安装包里遇到问题，通常请选择“原生 Android App”，不要写成 Web 版。
 
 ## 补充信息
 
