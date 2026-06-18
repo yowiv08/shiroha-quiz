@@ -1,5 +1,3 @@
 actual/
 runner/build/
 runner/.gradle/
-run-external-regression.ps1
-tools/

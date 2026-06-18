@@ -12,6 +12,7 @@ import kotlin.io.path.writeText
 private val root: Path = Path.of("..").toAbsolutePath().normalize()
 private val manifest: Path = root.resolve("manifest.json")
 private val actual: Path = root.resolve("actual")
+private val expectedDir: Path = root.resolve("expected")
 
 private enum class CaseMode {
     SINGLE,
@@ -21,16 +22,25 @@ private enum class CaseMode {
 private data class RegressionCase(
     val id: String,
     val mode: CaseMode,
+    val expected: String,
     val sample: String? = null,
     val questionSample: String? = null,
     val answerSample: String? = null
 )
 
+private data class MinimalCaseResult(
+    val id: String,
+    val passed: Boolean,
+    val messages: List<String>
+)
+
 fun main() {
     actual.createDirectories()
     val cases = readManifestCases()
+    validateExpectedManifestConsistency(cases)
     val completed = cases.map { case ->
-        case.id to runCase(case)
+        val result = runCase(case)
+        case.id to compareMinimal(case, result)
     }
 
     val indexJson = buildString {
@@ -48,6 +58,17 @@ fun main() {
         append("}\n")
     }
     actual.resolve("index.json").writeText(indexJson, Charsets.UTF_8)
+    writeRunnerSummary(completed.map { it.second })
+
+    val failed = completed.map { it.second }.filterNot { it.passed }
+    println("runner cases=${completed.size} passed=${completed.size - failed.size} failed=${failed.size}")
+    failed.forEach { result ->
+        println("RUNNER_FAIL ${result.id}")
+        result.messages.forEach { message -> println("  - $message") }
+    }
+    if (failed.isNotEmpty()) {
+        error("原生解析器外部回归最小对比未通过：${failed.size} 个用例失败")
+    }
 }
 
 private fun runCase(case: RegressionCase): ImportResult {
@@ -93,6 +114,7 @@ private fun readManifestCases(): List<RegressionCase> {
     return blocks.map { block ->
         val id = requireStringField(block, "id")
         val modeText = readStringField(block, "mode")
+        val expected = requireStringField(block, "expected")
         val sample = readStringField(block, "sample")
         val questionSample = readStringField(block, "questionSample")
         val answerSample = readStringField(block, "answerSample")
@@ -100,10 +122,33 @@ private fun readManifestCases(): List<RegressionCase> {
         RegressionCase(
             id = id,
             mode = mode,
+            expected = expected,
             sample = sample,
             questionSample = questionSample,
             answerSample = answerSample
         )
+    }
+}
+
+private fun validateExpectedManifestConsistency(cases: List<RegressionCase>) {
+    val ids = mutableSetOf<String>()
+    val declaredExpected = mutableSetOf<Path>()
+    cases.forEach { case ->
+        if (!ids.add(case.id)) error("manifest.json 中存在重复用例 id：${case.id}")
+        val expectedPath = resolveUnderRoot(case.expected)
+        if (!declaredExpected.add(expectedPath)) error("manifest.json 中重复引用 expected：${case.expected}")
+    }
+
+    val expectedFiles = Files.list(expectedDir).use { stream ->
+        stream
+            .filter { path -> Files.isRegularFile(path) && path.fileName.toString().endsWith(".json") }
+            .map { path -> path.toAbsolutePath().normalize() }
+            .toList()
+            .toSet()
+    }
+    val orphanExpected = expectedFiles - declaredExpected
+    if (orphanExpected.isNotEmpty()) {
+        error("expected 目录存在未被 manifest 声明的孤立文件：" + orphanExpected.joinToString { it.fileName.toString() })
     }
 }
 
@@ -223,6 +268,88 @@ private fun resolveUnderRoot(relativePath: String): Path {
         error("样例文件不存在：$relativePath")
     }
     return path
+}
+
+private fun compareMinimal(case: RegressionCase, result: ImportResult): MinimalCaseResult {
+    val expectedPath = resolveUnderRoot(case.expected)
+    val expectedJson = expectedPath.readText(Charsets.UTF_8)
+    val expectedId = readStringField(expectedJson, "id")
+    val messages = mutableListOf<String>()
+    if (expectedId != null && expectedId != case.id) {
+        messages += "expected 文件 id 不匹配：实际 $expectedId，manifest 为 ${case.id}"
+    }
+
+    val expectedQuestionCount = readIntField(expectedJson, "questionCount")
+    if (expectedQuestionCount != null && result.questions.size != expectedQuestionCount) {
+        messages += "题目数量不匹配：实际 ${result.questions.size}，期望 $expectedQuestionCount"
+    }
+
+    val expectedAnsweredCount = readIntField(expectedJson, "answeredCount")
+    val actualAnsweredCount = result.questions.count { it.answer.isNotEmpty() }
+    if (expectedAnsweredCount != null && actualAnsweredCount != expectedAnsweredCount) {
+        messages += "已识别答案数量不匹配：实际 $actualAnsweredCount，期望 $expectedAnsweredCount"
+    }
+
+    val expectedWarningsMax = readIntField(expectedJson, "warningsMax")
+    if (expectedWarningsMax != null && result.warnings.size > expectedWarningsMax) {
+        messages += "警告数量过多：实际 ${result.warnings.size}，期望不超过 $expectedWarningsMax"
+    }
+
+    val expectedTypeCounts = readTypeCounts(expectedJson)
+    if (expectedTypeCounts.isNotEmpty()) {
+        val actualTypeCounts = result.questions.groupingBy { it.type.name }.eachCount().toSortedMap()
+        if (actualTypeCounts != expectedTypeCounts) {
+            messages += "题型分布不匹配：实际 $actualTypeCounts，期望 $expectedTypeCounts"
+        }
+    }
+
+    return MinimalCaseResult(
+        id = case.id,
+        passed = messages.isEmpty(),
+        messages = messages
+    )
+}
+
+private fun readIntField(jsonObject: String, name: String): Int? {
+    val pattern = Regex("\\\"${Regex.escape(name)}\\\"\\s*:\\s*(-?\\d+)")
+    return pattern.find(jsonObject)?.groupValues?.getOrNull(1)?.toIntOrNull()
+}
+
+private fun readTypeCounts(jsonObject: String): Map<String, Int> {
+    val block = Regex("\\\"typeCounts\\\"\\s*:\\s*\\{([^}]*)}").find(jsonObject)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?: return emptyMap()
+    return Regex("\\\"([^\\\"]+)\\\"\\s*:\\s*(-?\\d+)")
+        .findAll(block)
+        .associate { match -> match.groupValues[1] to match.groupValues[2].toInt() }
+        .toSortedMap()
+}
+
+private fun writeRunnerSummary(results: List<MinimalCaseResult>) {
+    val failed = results.filterNot { it.passed }
+    val summaryJson = buildString {
+        append("{\n")
+        append("  \"total\": ").append(results.size).append(",\n")
+        append("  \"passed\": ").append(results.size - failed.size).append(",\n")
+        append("  \"failed\": ").append(failed.size).append(",\n")
+        append("  \"cases\": [\n")
+        results.forEachIndexed { index, result ->
+            append("    {\"id\":\"").append(escape(result.id))
+                .append("\",\"passed\":").append(result.passed)
+                .append(",\"messages\":[")
+            result.messages.forEachIndexed { messageIndex, message ->
+                if (messageIndex > 0) append(",")
+                append("\"").append(escape(message)).append("\"")
+            }
+            append("]}")
+            if (index != results.lastIndex) append(',')
+            append('\n')
+        }
+        append("  ]\n")
+        append("}\n")
+    }
+    actual.resolve("runner-summary.json").writeText(summaryJson, Charsets.UTF_8)
 }
 
 private fun toActualJson(id: String, mode: String, result: ImportResult): String {

@@ -61,6 +61,7 @@ apps/web.zip
 # Added by source-upload script
 source-upload.ps1
 tools/
+!test/native-parser-regression/tools/
 
 # Local test data
 test/*.docx

@@ -142,10 +142,12 @@ object QuestionImportAssetExtractor {
                     if (entry.isDirectory) continue
                     if (size >= maxEntries) break
                     val name = SafeZipReader.normalizeEntryName(entry.name)
-                    val data = SafeZipReader.readEntryBytes(zip, entry, maxEntrySize)
-                    if (totalSize + data.size > maxTotalSize) {
-                        throw IllegalArgumentException("ZIP total size exceeded.")
-                    }
+                    val data = SafeZipReader.readEntryBytes(
+                        zip = zip,
+                        entry = entry,
+                        maxSize = maxEntrySize,
+                        maxTotalRemaining = maxTotalSize - totalSize
+                    )
                     totalSize += data.size
                     add(RawZipEntry(name, data))
                 }
@@ -228,28 +230,36 @@ object QuestionImportAssetExtractor {
         val originalHeight = bounds.outHeight.takeIf { it > 0 }
         val maxDimension = max(originalWidth ?: 0, originalHeight ?: 0)
 
-        val shouldKeepOriginal = bytes.size <= 1_200_000 && maxDimension <= 1800
+        val shouldKeepOriginal = bytes.size <= 800_000 && maxDimension <= 1400
         if (shouldKeepOriginal || originalWidth == null || originalHeight == null) {
             return ProcessedImage(bytes, ext, originalWidth, originalHeight)
         }
 
-        val targetMax = 1600
+        val targetMax = 1200
         var sampleSize = 1
         while (maxDimension / sampleSize > targetMax * 2) sampleSize *= 2
         val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
-            ?: return ProcessedImage(bytes, ext, originalWidth, originalHeight)
+        val decoded = try {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
+        } catch (_: OutOfMemoryError) {
+            null
+        } ?: return ProcessedImage(bytes, ext, originalWidth, originalHeight)
 
         val scale = targetMax.toFloat() / max(decoded.width, decoded.height).toFloat()
-        val scaled = if (scale < 1f) {
-            Bitmap.createScaledBitmap(
-                decoded,
-                (decoded.width * scale).roundToInt().coerceAtLeast(1),
-                (decoded.height * scale).roundToInt().coerceAtLeast(1),
-                true
-            )
-        } else {
-            decoded
+        val scaled = try {
+            if (scale < 1f) {
+                Bitmap.createScaledBitmap(
+                    decoded,
+                    (decoded.width * scale).roundToInt().coerceAtLeast(1),
+                    (decoded.height * scale).roundToInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                decoded
+            }
+        } catch (_: OutOfMemoryError) {
+            decoded.recycle()
+            return ProcessedImage(bytes, ext, originalWidth, originalHeight)
         }
 
         val output = ByteArrayOutputStream()

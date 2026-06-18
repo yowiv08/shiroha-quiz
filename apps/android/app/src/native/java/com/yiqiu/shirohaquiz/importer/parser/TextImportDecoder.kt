@@ -6,6 +6,8 @@ import java.util.Locale
 import java.util.zip.ZipInputStream
 
 object TextImportDecoder {
+    private const val MAX_OMML_DEPTH = 32
+
     sealed class DecodeResult {
         data class Success(val text: String) : DecodeResult()
         data class Failure(
@@ -236,32 +238,33 @@ object TextImportDecoder {
         }
     }
 
-    private fun extractOmmlText(xml: String): String {
+    private fun extractOmmlText(xml: String, depth: Int = 0): String {
+        if (depth > MAX_OMML_DEPTH) return extractPlainTextFromXml(xml)
         var working = xml
         working = replaceOmmlScriptBlock(working, "sSubSup") { block ->
-            val base = extractOmmlChildText(block, "e")
-            val sub = convertScript(extractOmmlChildText(block, "sub"), ScriptStyle.Subscript)
-            val sup = convertScript(extractOmmlChildText(block, "sup"), ScriptStyle.Superscript)
+            val base = extractOmmlChildText(block, "e", depth + 1)
+            val sub = convertScript(extractOmmlChildText(block, "sub", depth + 1), ScriptStyle.Subscript)
+            val sup = convertScript(extractOmmlChildText(block, "sup", depth + 1), ScriptStyle.Superscript)
             base + sub + sup
         }
         working = replaceOmmlScriptBlock(working, "sSup") { block ->
-            val base = extractOmmlChildText(block, "e")
-            val sup = convertScript(extractOmmlChildText(block, "sup"), ScriptStyle.Superscript)
+            val base = extractOmmlChildText(block, "e", depth + 1)
+            val sup = convertScript(extractOmmlChildText(block, "sup", depth + 1), ScriptStyle.Superscript)
             base + sup
         }
         working = replaceOmmlScriptBlock(working, "sSub") { block ->
-            val base = extractOmmlChildText(block, "e")
-            val sub = convertScript(extractOmmlChildText(block, "sub"), ScriptStyle.Subscript)
+            val base = extractOmmlChildText(block, "e", depth + 1)
+            val sub = convertScript(extractOmmlChildText(block, "sub", depth + 1), ScriptStyle.Subscript)
             base + sub
         }
         working = Regex("""<m:f\b[\s\S]*?</m:f>""").replace(working) { match ->
-            val numerator = extractOmmlChildText(match.value, "num")
-            val denominator = extractOmmlChildText(match.value, "den")
+            val numerator = extractOmmlChildText(match.value, "num", depth + 1)
+            val denominator = extractOmmlChildText(match.value, "den", depth + 1)
             if (numerator.isNotBlank() && denominator.isNotBlank()) "($numerator)/($denominator)" else extractPlainTextFromXml(match.value)
         }
         working = Regex("""<m:rad\b[\s\S]*?</m:rad>""").replace(working) { match ->
-            val degree = extractOmmlChildText(match.value, "deg")
-            val radicand = extractOmmlChildText(match.value, "e")
+            val degree = extractOmmlChildText(match.value, "deg", depth + 1)
+            val radicand = extractOmmlChildText(match.value, "e", depth + 1)
             when {
                 degree.isNotBlank() && radicand.isNotBlank() -> "${degree}\u221A($radicand)"
                 radicand.isNotBlank() -> "\u221A($radicand)"
@@ -269,13 +272,13 @@ object TextImportDecoder {
             }
         }
         working = Regex("""<m:func\b[\s\S]*?</m:func>""").replace(working) { match ->
-            formatOmmlFunction(match.value).ifBlank { extractPlainTextFromXml(match.value) }
+            formatOmmlFunction(match.value, depth + 1).ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:nary\b[\s\S]*?</m:nary>""").replace(working) { match ->
             val operator = extractOmmlNaryOperator(match.value).ifBlank { "∑" }
-            val sub = extractOmmlChildText(match.value, "sub")
-            val sup = extractOmmlChildText(match.value, "sup")
-            val expression = extractOmmlChildText(match.value, "e")
+            val sub = extractOmmlChildText(match.value, "sub", depth + 1)
+            val sup = extractOmmlChildText(match.value, "sup", depth + 1)
+            val expression = extractOmmlChildText(match.value, "e", depth + 1)
             buildString {
                 append(operator)
                 if (sub.isNotBlank()) append(convertScript(sub, ScriptStyle.Subscript))
@@ -284,8 +287,8 @@ object TextImportDecoder {
             }.ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:limLow\b[\s\S]*?</m:limLow>""").replace(working) { match ->
-            val base = extractOmmlChildText(match.value, "e")
-            val limit = extractOmmlChildText(match.value, "lim")
+            val base = extractOmmlChildText(match.value, "e", depth + 1)
+            val limit = extractOmmlChildText(match.value, "lim", depth + 1)
             when {
                 base.isNotBlank() && limit.isNotBlank() -> base + convertScript(limit, ScriptStyle.Subscript)
                 base.isNotBlank() -> base
@@ -293,8 +296,8 @@ object TextImportDecoder {
             }
         }
         working = Regex("""<m:limUpp\b[\s\S]*?</m:limUpp>""").replace(working) { match ->
-            val base = extractOmmlChildText(match.value, "e")
-            val limit = extractOmmlChildText(match.value, "lim")
+            val base = extractOmmlChildText(match.value, "e", depth + 1)
+            val limit = extractOmmlChildText(match.value, "lim", depth + 1)
             when {
                 base.isNotBlank() && limit.isNotBlank() -> base + convertScript(limit, ScriptStyle.Superscript)
                 base.isNotBlank() -> base
@@ -302,16 +305,16 @@ object TextImportDecoder {
             }
         }
         working = Regex("""<m:m\b[\s\S]*?</m:m>""").replace(working) { match ->
-            formatOmmlMatrix(match.value).ifBlank { extractPlainTextFromXml(match.value) }
+            formatOmmlMatrix(match.value, depth + 1).ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:acc\b[\s\S]*?</m:acc>""").replace(working) { match ->
-            formatOmmlAccent(match.value).ifBlank { extractPlainTextFromXml(match.value) }
+            formatOmmlAccent(match.value, depth + 1).ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:bar\b[\s\S]*?</m:bar>""").replace(working) { match ->
-            formatOmmlBar(match.value).ifBlank { extractPlainTextFromXml(match.value) }
+            formatOmmlBar(match.value, depth + 1).ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:d\b[\s\S]*?</m:d>""").replace(working) { match ->
-            formatOmmlDelimiter(match.value).ifBlank { extractPlainTextFromXml(match.value) }
+            formatOmmlDelimiter(match.value, depth + 1).ifBlank { extractPlainTextFromXml(match.value) }
         }
         working = Regex("""<m:chr\b[^>]*(?:m:val|val)="([^"]+)"[^>]*/?>""").replace(working) { match ->
             decodeXmlEntities(match.groupValues[1])
@@ -329,18 +332,18 @@ object TextImportDecoder {
             .orEmpty()
     }
 
-    private fun formatOmmlDelimiter(xml: String): String {
-        val content = extractOmmlChildText(xml, "e")
+    private fun formatOmmlDelimiter(xml: String, depth: Int = 0): String {
+        val content = extractOmmlChildText(xml, "e", depth + 1)
         if (content.isBlank()) return ""
         val begin = extractOmmlControlValue(xml, "begChr").ifBlank { "(" }
         val end = extractOmmlControlValue(xml, "endChr").ifBlank { matchingEndDelimiter(begin) }
         return begin + content + end
     }
 
-    private fun formatOmmlMatrix(xml: String): String {
+    private fun formatOmmlMatrix(xml: String, depth: Int = 0): String {
         val rows = Regex("""<m:mr\b[\s\S]*?</m:mr>""")
             .findAll(xml)
-            .map { rowMatch -> extractOmmlChildTexts(rowMatch.value, "e").filter { it.isNotBlank() } }
+            .map { rowMatch -> extractOmmlChildTexts(rowMatch.value, "e", depth + 1).filter { it.isNotBlank() } }
             .filter { it.isNotEmpty() }
             .toList()
         if (rows.isEmpty()) return ""
@@ -354,8 +357,8 @@ object TextImportDecoder {
         }
     }
 
-    private fun formatOmmlAccent(xml: String): String {
-        val base = extractOmmlChildText(xml, "e")
+    private fun formatOmmlAccent(xml: String, depth: Int = 0): String {
+        val base = extractOmmlChildText(xml, "e", depth + 1)
         if (base.isBlank()) return ""
         val accent = extractOmmlControlValue(xml, "chr")
         return when (accent) {
@@ -370,16 +373,16 @@ object TextImportDecoder {
         }
     }
 
-    private fun formatOmmlBar(xml: String): String {
-        val base = extractOmmlChildText(xml, "e")
+    private fun formatOmmlBar(xml: String, depth: Int = 0): String {
+        val base = extractOmmlChildText(xml, "e", depth + 1)
         if (base.isBlank()) return ""
         val position = extractOmmlControlValue(xml, "pos").lowercase(Locale.ROOT)
         return if (position == "bot" || position == "bottom") base + "̲" else base + "̄"
     }
 
-    private fun formatOmmlFunction(xml: String): String {
-        val rawName = extractOmmlChildText(xml, "fName").trim()
-        val argument = extractOmmlChildText(xml, "e").trim()
+    private fun formatOmmlFunction(xml: String, depth: Int = 0): String {
+        val rawName = extractOmmlChildText(xml, "fName", depth + 1).trim()
+        val argument = extractOmmlChildText(xml, "e", depth + 1).trim()
         if (rawName.isBlank()) return argument
         val normalizedName = normalizeOmmlFunctionName(rawName)
         if (argument.isBlank()) return normalizedName
@@ -436,7 +439,8 @@ object TextImportDecoder {
         return Regex("""<m:$tag\b[\s\S]*?</m:$tag>""").replace(xml) { match -> replacement(match.value) }
     }
 
-    private fun extractOmmlChildText(xml: String, childName: String): String {
+    private fun extractOmmlChildText(xml: String, childName: String, depth: Int = 0): String {
+        if (depth > MAX_OMML_DEPTH) return extractPlainTextFromXml(xml)
         val childXml = Regex("""<m:$childName\b[\s\S]*?</m:$childName>""")
             .find(xml)
             ?.value
@@ -444,17 +448,18 @@ object TextImportDecoder {
         val inner = childXml
             .replace(Regex("""^<m:$childName\b[^>]*>"""), "")
             .replace(Regex("""</m:$childName>$"""), "")
-        return extractOmmlText(inner)
+        return extractOmmlText(inner, depth)
     }
 
-    private fun extractOmmlChildTexts(xml: String, childName: String): List<String> {
+    private fun extractOmmlChildTexts(xml: String, childName: String, depth: Int = 0): List<String> {
+        if (depth > MAX_OMML_DEPTH) return listOf(extractPlainTextFromXml(xml)).filter { it.isNotBlank() }
         return Regex("""<m:$childName\b[\s\S]*?</m:$childName>""")
             .findAll(xml)
             .map { match ->
                 val inner = match.value
                     .replace(Regex("""^<m:$childName\b[^>]*>"""), "")
                     .replace(Regex("""</m:$childName>$"""), "")
-                extractOmmlText(inner)
+                extractOmmlText(inner, depth)
             }
             .toList()
     }
@@ -666,10 +671,12 @@ object TextImportDecoder {
                     if (entry.isDirectory) continue
                     if (size >= maxEntries) break
                     val name = SafeZipReader.normalizeEntryName(entry.name)
-                    val data = SafeZipReader.readEntryBytes(zip, entry, maxEntrySize)
-                    if (totalSize + data.size > maxTotalSize) {
-                        throw IllegalArgumentException("ZIP total size exceeded.")
-                    }
+                    val data = SafeZipReader.readEntryBytes(
+                        zip = zip,
+                        entry = entry,
+                        maxSize = maxEntrySize,
+                        maxTotalRemaining = maxTotalSize - totalSize
+                    )
                     totalSize += data.size
                     add(RawZipEntry(name, data))
                 }

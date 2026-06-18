@@ -26,14 +26,21 @@ object SafeZipReader {
     fun readEntryBytes(
         zip: ZipInputStream,
         entry: ZipEntry,
-        maxSize: Long
+        maxSize: Long,
+        maxTotalRemaining: Long? = null
     ): ByteArray {
         require(maxSize > 0) { "ZIP entry size limit must be positive." }
+        maxTotalRemaining?.let {
+            require(it > 0) { "ZIP total remaining size must be positive." }
+        }
         if (entry.size > maxSize) {
             throw IllegalArgumentException("ZIP entry too large: ${entry.name}")
         }
+        if (maxTotalRemaining != null && entry.size > maxTotalRemaining) {
+            throw IllegalArgumentException("ZIP total size exceeded.")
+        }
 
-        val output = ByteArrayOutputStream()
+        val output = ByteArrayOutputStream(initialCapacity(entry, maxSize, maxTotalRemaining))
         val buffer = ByteArray(8192)
         var total = 0L
         while (true) {
@@ -42,9 +49,18 @@ object SafeZipReader {
             if (total + read > maxSize) {
                 throw IllegalArgumentException("ZIP entry too large: ${entry.name}")
             }
+            if (maxTotalRemaining != null && total + read > maxTotalRemaining) {
+                throw IllegalArgumentException("ZIP total size exceeded.")
+            }
             output.write(buffer, 0, read)
             total += read
         }
         return output.toByteArray()
+    }
+
+    private fun initialCapacity(entry: ZipEntry, maxSize: Long, maxTotalRemaining: Long?): Int {
+        val knownSize = entry.size.takeIf { it > 0 } ?: 8192L
+        val boundedSize = listOfNotNull(knownSize, maxSize, maxTotalRemaining).minOrNull() ?: 8192L
+        return boundedSize.coerceAtMost(64L * 1024L).toInt().coerceAtLeast(1024)
     }
 }

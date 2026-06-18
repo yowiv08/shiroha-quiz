@@ -7,6 +7,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -119,6 +120,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -253,10 +255,16 @@ fun ImportScreen(
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null || isImportBusy) return@rememberLauncherForActivityResult
         selectedFileName = queryFileName(context, uri)
+        val fileSizeCheck = checkImportFileSize(context, uri, selectedFileName)
+        if (fileSizeCheck.blockMessage != null) {
+            statusText = fileSizeCheck.blockMessage
+            isStatusWarn = true
+            return@rememberLauncherForActivityResult
+        }
         isImportBusy = true
         busyText = "正在读取题库文件……"
-        statusText = "正在读取：$selectedFileName"
-        isStatusWarn = false
+        statusText = fileSizeCheck.warnMessage ?: "正在读取：$selectedFileName"
+        isStatusWarn = fileSizeCheck.warnMessage != null
         clearParsedResult(clearImages = true)
         importScope.launch {
             val result = runCatching {
@@ -296,10 +304,16 @@ fun ImportScreen(
     val answerFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null || isImportBusy) return@rememberLauncherForActivityResult
         selectedAnswerFileName = queryFileName(context, uri)
+        val fileSizeCheck = checkImportFileSize(context, uri, selectedAnswerFileName)
+        if (fileSizeCheck.blockMessage != null) {
+            statusText = fileSizeCheck.blockMessage
+            isStatusWarn = true
+            return@rememberLauncherForActivityResult
+        }
         isImportBusy = true
         busyText = "正在读取答案文件……"
-        statusText = "正在读取答案文件：$selectedAnswerFileName"
-        isStatusWarn = false
+        statusText = fileSizeCheck.warnMessage ?: "正在读取答案文件：$selectedAnswerFileName"
+        isStatusWarn = fileSizeCheck.warnMessage != null
         importScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
@@ -1517,6 +1531,8 @@ private const val LARGE_TEXT_PREVIEW_THRESHOLD = 5000
 private const val AI_WARNING_ID_MARKER = "__AI_QID__="
 private const val IMPORT_WARNING_ID_MARKER = "__IMPORT_QID__="
 private const val LARGE_TEXT_PREVIEW_CHARS = 1200
+private const val IMPORT_FILE_WARN_BYTES = 30L * 1024L * 1024L
+private const val IMPORT_FILE_BLOCK_BYTES = 80L * 1024L * 1024L
 
 @Composable
 private fun LargeImportTextPreview(
@@ -3627,6 +3643,45 @@ private fun queryFileName(context: Context, uri: Uri): String {
         }
     }
     return uri.lastPathSegment ?: "未命名文件"
+}
+
+private data class ImportFileSizeCheck(
+    val warnMessage: String? = null,
+    val blockMessage: String? = null
+)
+
+private fun checkImportFileSize(context: Context, uri: Uri, fileName: String): ImportFileSizeCheck {
+    val size = queryFileSize(context, uri) ?: return ImportFileSizeCheck()
+    return when {
+        size > IMPORT_FILE_BLOCK_BYTES -> ImportFileSizeCheck(
+            blockMessage = "文件过大：$fileName（约 ${formatFileSize(size)}）。建议先压缩图片、拆分题库，或改用标准文本/Excel/JSON 导入。"
+        )
+        size > IMPORT_FILE_WARN_BYTES -> ImportFileSizeCheck(
+            warnMessage = "文件较大：$fileName（约 ${formatFileSize(size)}），含大图或复杂 Word 内容时可能读取较慢。"
+        )
+        else -> ImportFileSizeCheck()
+    }
+}
+
+private fun queryFileSize(context: Context, uri: Uri): Long? {
+    val cursor = context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+    cursor?.use {
+        val index = it.getColumnIndex(OpenableColumns.SIZE)
+        if (index >= 0 && it.moveToFirst()) {
+            val size = it.getLong(index)
+            if (size > 0) return size
+        }
+    }
+    return null
+}
+
+private fun formatFileSize(bytes: Long): String {
+    val mb = bytes.toDouble() / 1024.0 / 1024.0
+    return if (mb >= 10) {
+        "${mb.roundToInt()} MB"
+    } else {
+        String.format(Locale.ROOT, "%.1f MB", mb)
+    }
 }
 
 private fun readImportedContent(
