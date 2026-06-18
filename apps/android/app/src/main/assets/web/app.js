@@ -1,5 +1,5 @@
 (function(){
-const APP_VERSION='v28.2';
+const APP_VERSION='V35：分组练习与学习体验优化版';
 const CURRENT_SCHEMA_VERSION=1;
 const KEY='shiroha_quiz_state_v28_4_c1';
 const LEGACY_KEYS=[];

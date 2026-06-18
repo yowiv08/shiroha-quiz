@@ -819,10 +819,31 @@ private fun ActiveExamPanel(
     }
 
     GlassCard(modifier = questionCardModifier) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip("第 ${QuizRepository.examIndex + 1} / ${QuizRepository.examQuestions.size} 题", selected = true)
-            StatusChip(typeLabel(questionType))
-            StatusChip("剩余 ${formatExamSeconds(QuizRepository.examRemainingSeconds)}")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                StatusChip(
+                    "${QuizRepository.examIndex + 1}/${QuizRepository.examQuestions.size}",
+                    selected = true
+                )
+            }
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                StatusChip(typeLabel(questionType))
+            }
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                StatusChip(formatExamSeconds(QuizRepository.examRemainingSeconds))
+            }
         }
         Spacer(Modifier.height(18.dp))
         Text(
