@@ -21,8 +21,8 @@ android {
         create("web") {
             dimension = "variant"
             applicationId = "com.yiqiu.shirohaquiz"
-            versionCode = 37
-            versionName = "0.7.4-alpha"
+            versionCode = 38
+            versionName = "0.7.5-alpha"
         }
         create("native") {
             dimension = "variant"
