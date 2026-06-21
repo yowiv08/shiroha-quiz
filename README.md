@@ -212,8 +212,8 @@ Shiroha Quiz 的题库和记录保存在本地存储中（Web 端使用浏览器
 详细说明：
 
 - [所有支持的题库导入格式](docs/题库导入格式支持说明/Shiroha_Quiz_题库导入格式支持说明.md)
-- [题库导入策略与使用指南](docs/题库导入策略与使用指南/Shiroha Quiz 题库导入策略与使用指南.md)
-- [题目导入解析方法说明](docs/题目导入解析方法说明/Shiroha Quiz 题目导入解析方法说明.md)
+- [题库导入策略与使用指南](docs/题库导入策略与使用指南/Shiroha%20Quiz%20题库导入策略与使用指南.md)
+- [题目导入解析方法说明](docs/题目导入解析方法说明/Shiroha%20Quiz%20题目导入解析方法说明.md)
 - 标准题库格式示例：[Markdown](docs/标准题库格式示例/标准题库格式示例.md) / [Word](docs/标准题库格式示例/标准题库格式示例.docx) / [PDF](docs/标准题库格式示例/标准题库格式示例.pdf)
 
 如果原题库格式非常混乱，可以先做一次格式清洗再导入。国内用户可优先使用 DeepSeek、GLM / 智谱清言等工具辅助整理；如果可以稳定使用海外模型，也推荐 ChatGPT、Claude。请注意，隐私风险主要来自“把题库上传到外部 AI 工具清洗”，不是 Shiroha Quiz 本地导入本身。清洗目标只是统一题号、选项、答案和解析格式，不能改题意、不能编造答案，无法确认的答案应标为“待确认”。
@@ -380,7 +380,14 @@ cd test\native-parser-regression
 
 ## 开发计划
 
-历史开发计划已归档至 `docs/archive/`。当前开发重点见 [原生开发进度](docs/native/原生开发进度.md)。
+历史开发计划已归档至 `docs/archive/`，当前功能状态以本 README、[CHANGELOG](./CHANGELOG.md)、[GitHub Releases](https://github.com/reiqr/shiroha-quiz/releases) 和 [原生 Android 开发进度](docs/native/原生开发进度.md) 为准。
+
+开发与维护文档入口：
+
+- [文档索引](docs/README.md)
+- [原生 Android 开发进度](docs/native/原生开发进度.md)
+- [架构说明](docs/universal/架构说明.md)
+- [解析器回归测试说明](docs/native/解析器回归测试说明.md)
 
 ---
 
